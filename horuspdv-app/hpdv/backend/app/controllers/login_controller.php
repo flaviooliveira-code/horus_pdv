@@ -99,10 +99,10 @@ if (!isset($csrf_token) || $csrf_token != $_SESSION['csrf_token']) {
                 //credenciais de acesso válidas
                 //realizar a autenticação
                 //redirecionar para a página principal
+                session_regenerate_id(true);
                 $_SESSION['csrf_token'] = $csrf_token;
                 $_SESSION['id_user'] = $user_exists->id;
                 $_SESSION['access_user'] = $access_user;
-                $_SESSION['access_password'] = $access_password;
                 $_SESSION['name_user'] = $user_exists->nome;
                 $_SESSION['email_user'] = $user_exists->email;
                 $_SESSION['type_permission'] = $user_exists->tipo_permissao;

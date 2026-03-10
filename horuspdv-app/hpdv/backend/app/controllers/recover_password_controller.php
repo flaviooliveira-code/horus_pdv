@@ -28,11 +28,14 @@ $accessUser = $access_credentials_decode->accessUser;
 $model_user->__set("cpf", $cpf);
 $model_user->__set("usuario_acesso", $accessUser);
 
+$result_user_and_password = $service_user->recoverPassword();
+
 //se existir o usuário e o cpf no banco de dados que o usuário informou
-if ($service_user->recoverPassword()) {
+if ($result_user_and_password) {
 
     //gerar o token de recuperação de senha para envio no email do usuário
-    $token = uniqid();
+    $token = bin2hex(random_bytes(32));
+    $token_hash = hash('sha256', $token);
 
     //horario de geração do token -> São Paulo
     date_default_timezone_set('America/Sao_Paulo');
@@ -41,21 +44,21 @@ if ($service_user->recoverPassword()) {
     //salvar esse token na tabela de usuário para verificar se o token é válido
     $model_user->__set('cpf', $cpf);
     $model_user->__set('usuario_acesso', $accessUser);
-    $model_user->__set('token_reset_senha_acesso', $token);
+    $model_user->__set('token_reset_senha_acesso', $token_hash);
     $model_user->__set('horario_geracao_token', $date_gerenate_token);
 
     //salvar o token no banco de dados
     $saveTokenResetPassword = $service_user->saveTokenResetPassword();
     if ($saveTokenResetPassword) {
 
-        $result_user_and_password = $service_user->recoverPassword();
         $user = $result_user_and_password->usuario_acesso;
         $email_recover = $result_user_and_password->email;
-        $token = $result_user_and_password->token_reset_senha_acesso;
 
         //criptografar o token para enviar no email
         $token_crypt = base64_encode($token);
         $user_crypt = base64_encode($user);
+        $base_url = rtrim(env('APP_BASE_URL', 'http://localhost'), '/');
+        $reset_password_url = $base_url . "/app/web/alterar-senha?u=$user_crypt&t=$token_crypt";
 
         //enviar o email para o usuário. Formato HTML
         $mensagem = "<html>
@@ -106,7 +109,7 @@ if ($service_user->recoverPassword()) {
 
         $mensagem .= "
                                 <p>Para alterar sua senha, clique no link abaixo:</p>
-                                <p><a  href=\"http://seudominio.com.br/hpdv.com.br/app/web/alterar-senha?u=$user_crypt&t=$token_crypt\">Alterar senha</a></p>
+                                <p><a href=\"$reset_password_url\">Alterar senha</a></p>
                                 <p>O link é válido por 10 minutos</p>
                                 <p>Atenciosamente,</p>
                                 <p>Equipe Hórus PDV</p>     
@@ -116,18 +119,31 @@ if ($service_user->recoverPassword()) {
                         </html>";
 
         //chamando a função do phpmailer
+        $smtp_host = env('SMTP_HOST');
+        $smtp_username = env('SMTP_USER');
+        $smtp_password = env('SMTP_PASS');
+        $smtp_port = (int) env('SMTP_PORT', 465);
+        $smtp_secure = env('SMTP_SECURE', 'ssl');
+        $smtp_auth = filter_var(env('SMTP_AUTH', 'true'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $mail_from = env('MAIL_FROM', $smtp_username ?: '');
+        $mail_from_name = env('MAIL_FROM_NAME', 'Hórus PDV');
+
+        if (empty($smtp_host) || empty($smtp_username) || empty($smtp_password) || empty($mail_from)) {
+            redirect(array("error" => "erro", "message" => "Configuração de SMTP ausente. Verifique o arquivo .env."));
+        }
+
         $mail = new PHPMailer\PHPMailer\PHPMailer();
         $mail->isSMTP(); // Não modifique
-        $mail->Host       = 'smtp.titan.email';  // SEU HOST (HOSPEDAGEM) - nesse caso deixei para o gmail
-        $mail->SMTPAuth   = true;                        // Manter em true
-        $mail->Username   = 'seuemail@aqui.com.br';
-        $mail->Password   = 'suasenha';
-        $mail->SMTPSecure = 'ssl';    //TLS OU SSL-VERIFICAR COM A HOSPEDAGEM
-        $mail->Port       = 465;     //TCP PORT, VERIFICAR COM A HOSPEDAGEM
+        $mail->Host = $smtp_host;
+        $mail->SMTPAuth = $smtp_auth === null ? true : $smtp_auth;
+        $mail->Username = $smtp_username;
+        $mail->Password = $smtp_password;
+        $mail->SMTPSecure = $smtp_secure;
+        $mail->Port = $smtp_port > 0 ? $smtp_port : 465;
         $mail->CharSet = 'UTF-8';    //DEFINE O CHARSET UTILIZADO
 
         //Recipients
-        $mail->setFrom('seuemail@aqui.com.br', 'Hórus PDV');  //DEVE SER O MESMO EMAIL DO USERNAME
+        $mail->setFrom($mail_from, $mail_from_name);
         $mail->addAddress($email_recover);     // QUAL EMAIL RECEBERÁ A MENSAGEM!
         //$mail->addBCC(''); //ADICIONANDO BCC
 

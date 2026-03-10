@@ -1,17 +1,27 @@
 <?php
+require_once __DIR__ . "/../config/env.php";
+loadEnv(dirname(__DIR__, 2));
 
 class DbConnection
 {
-    private $host = "localhost";
-    private $dbname = "pdv";
-    private $user = "root";
-    private $pass = "";
+    private $host;
+    private $dbname;
+    private $user;
+    private $pass;
+
+    public function __construct()
+    {
+        $this->host = env('DB_HOST', 'localhost');
+        $this->dbname = env('DB_NAME', 'pdv');
+        $this->user = env('DB_USER', 'root');
+        $this->pass = env('DB_PASS', '');
+    }
 
     public function getConnection()
     {
         try {
             $connect = new PDO(
-                "mysql:host=$this->host;dbname=$this->dbname",
+                "mysql:host=$this->host;dbname=$this->dbname;charset=utf8mb4",
                 "$this->user",
                 "$this->pass"
             );

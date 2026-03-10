@@ -11,12 +11,25 @@ function redirect($msg)
     exit();
 }
 
+function decode_if_base64($value)
+{
+    $decoded = base64_decode($value, true);
+    if ($decoded === false || $decoded === '') {
+        return $value;
+    }
+
+    return base64_encode($decoded) === $value ? $decoded : $value;
+}
+
 $passwords = json_encode($_POST);
 $new_passwords_decode = json_decode($passwords);
 $new_password = $new_passwords_decode->newPassword;
 $repeat_password = $new_passwords_decode->repeatPassword;
-$token = $new_passwords_decode->value;
-$user = $new_passwords_decode->atrribute;
+$token_raw = trim((string) $new_passwords_decode->value);
+$user_raw = trim((string) $new_passwords_decode->atrribute);
+
+$token = decode_if_base64($token_raw);
+$user = decode_if_base64($user_raw);
 
 if (!isset($new_password) || !isset($repeat_password) || empty($new_password) || empty($repeat_password)) {
     redirect(array("error" => "erro1", "message" => "Preencha todos os campos."));
@@ -32,24 +45,22 @@ if (!isset($new_password) || !isset($repeat_password) || empty($new_password) ||
     try {
         $conect->beginTransaction(); //begin transaction é usado para garantir que todas as operações sejam concluídas com sucesso
 
-        // testar o token gerado na págian de recuperação de senha, gravado  no banco de dados, com esse token que foi enviado pela página alterar-senha
-        $query = "SELECT token_reset_senha_acesso FROM tb_usuarios WHERE usuario_acesso = :usuario_acesso";
+        // validar o token recebido com o hash salvo no banco
+        $query = "SELECT token_reset_senha_acesso, horario_geracao_token FROM tb_usuarios WHERE usuario_acesso = :usuario_acesso";
         $stmt = $conect->prepare($query);
         $stmt->bindValue(':usuario_acesso', $user);
         $stmt->execute();
         $result_token = $stmt->fetch(PDO::FETCH_OBJ);
+        $token_hash = hash('sha256', $token);
 
-        if ($result_token->token_reset_senha_acesso != $token) {
+        if (
+            !$result_token ||
+            empty($result_token->token_reset_senha_acesso) ||
+            !hash_equals($result_token->token_reset_senha_acesso, $token_hash)
+        ) {
             $conect->rollBack();
             redirect(array("error" => "erro4", "message" => "Token inválido. A senha não pode ser alterada."));
         }
-
-        // verificar o horário de token, para certificar de que não passou do horário de limite
-        $query_token_limit = "SELECT horario_geracao_token FROM tb_usuarios WHERE usuario_acesso = :usuario_acesso";
-        $stmt = $conect->prepare($query_token_limit);
-        $stmt->bindValue(':usuario_acesso', $user);
-        $stmt->execute();
-        $result_token_limit = $stmt->fetch(PDO::FETCH_OBJ);
 
         #tempo de expiração do token
         $time_expire_token = 600; #10 minutos
@@ -58,18 +69,17 @@ if (!isset($new_password) || !isset($repeat_password) || empty($new_password) ||
         $date_now = strtotime(date('Y-m-d H:i:s'));
 
         // pegando o horário do token que foi salvo no banco e somando mais 10 minutos
-        $date_token = strtotime($result_token_limit->horario_geracao_token);
+        $date_token = strtotime($result_token->horario_geracao_token);
         $date_token = $date_token + $time_expire_token;
 
         // verificar se o horário atual é menor do que o horário do token + 10 minutos 
         if ($date_token >= $date_now) {
 
             //atualizar senha do usuário 
-            $query = "UPDATE tb_usuarios SET senha_usuario = :nova_senha WHERE usuario_acesso = :usuario_acesso AND token_reset_senha_acesso = :token_reset_senha_acesso";
+            $query = "UPDATE tb_usuarios SET senha_usuario = :nova_senha WHERE usuario_acesso = :usuario_acesso";
             $stmt = $conect->prepare($query);
             $stmt->bindValue(':nova_senha', $new_password_hash);
             $stmt->bindValue(':usuario_acesso', $user);
-            $stmt->bindValue(':token_reset_senha_acesso', $token);
             $stmt->execute();
             $result_update_password = $stmt->rowCount();
 
@@ -103,7 +113,9 @@ if (!isset($new_password) || !isset($repeat_password) || empty($new_password) ||
             redirect(array("error" => "erro5", "message" => "Token expirado. A senha não pode ser alterada."));
         }
     } catch (PDOException $e) {
-        $conexao->rollBack();
+        if ($conect->inTransaction()) {
+            $conect->rollBack();
+        }
         redirect(array("error" => "erro8", "message" => $e->getMessage()));
     }
 }
