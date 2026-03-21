@@ -66,8 +66,8 @@ CREATE TABLE `tb_licenca` (
   `id` int(10) UNSIGNED NOT NULL,
   `id_usuario` int(10) UNSIGNED NOT NULL,
   `data_ativacao_sistema` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `data_ultima_renovacao` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `data_proxima_renovacao` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `data_ultima_renovacao` timestamp NULL DEFAULT NULL,
+  `data_proxima_renovacao` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
@@ -244,4 +244,3 @@ ALTER TABLE `tb_vendas`
   ADD CONSTRAINT `tb_vendas_ibfk_1` FOREIGN KEY (`cliente`) REFERENCES `tb_clientes` (`id`),
   ADD CONSTRAINT `tb_vendas_ibfk_2` FOREIGN KEY (`produto`) REFERENCES `tb_produtos` (`id`);
 COMMIT;
-
