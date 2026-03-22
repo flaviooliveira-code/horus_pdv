@@ -313,7 +313,7 @@ export default function SupplierRegisterPage() {
         title="Cadastro de Fornecedor"
         description="Cadastro e manutenção de fornecedores com os campos do sistema legado."
         action={
-          <button type="button" onClick={openCreateDrawer} className="btn-primary inline-flex gap-2">
+          <button type="button" onClick={openCreateDrawer} className="btn-primary inline-flex items-center gap-2">
             <Plus size={16} />
             Novo fornecedor
           </button>

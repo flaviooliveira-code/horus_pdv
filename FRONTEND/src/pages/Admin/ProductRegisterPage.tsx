@@ -338,7 +338,7 @@ export default function ProductRegisterPage() {
         title="Cadastro de Produto"
         description="Cadastro e manutenção de produtos com os campos do sistema legado."
         action={
-          <button type="button" onClick={openCreateDrawer} className="btn-primary inline-flex gap-2">
+          <button type="button" onClick={openCreateDrawer} className="btn-primary inline-flex items-center gap-2">
             <Plus size={16} />
             Novo produto
           </button>
