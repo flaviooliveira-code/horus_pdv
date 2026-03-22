@@ -421,7 +421,7 @@ export default function ProductRegisterPage() {
       />
 
       <section className="card p-4 md:p-5">
-        <label className="relative block max-w-xl">
+        <label className="relative mx-auto block w-full max-w-xl">
           <Search
             size={16}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
