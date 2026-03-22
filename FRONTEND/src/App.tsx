@@ -40,6 +40,10 @@ type CurrentUser = {
 type ThemeMode = "light" | "dark";
 
 export default function App() {
+  const isStandalonePos =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("pdv") === "1";
+
   const isPageKey = (value: string): value is PageKey =>
     [
       "home",
@@ -59,6 +63,9 @@ export default function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<PageKey>(() => {
     if (typeof window === "undefined") return "home";
+    if (new URLSearchParams(window.location.search).get("pdv") === "1") {
+      return "vendas";
+    }
     const savedPage = window.localStorage.getItem(ACTIVE_PAGE_STORAGE_KEY);
     return savedPage && isPageKey(savedPage) ? savedPage : "home";
   });
@@ -156,13 +163,48 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (isStandalonePos) return;
     window.localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, activePage);
-  }, [activePage]);
+  }, [activePage, isStandalonePos]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", themeMode);
     window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    if (activePage === "vendas" && isStandalonePos) {
+      document.title = "Hórus PDV - Frente de Caixa";
+      return;
+    }
+    document.title = "Hórus PDV";
+  }, [activePage, isStandalonePos]);
+
+  if (activePage === "vendas") {
+    return (
+      <div className="min-h-screen bg-bg-primary text-text-primary font-sans">
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center text-text-secondary">
+              <LoadingBar />
+            </div>
+          }
+        >
+          <SalesStartPage
+            standalone={isStandalonePos}
+            onExit={() => {
+              if (isStandalonePos) {
+                window.close();
+                window.location.href = `${window.location.origin}${window.location.pathname}`;
+                return;
+              }
+              setActivePage("home");
+            }}
+          />
+        </Suspense>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-bg-primary text-text-primary font-sans">

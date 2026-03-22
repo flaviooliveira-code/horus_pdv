@@ -20,8 +20,12 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
+import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import { useEffect, useState, type ReactNode } from "react";
 import UserMenu from "./UserMenu";
+
+const POS_TAB_NAME = "horuspdv-pdv-tab";
+let posTabRef: Window | null = null;
 
 export type PageKey =
   | "home"
@@ -115,6 +119,7 @@ export default function AppSidebar({
   mobileOpen,
   onCloseMobile,
 }: AppSidebarProps) {
+  const statusDialog = useStatusDialog();
   const cadastrosPages: PageKey[] = [
     "cadastro-cliente",
     "cadastro-fornecedor",
@@ -144,17 +149,50 @@ export default function AppSidebar({
     onCloseMobile();
   };
 
+  const handleOpenSalesInNewTab = async () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("pdv", "1");
+
+    if (posTabRef && !posTabRef.closed) {
+      const shouldClose = await statusDialog.confirm(
+        "A frente de caixa já está aberta. Deseja fechar essa aba?",
+      );
+
+      if (shouldClose) {
+        posTabRef.close();
+        posTabRef = null;
+        await statusDialog.success("Aba da frente de caixa fechada.");
+      } else {
+        posTabRef.focus();
+      }
+
+      onCloseMobile();
+      return;
+    }
+
+    posTabRef = window.open(url.toString(), POS_TAB_NAME);
+    if (!posTabRef) {
+      Toast.error("Não foi possível abrir a aba do PDV. Verifique bloqueio de pop-up.");
+      onCloseMobile();
+      return;
+    }
+
+    posTabRef.focus();
+    onCloseMobile();
+  };
+
   return (
-    <aside
-      className={`fixed top-0 left-0 z-40 h-screen bg-bg-light border-r border-border-primary shadow-sm transition-all duration-300 flex flex-col justify-between ${
-        collapsed ? "w-20" : "w-72"
-      } ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static`}
-    >
+    <>
+      <aside
+        className={`fixed top-0 left-0 z-40 h-screen bg-bg-light border-r border-border-primary shadow-sm transition-all duration-300 flex flex-col justify-between ${
+          collapsed ? "w-20" : "w-72"
+        } ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static`}
+      >
       <div>
         <div className="flex items-center justify-between p-4 border-b border-border-primary">
           {!collapsed && (
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-accent">Horus PDV</h1>
+              <h1 className="text-lg font-bold tracking-tight text-accent">Hórus PDV</h1>
               <p className="text-[11px] text-text-secondary">Painel operacional</p>
             </div>
           )}
@@ -293,7 +331,7 @@ export default function AppSidebar({
               label="Iniciar Vendas"
               active={activePage === "vendas"}
               collapsed={collapsed}
-              onClick={() => handleChangePage("vendas")}
+              onClick={handleOpenSalesInNewTab}
             />
           </div>
 
@@ -420,6 +458,8 @@ export default function AppSidebar({
           }}
         />
       </div>
-    </aside>
+      </aside>
+      {statusDialog.Dialog}
+    </>
   );
 }
