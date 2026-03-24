@@ -289,8 +289,8 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
   const { dateLabel, timeLabel } = formatDateTime(now);
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-bg-primary p-1.5 md:p-2">
-      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-light shadow-md">
+    <div className="h-[100dvh] overflow-y-auto bg-bg-primary p-1.5 md:overflow-hidden md:p-2">
+      <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col overflow-visible rounded-2xl border border-border-primary bg-bg-light shadow-md md:h-full md:overflow-hidden">
         <header className="relative border-b border-border-secondary bg-accent px-4 py-3 text-text-light">
           <div className="flex items-center justify-between">
             <div>
@@ -305,7 +305,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
+          <aside className="shrink-0 border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <label className="mb-2 block">
               <span className="mb-1 block text-xs font-semibold uppercase">Produto:</span>
               <div className="relative">
@@ -323,8 +323,10 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                     setHighlightedProductIndex(0);
                   }}
                   onFocus={() => {
-                    setShowProductOptions(true);
-                    if (filteredProducts.length > 0) setHighlightedProductIndex(0);
+                    // Evita reabrir o autocomplete automaticamente após adicionar item no mobile.
+                    const hasSearch = productSearch.trim().length > 0;
+                    setShowProductOptions(hasSearch);
+                    if (hasSearch && filteredProducts.length > 0) setHighlightedProductIndex(0);
                   }}
                   onBlur={() => window.setTimeout(() => setShowProductOptions(false), 120)}
                   onKeyDown={(event) => {
@@ -448,7 +450,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
             </div>
           </aside>
 
-          <section className="flex min-h-0 flex-col bg-bg-light">
+          <section className="flex min-h-[55vh] flex-col bg-bg-light lg:min-h-0">
             <div className="grid grid-cols-1 gap-1 border-b border-border-primary bg-bg-gray-theme px-3 py-2 text-xs text-text-primary sm:grid-cols-[1fr_200px] sm:gap-0">
               <p>
                 <span className="font-semibold">Cliente:</span> McDonads
@@ -467,7 +469,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
 
             <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
               <p className="mb-1 text-sm font-semibold">Lista de itens:</p>
-              <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-dashed border-border-secondary bg-bg-primary">
+              <div className="min-h-[180px] flex-1 overflow-auto rounded-xl border border-dashed border-border-secondary bg-bg-primary md:min-h-0">
                 {cart.length === 0 ? (
                   <div className="px-2 py-6 text-center text-sm text-text-secondary">
                     Nenhum item no cupom.
