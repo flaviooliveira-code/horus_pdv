@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/pages/Admin/SalesStartPage.tsx
+ * Objetivo: implementa a frente de caixa com busca de produto, carrinho, fechamento e pagamento.
+ * Entradas esperadas: recebe flag opcional de modo standalone para ajustar comportamento da aba PDV.
+ */
+
 import { Image as ImageIcon, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
@@ -288,18 +294,18 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
         <header className="relative border-b border-border-secondary bg-accent px-4 py-3 text-text-light">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-display text-3xl font-bold italic leading-none md:text-4xl">Hórus PDV</h1>
-              <p className="text-base italic leading-none md:text-lg">Frente de Caixa</p>
+              <h1 className="font-display text-2xl font-bold italic leading-none md:text-4xl">Hórus PDV</h1>
+              <p className="text-sm italic leading-none md:text-lg">Frente de Caixa</p>
             </div>
-            <div className="text-right text-sm">
+            <div className="text-right text-xs md:text-sm">
               <p className="capitalize">{dateLabel}</p>
               <p className="text-base font-semibold md:text-lg">{timeLabel}</p>
             </div>
           </div>
         </header>
 
-        <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="overflow-y-auto border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:border-b-0 lg:border-r">
+        <main className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <label className="mb-2 block">
               <span className="mb-1 block text-xs font-semibold uppercase">Produto:</span>
               <div className="relative">
@@ -424,7 +430,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
               <p className="font-semibold">Total volumes: {String(totalVolumes).padStart(4, "0")}</p>
             </div>
 
-            <div className="mt-3 rounded-xl border border-border-primary bg-bg-light p-3">
+            <div className="mt-3 hidden rounded-xl border border-border-primary bg-bg-light p-3 sm:block">
               <div className="mx-auto flex h-28 w-full max-w-[220px] items-center justify-center overflow-hidden rounded-xl border-2 border-border-secondary bg-bg-primary text-text-tertiary">
                 {previewProduct?.imageUrl ? (
                   <img
@@ -443,11 +449,11 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
           </aside>
 
           <section className="flex min-h-0 flex-col bg-bg-light">
-            <div className="grid grid-cols-[1fr_200px] border-b border-border-primary bg-bg-gray-theme px-3 py-2 text-xs text-text-primary">
+            <div className="grid grid-cols-1 gap-1 border-b border-border-primary bg-bg-gray-theme px-3 py-2 text-xs text-text-primary sm:grid-cols-[1fr_200px] sm:gap-0">
               <p>
                 <span className="font-semibold">Cliente:</span> McDonads
               </p>
-              <p className="text-right">
+              <p className="sm:text-right">
                 <span className="font-semibold">CPF / CNPJ:</span> 06.332.765/0001-05
               </p>
             </div>
@@ -462,51 +468,100 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
             <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
               <p className="mb-1 text-sm font-semibold">Lista de itens:</p>
               <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-dashed border-border-secondary bg-bg-primary">
-                <table className="min-w-[720px] w-full text-sm leading-[1.25] md:text-base">
-                  <thead>
-                    <tr className="border-b border-border-primary bg-bg-gray-theme text-[11px] uppercase text-text-secondary md:text-xs">
-                      <th className="w-12 px-2 py-1 text-center">#</th>
-                      <th className="w-28 px-2 py-1 text-left">Código</th>
-                      <th className="px-2 py-1 text-left">Produto</th>
-                      <th className="w-16 px-2 py-1 text-center">Qtd</th>
-                      <th className="w-32 px-2 py-1 text-right">Vl. Unit</th>
-                      <th className="w-32 px-2 py-1 text-right">Vl. Total</th>
-                      <th className="w-12 px-1 py-1 text-center"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cart.length === 0 ? (
-                      <tr>
-                        <td className="px-2 py-6 text-center text-sm text-text-secondary" colSpan={7}>
-                          Nenhum item no cupom.
-                        </td>
-                      </tr>
-                    ) : (
-                      cart.map((item, index) => {
+                {cart.length === 0 ? (
+                  <div className="px-2 py-6 text-center text-sm text-text-secondary">
+                    Nenhum item no cupom.
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2 p-2 md:hidden">
+                      {cart.map((item, index) => {
                         const total = item.quantity * item.unitPrice;
                         return (
-                          <tr key={item.id} className="border-b border-border-primary">
-                            <td className="w-12 px-2 py-1 text-center">{index + 1}</td>
-                            <td className="w-28 px-2 py-1">{item.code}</td>
-                            <td className="px-2 py-1">{item.name}</td>
-                            <td className="w-16 px-2 py-1 text-center">{item.quantity}</td>
-                            <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(item.unitPrice)}</td>
-                            <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(total)}</td>
-                            <td className="w-12 px-1 py-1 text-center">
+                          <article
+                            key={item.id}
+                            className="rounded-xl border border-border-primary bg-bg-light p-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-text-secondary">
+                                  Item #{index + 1} • {item.code}
+                                </p>
+                                <p className="truncate text-sm font-semibold text-text-primary">
+                                  {item.name}
+                                </p>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => removeItem(item.id)}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-primary text-white"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-white"
+                                aria-label={`Remover ${item.name}`}
                               >
                                 <Trash2 size={12} />
                               </button>
-                            </td>
-                          </tr>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                              <div>
+                                <p className="text-text-secondary">Qtd</p>
+                                <p className="font-semibold text-text-primary">{item.quantity}</p>
+                              </div>
+                              <div>
+                                <p className="text-text-secondary">Vl. Unit</p>
+                                <p className="font-semibold text-text-primary">
+                                  {formatMoneyBr(item.unitPrice)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-text-secondary">Vl. Total</p>
+                                <p className="font-semibold text-text-primary">
+                                  {formatMoneyBr(total)}
+                                </p>
+                              </div>
+                            </div>
+                          </article>
                         );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                      })}
+                    </div>
+
+                    <table className="hidden min-w-[720px] w-full text-sm leading-[1.25] md:table md:text-base">
+                      <thead>
+                        <tr className="border-b border-border-primary bg-bg-gray-theme text-[11px] uppercase text-text-secondary md:text-xs">
+                          <th className="w-12 px-2 py-1 text-center">#</th>
+                          <th className="w-28 px-2 py-1 text-left">Código</th>
+                          <th className="px-2 py-1 text-left">Produto</th>
+                          <th className="w-16 px-2 py-1 text-center">Qtd</th>
+                          <th className="w-32 px-2 py-1 text-right">Vl. Unit</th>
+                          <th className="w-32 px-2 py-1 text-right">Vl. Total</th>
+                          <th className="w-12 px-1 py-1 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cart.map((item, index) => {
+                          const total = item.quantity * item.unitPrice;
+                          return (
+                            <tr key={item.id} className="border-b border-border-primary">
+                              <td className="w-12 px-2 py-1 text-center">{index + 1}</td>
+                              <td className="w-28 px-2 py-1">{item.code}</td>
+                              <td className="px-2 py-1">{item.name}</td>
+                              <td className="w-16 px-2 py-1 text-center">{item.quantity}</td>
+                              <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(item.unitPrice)}</td>
+                              <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(total)}</td>
+                              <td className="w-12 px-1 py-1 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeItem(item.id)}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-primary text-white"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </>
+                )}
               </div>
             </div>
 
@@ -521,7 +576,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 border-t border-border-primary px-3 py-3">
+            <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={cancelSale}
@@ -538,10 +593,10 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
               </button>
             </div>
 
-            <footer className="grid grid-cols-3 items-center border-t border-border-primary bg-bg-primary px-3 py-2 text-xs text-text-secondary">
+            <footer className="space-y-0.5 border-t border-border-primary bg-bg-primary px-3 py-2 text-[11px] text-text-secondary sm:grid sm:grid-cols-3 sm:items-center sm:space-y-0 sm:text-xs">
               <p>Usuário: July</p>
-              <p className="text-center">Estabelecimento: Festa & Fantasia</p>
-              <p className="text-right">Nome caixa: PDV01</p>
+              <p className="sm:text-center">Estabelecimento: Festa & Fantasia</p>
+              <p className="sm:text-right">Nome caixa: PDV01</p>
             </footer>
           </section>
         </main>

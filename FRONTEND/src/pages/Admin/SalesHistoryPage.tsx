@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/pages/Admin/SalesHistoryPage.tsx
+ * Objetivo: exibe histórico de vendas com busca local e ação de impressão por registro.
+ * Entradas esperadas: não recebe props; processa filtro textual e renderiza dados mockados da listagem.
+ */
+
 import { FileText, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
@@ -49,6 +55,7 @@ export default function SalesHistoryPage() {
   const [search, setSearch] = useState("");
 
   const filteredSales = useMemo(() => {
+    // Busca local por número da venda ou nome do cliente.
     const normalized = search.trim().toLowerCase();
     if (!normalized) return SALES_HISTORY;
 

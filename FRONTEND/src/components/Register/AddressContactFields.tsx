@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Register/AddressContactFields.tsx
+ * Objetivo: renderiza campos reutilizáveis de endereço e contato com máscara e busca automática de CEP.
+ * Entradas esperadas: recebe objeto de valores, estado de carregamento e callbacks de atualização/consulta de CEP.
+ */
+
 import { useRef } from "react";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 
@@ -60,7 +66,9 @@ export default function AddressContactFields({
   onFillAddressFromCep,
 }: AddressContactFieldsProps) {
   const { maskCep, maskTelephoneBr, maskCellphoneBr } = useInputMasks();
+  // Evita consultas repetidas do mesmo CEP durante digitação.
   const lastAutoLookupCepRef = useRef("");
+  // Debounce para não disparar busca de CEP a cada tecla.
   const debounceTimerRef = useRef<number | null>(null);
 
   const runCepLookupIfReady = (maskedCep: string) => {

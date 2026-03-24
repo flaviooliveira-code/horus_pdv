@@ -3,13 +3,11 @@
  * Objetivo: renderiza menu lateral no padrao do legado com suporte a desktop colapsado e drawer mobile.
  */
 import {
-  ChevronDown,
   ChevronRight,
   FileText,
   History,
   House,
-  KeyRound,
-  LockKeyhole,
+  Info,
   Menu,
   Package,
   Settings,
@@ -17,15 +15,10 @@ import {
   Truck,
   UserCog,
   UserRoundPlus,
-  UsersRound,
   WalletCards,
 } from "lucide-react";
-import { Toast, useStatusDialog } from "@/hooks/Dialog";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import UserMenu from "./UserMenu";
-
-const POS_TAB_NAME = "horuspdv-pdv-tab";
-let posTabRef: Window | null = null;
 
 export type PageKey =
   | "home"
@@ -36,9 +29,10 @@ export type PageKey =
   | "relatorios"
   | "vendas"
   | "conta-de-usuario"
+  | "configuracoes"
   | "detalhe-licenca"
-  | "editar-perfil"
-  | "alterar-senha";
+  | "sobre-pdv"
+  | "editar-perfil";
 
 type SidebarItemProps = {
   icon: ReactNode;
@@ -101,6 +95,7 @@ type AppSidebarProps = {
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
+  onOpenSalesInNewTab: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
 };
@@ -116,68 +111,12 @@ export default function AppSidebar({
   onOpenProfile,
   onOpenSettings,
   onLogout,
+  onOpenSalesInNewTab,
   mobileOpen,
   onCloseMobile,
 }: AppSidebarProps) {
-  const statusDialog = useStatusDialog();
-  const cadastrosPages: PageKey[] = [
-    "cadastro-cliente",
-    "cadastro-fornecedor",
-    "cadastro-produto",
-  ];
-  const configuracoesPages: PageKey[] = [
-    "conta-de-usuario",
-    "detalhe-licenca",
-    "editar-perfil",
-    "alterar-senha",
-  ];
-
-  const [cadastrosOpen, setCadastrosOpen] = useState(
-    cadastrosPages.includes(activePage),
-  );
-  const [configOpen, setConfigOpen] = useState(
-    configuracoesPages.includes(activePage),
-  );
-
-  useEffect(() => {
-    setCadastrosOpen(cadastrosPages.includes(activePage));
-    setConfigOpen(configuracoesPages.includes(activePage));
-  }, [activePage]);
-
   const handleChangePage = (page: PageKey) => {
     onChangePage(page);
-    onCloseMobile();
-  };
-
-  const handleOpenSalesInNewTab = async () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("pdv", "1");
-
-    if (posTabRef && !posTabRef.closed) {
-      const shouldClose = await statusDialog.confirm(
-        "A frente de caixa já está aberta. Deseja fechar essa aba?",
-      );
-
-      if (shouldClose) {
-        posTabRef.close();
-        posTabRef = null;
-        await statusDialog.success("Aba da frente de caixa fechada.");
-      } else {
-        posTabRef.focus();
-      }
-
-      onCloseMobile();
-      return;
-    }
-
-    posTabRef = window.open(url.toString(), POS_TAB_NAME);
-    if (!posTabRef) {
-      Toast.error("Não foi possível abrir a aba do PDV. Verifique bloqueio de pop-up.");
-      onCloseMobile();
-      return;
-    }
-
-    posTabRef.focus();
     onCloseMobile();
   };
 
@@ -188,7 +127,7 @@ export default function AppSidebar({
           collapsed ? "w-20" : "w-72"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static`}
       >
-      <div>
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between p-4 border-b border-border-primary">
           {!collapsed && (
             <div>
@@ -218,7 +157,7 @@ export default function AppSidebar({
           </div>
         </div>
 
-        <nav className="space-y-3 overflow-y-auto px-2 py-3 text-sm font-medium">
+        <nav className="flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden px-2 py-3 text-sm font-medium">
           <div className="space-y-2">
             <SidebarSectionTitle label="Principal" collapsed={collapsed} />
 
@@ -229,89 +168,42 @@ export default function AppSidebar({
               collapsed={collapsed}
               onClick={() => handleChangePage("home")}
             />
+          </div>
 
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (collapsed) {
-                    handleChangePage("cadastro-cliente");
-                    return;
-                  }
-                  setCadastrosOpen((current) => !current);
-                }}
-                aria-current={cadastrosPages.includes(activePage) ? "page" : undefined}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl transition border text-left focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)] ${
-                  cadastrosPages.includes(activePage)
-                    ? "border-secondary/30 bg-accent/12 text-text-primary shadow-sm"
-                    : "border-transparent hover:border-border-secondary hover:bg-accent/10 hover:text-text-primary"
-                }`}
-              >
-                <div className="text-accent">
-                  <UsersRound size={20} />
-                </div>
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 whitespace-nowrap">Cadastros</span>
-                    {cadastrosOpen ? (
-                      <ChevronDown size={16} className="text-text-secondary" />
-                    ) : (
-                      <ChevronRight size={16} className="text-text-secondary" />
-                    )}
-                  </>
-                )}
-              </button>
+          <div className="space-y-2">
+            <SidebarSectionTitle label="Cadastros" collapsed={collapsed} />
+            <SidebarItem
+              icon={<UserRoundPlus size={20} />}
+              label="Cliente"
+              active={activePage === "cadastro-cliente"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("cadastro-cliente")}
+            />
+            <SidebarItem
+              icon={<Truck size={20} />}
+              label="Fornecedor"
+              active={activePage === "cadastro-fornecedor"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("cadastro-fornecedor")}
+            />
+            <SidebarItem
+              icon={<Package size={20} />}
+              label="Produto"
+              active={activePage === "cadastro-produto"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("cadastro-produto")}
+            />
+            <SidebarItem
+              icon={<UserCog size={20} />}
+              label="Contas de Usuários"
+              active={activePage === "conta-de-usuario"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("conta-de-usuario")}
+            />
+          </div>
 
-              {!collapsed && cadastrosOpen && (
-                <div className="ml-4 space-y-1.5 border-l border-border-primary pl-3">
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "cadastro-cliente"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("cadastro-cliente")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <UserRoundPlus size={13} />
-                      Cliente
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "cadastro-fornecedor"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("cadastro-fornecedor")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Truck size={13} />
-                      Fornecedor
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "cadastro-produto"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("cadastro-produto")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Package size={13} />
-                      Produto
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
-
+          <div className="space-y-2">
+            <SidebarSectionTitle label="Operação" collapsed={collapsed} />
             <SidebarItem
               icon={<History size={20} />}
               label="Histórico de Vendas"
@@ -331,109 +223,33 @@ export default function AppSidebar({
               label="Iniciar Vendas"
               active={activePage === "vendas"}
               collapsed={collapsed}
-              onClick={handleOpenSalesInNewTab}
+              onClick={onOpenSalesInNewTab}
             />
           </div>
 
           <div className="space-y-2">
-            <SidebarSectionTitle label="Configurações" collapsed={collapsed} />
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (collapsed) {
-                    handleChangePage("conta-de-usuario");
-                    return;
-                  }
-                  setConfigOpen((current) => !current);
-                }}
-                aria-current={configuracoesPages.includes(activePage) ? "page" : undefined}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl transition border text-left focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)] ${
-                  configuracoesPages.includes(activePage)
-                    ? "border-secondary/30 bg-accent/12 text-text-primary shadow-sm"
-                    : "border-transparent hover:border-border-secondary hover:bg-accent/10 hover:text-text-primary"
-                }`}
-              >
-                <div className="text-accent">
-                  <Settings size={20} />
-                </div>
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 whitespace-nowrap">Configurações</span>
-                    {configOpen ? (
-                      <ChevronDown size={16} className="text-text-secondary" />
-                    ) : (
-                      <ChevronRight size={16} className="text-text-secondary" />
-                    )}
-                  </>
-                )}
-              </button>
-
-              {!collapsed && configOpen && (
-                <div className="ml-4 space-y-1.5 border-l border-border-primary pl-3">
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "conta-de-usuario"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("conta-de-usuario")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <UserCog size={13} />
-                      Contas de Usuários
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "detalhe-licenca"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("detalhe-licenca")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <WalletCards size={13} />
-                      Detalhes da Licença
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "editar-perfil"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("editar-perfil")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <KeyRound size={13} />
-                      Editar Perfil
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition ${
-                      activePage === "alterar-senha"
-                        ? "bg-secondary/12 text-text-primary border border-secondary/20"
-                        : "text-text-secondary border border-transparent hover:bg-accent/10 hover:text-text-primary"
-                    }`}
-                    onClick={() => handleChangePage("alterar-senha")}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <LockKeyhole size={13} />
-                      Alterar Senha
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
+            <SidebarSectionTitle label="Sistema" collapsed={collapsed} />
+            <SidebarItem
+              icon={<Settings size={20} />}
+              label="Configurações"
+              active={activePage === "configuracoes"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("configuracoes")}
+            />
+            <SidebarItem
+              icon={<WalletCards size={20} />}
+              label="Detalhes da Licença"
+              active={activePage === "detalhe-licenca"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("detalhe-licenca")}
+            />
+            <SidebarItem
+              icon={<Info size={20} />}
+              label="Sobre PDV"
+              active={activePage === "sobre-pdv"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("sobre-pdv")}
+            />
           </div>
         </nav>
       </div>
@@ -459,7 +275,6 @@ export default function AppSidebar({
         />
       </div>
       </aside>
-      {statusDialog.Dialog}
     </>
   );
 }

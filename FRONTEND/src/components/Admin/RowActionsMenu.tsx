@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Admin/RowActionsMenu.tsx
+ * Objetivo: renderiza menu contextual de ações por linha com posicionamento automático no viewport.
+ * Entradas esperadas: recebe lista de ações, rótulo do gatilho e flag opcional para abrir para cima.
+ */
+
 import { MoreVertical } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -21,13 +27,16 @@ export default function RowActionsMenu({
   triggerLabel = "Abrir ações",
   forceUpwards = false,
 }: RowActionsMenuProps) {
+  // Controle de visibilidade do dropdown de ações.
   const [open, setOpen] = useState(false);
+  // Define se o painel deve abrir para cima para evitar corte no viewport.
   const [openUpwards, setOpenUpwards] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // Fecha menu ao clicar fora do componente.
     const handleClickOutside = (event: MouseEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) {
         setOpen(false);
@@ -41,6 +50,7 @@ export default function RowActionsMenu({
   useEffect(() => {
     if (!open) return;
 
+    // Mede espaço disponível para decidir a direção de abertura do painel.
     const measurePlacement = () => {
       const triggerRect = triggerRef.current?.getBoundingClientRect();
       const panelRect = panelRef.current?.getBoundingClientRect();

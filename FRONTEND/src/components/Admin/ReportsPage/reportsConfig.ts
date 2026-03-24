@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Admin/ReportsPage/reportsConfig.ts
+ * Objetivo: define tipos e catálogo estático de relatórios disponíveis no módulo de relatórios.
+ * Entradas esperadas: não recebe props; exporta estruturas de configuração consumidas pela UI.
+ */
+
 import {
   BarChart3,
   Boxes,

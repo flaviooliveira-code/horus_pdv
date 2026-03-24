@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/pages/Admin/SupplierRegisterPage.tsx
+ * Objetivo: gerencia cadastro de fornecedores com dados fiscais, endereço e contatos.
+ * Entradas esperadas: não recebe props; processa lista local, formulário em drawer e validações de cadastro.
+ */
+
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";

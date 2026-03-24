@@ -3,10 +3,12 @@
  * Objetivo: orquestra o shell administrativo com sidebar, cabeçalho mobile e lazy loading das páginas.
  * Entradas esperadas: não recebe props; controla estado global de navegação local.
  */
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import AppSidebar, { type PageKey } from "@/components/AppSidebar/AppSidebar";
 import LoadingBar from "@/components/Loading/LoadingBar";
+import { Toast, useStatusDialog } from "@/hooks/Dialog";
+import LoginPage from "@/pages/Auth/LoginPage";
 
 const HomePage = lazy(() => import("@/pages/Admin/HomePage"));
 const CustomerRegisterPage = lazy(
@@ -20,13 +22,16 @@ const SalesHistoryPage = lazy(() => import("@/pages/Admin/SalesHistoryPage"));
 const SalesStartPage = lazy(() => import("@/pages/Admin/SalesStartPage"));
 const ReportsPage = lazy(() => import("@/pages/Admin/ReportsPage"));
 const UserAccountsPage = lazy(() => import("@/pages/Admin/UserAccountsPage"));
+const SettingsPage = lazy(() => import("@/pages/Admin/SettingsPage"));
 const LicenseDetailsPage = lazy(() => import("@/pages/Admin/LicenseDetailsPage"));
+const AboutPdvPage = lazy(() => import("@/pages/Admin/AboutPdvPage"));
 const EditProfilePage = lazy(() => import("@/pages/Admin/EditProfilePage"));
-const ChangePasswordPage = lazy(() => import("@/pages/Admin/ChangePasswordPage"));
 const PROFILE_AVATAR_STORAGE_KEY = "horuspdv.profile.avatar";
 const ACTIVE_PAGE_STORAGE_KEY = "horuspdv.activePage";
 const THEME_STORAGE_KEY = "horuspdv.theme";
 const USER_PASSWORD_STORAGE_KEY = "horuspdv.current-user.password";
+const AUTH_STORAGE_KEY = "horuspdv.authenticated";
+const POS_TAB_NAME = "horuspdv-pdv-tab";
 
 const EmptyPage = () => null;
 
@@ -40,6 +45,8 @@ type CurrentUser = {
 type ThemeMode = "light" | "dark";
 
 export default function App() {
+  const statusDialog = useStatusDialog();
+  const posTabRef = useRef<Window | null>(null);
   const isStandalonePos =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("pdv") === "1";
@@ -54,9 +61,10 @@ export default function App() {
       "relatorios",
       "vendas",
       "conta-de-usuario",
+      "configuracoes",
       "detalhe-licenca",
+      "sobre-pdv",
       "editar-perfil",
-      "alterar-senha",
     ].includes(value);
 
   const [collapsed, setCollapsed] = useState(false);
@@ -69,7 +77,7 @@ export default function App() {
     const savedPage = window.localStorage.getItem(ACTIVE_PAGE_STORAGE_KEY);
     return savedPage && isPageKey(savedPage) ? savedPage : "home";
   });
-  const [themeMode] = useState<ThemeMode>(() => {
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "light";
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === "dark" ? "dark" : "light";
@@ -77,6 +85,10 @@ export default function App() {
   const [currentUserPassword, setCurrentUserPassword] = useState(() => {
     if (typeof window === "undefined") return "Admin@1234";
     return window.localStorage.getItem(USER_PASSWORD_STORAGE_KEY) ?? "Admin@1234";
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(AUTH_STORAGE_KEY) === "1";
   });
 
   const [currentUser, setCurrentUser] = useState<CurrentUser>(() => ({
@@ -98,9 +110,10 @@ export default function App() {
     relatorios: "Relatórios",
     vendas: "Iniciar Vendas",
     "conta-de-usuario": "Contas de Usuários",
+    configuracoes: "Configurações",
     "detalhe-licenca": "Detalhes da Licença",
-    "editar-perfil": "Editar Perfil",
-    "alterar-senha": "Alterar Senha",
+    "sobre-pdv": "Sobre PDV",
+    "editar-perfil": "Meu Perfil",
   };
 
   const CurrentPage = useMemo(() => {
@@ -123,23 +136,23 @@ export default function App() {
         return UserAccountsPage;
       case "detalhe-licenca":
         return LicenseDetailsPage;
+      case "sobre-pdv":
+        return AboutPdvPage;
       default:
         return EmptyPage;
     }
   }, [activePage]);
 
+  const handleToggleTheme = () => {
+    setThemeMode((current) => (current === "light" ? "dark" : "light"));
+  };
+
   const handleLogout = () => {
     setMobileSidebarOpen(false);
     setActivePage("home");
     window.localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, "home");
-    setCurrentUser((current) => {
-      window.localStorage.removeItem(PROFILE_AVATAR_STORAGE_KEY);
-      return {
-        ...current,
-        name: "Sessão encerrada",
-        avatarUrl: null,
-      };
-    });
+    setIsAuthenticated(false);
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   const handleUploadAvatar = (file: File) => {
@@ -153,6 +166,13 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveAvatar = () => {
+    setCurrentUser((current) => {
+      window.localStorage.removeItem(PROFILE_AVATAR_STORAGE_KEY);
+      return { ...current, avatarUrl: null };
+    });
+  };
+
   const handleChangePassword = (currentPassword: string, nextPassword: string) => {
     if (currentPassword !== currentUserPassword) {
       return { success: false, message: "Senha atual inválida." };
@@ -160,6 +180,56 @@ export default function App() {
     setCurrentUserPassword(nextPassword);
     window.localStorage.setItem(USER_PASSWORD_STORAGE_KEY, nextPassword);
     return { success: true, message: "Senha atualizada com sucesso." };
+  };
+
+  const handleOpenSalesInNewTab = async () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("pdv", "1");
+
+    if (posTabRef.current && !posTabRef.current.closed) {
+      const shouldClose = await statusDialog.confirm(
+        "A frente de caixa já está aberta. Deseja fechar essa aba?",
+      );
+
+      if (shouldClose) {
+        posTabRef.current.close();
+        posTabRef.current = null;
+        await statusDialog.success("Aba da frente de caixa fechada.");
+      } else {
+        posTabRef.current.focus();
+      }
+
+      setMobileSidebarOpen(false);
+      return;
+    }
+
+    posTabRef.current = window.open(url.toString(), POS_TAB_NAME);
+    if (!posTabRef.current) {
+      Toast.error("Não foi possível abrir a aba do PDV. Verifique bloqueio de pop-up.");
+      setMobileSidebarOpen(false);
+      return;
+    }
+
+    posTabRef.current.focus();
+    setMobileSidebarOpen(false);
+  };
+
+  const handleLogin = (email: string, password: string) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const currentEmail = currentUser.email.trim().toLowerCase();
+
+    if (normalizedEmail !== currentEmail) {
+      return { success: false, message: "E-mail não encontrado." };
+    }
+
+    if (password !== currentUserPassword) {
+      return { success: false, message: "Senha inválida." };
+    }
+
+    setIsAuthenticated(true);
+    window.localStorage.setItem(AUTH_STORAGE_KEY, "1");
+    setActivePage(isStandalonePos ? "vendas" : "home");
+    return { success: true, message: "Login realizado com sucesso." };
   };
 
   useEffect(() => {
@@ -179,6 +249,10 @@ export default function App() {
     }
     document.title = "Hórus PDV";
   }, [activePage, isStandalonePos]);
+
+  if (!isAuthenticated) {
+    return <LoginPage defaultEmail={currentUser.email} onLogin={handleLogin} />;
+  }
 
   if (activePage === "vendas") {
     return (
@@ -244,8 +318,9 @@ export default function App() {
         currentUserPermission={currentUser.permission}
         currentUserAvatarUrl={currentUser.avatarUrl}
         onOpenProfile={() => setActivePage("editar-perfil")}
-        onOpenSettings={() => setActivePage("alterar-senha")}
+        onOpenSettings={() => setActivePage("configuracoes")}
         onLogout={handleLogout}
+        onOpenSalesInNewTab={handleOpenSalesInNewTab}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
       />
@@ -265,14 +340,22 @@ export default function App() {
               userRole={currentUser.permission}
               userAvatarUrl={currentUser.avatarUrl}
               onUploadAvatar={handleUploadAvatar}
+              onRemoveAvatar={handleRemoveAvatar}
+              onChangePassword={handleChangePassword}
             />
-          ) : activePage === "alterar-senha" ? (
-            <ChangePasswordPage onChangePassword={handleChangePassword} />
+          ) : activePage === "configuracoes" ? (
+            <SettingsPage themeMode={themeMode} onToggleTheme={handleToggleTheme} />
+          ) : activePage === "home" ? (
+            <HomePage
+              onNavigate={setActivePage}
+              onOpenSalesInNewTab={handleOpenSalesInNewTab}
+            />
           ) : (
             <CurrentPage />
           )}
         </main>
       </Suspense>
+      {statusDialog.Dialog}
     </div>
   );
 }

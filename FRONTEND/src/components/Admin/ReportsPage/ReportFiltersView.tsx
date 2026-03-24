@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Admin/ReportsPage/ReportFiltersView.tsx
+ * Objetivo: renderiza formulário dinâmico de filtros, geração de resultado e exportação de relatório.
+ * Entradas esperadas: recebe definição do relatório selecionado e callback para voltar ao catálogo.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, FileSpreadsheet, FileText } from "lucide-react";
 import { DatePickerField } from "@/components/Form";

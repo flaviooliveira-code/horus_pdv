@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Pagination/TablePagination.tsx
+ * Objetivo: exibe paginação reutilizável para tabelas com controle de página e tamanho de lote.
+ * Entradas esperadas: recebe totais, página atual, quantidade por página e callbacks de mudança.
+ */
+
 type TablePaginationProps = {
   totalItems: number;
   currentPage: number;
@@ -8,6 +14,7 @@ type TablePaginationProps = {
 };
 
 function createPageItems(totalPages: number, currentPage: number): Array<number | string> {
+  // Para poucas páginas, exibe todas sem truncar.
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
@@ -32,6 +39,7 @@ export default function TablePagination({
   onItemsPerPageChange,
   itemsPerPageOptions = [10, 20, 50, 100],
 }: TablePaginationProps) {
+  // Proteções para manter paginação estável em cenários extremos.
   const safeItemsPerPage = Math.max(1, itemsPerPage);
   const totalPages = Math.max(1, Math.ceil(totalItems / safeItemsPerPage));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);

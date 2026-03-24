@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/pages/Admin/CustomerRegisterPage.tsx
+ * Objetivo: controla cadastro de clientes com validação de documento, idade, endereço e contatos.
+ * Entradas esperadas: não recebe props; processa estado local de formulário, lista e ações de CRUD.
+ */
+
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";

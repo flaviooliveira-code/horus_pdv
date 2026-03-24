@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Admin/ReportsPage/reportMockResults.ts
+ * Objetivo: gera payloads mockados de colunas/linhas a partir do relatório e filtros informados.
+ * Entradas esperadas: recebe `reportId` e mapa de filtros para devolver estrutura tabular de resultado.
+ */
+
 import type {
   ReportFilterValues,
   ReportResultColumn,

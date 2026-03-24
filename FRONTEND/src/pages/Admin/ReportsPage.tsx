@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/pages/Admin/ReportsPage.tsx
+ * Objetivo: orquestra catálogo de relatórios e fluxo de filtros/resultado para o relatório selecionado.
+ * Entradas esperadas: não recebe props; gerencia estado local de busca e seleção de relatório.
+ */
+
 import { useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import {
@@ -9,11 +15,13 @@ import {
 import PageLayout from "@/layout/PageLayout";
 
 export default function ReportsPage() {
+  // Guarda relatório selecionado para alternar entre catálogo e tela de filtros.
   const [activeReport, setActiveReport] = useState<ReportDefinition | null>(null);
   const [search, setSearch] = useState("");
   const availableReports = useMemo(() => reportCatalog, []);
 
   const filteredReports = useMemo(() => {
+    // Filtro textual aplicado em título e descrição.
     const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return availableReports;
 

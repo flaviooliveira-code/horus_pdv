@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/pages/Admin/ProductRegisterPage.tsx
+ * Objetivo: gerencia cadastro de produtos com formulário em drawer, busca e ações de editar/remover.
+ * Entradas esperadas: não recebe props; opera com estado local de lista e formulário de produto.
+ */
+
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";

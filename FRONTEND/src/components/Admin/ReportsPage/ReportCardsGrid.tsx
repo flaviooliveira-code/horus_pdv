@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Admin/ReportsPage/ReportCardsGrid.tsx
+ * Objetivo: mostra catálogo de cards de relatório com busca textual e seleção de item.
+ * Entradas esperadas: recebe lista de relatórios, termo de busca e callbacks de alteração/seleção.
+ */
+
 import { Search } from "lucide-react";
 import type { ReportDefinition } from "./reportsConfig";
 

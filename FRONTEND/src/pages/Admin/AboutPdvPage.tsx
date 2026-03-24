@@ -1,49 +1,49 @@
 /**
- * Arquivo: src/pages/Admin/LicenseDetailsPage.tsx
- * Objetivo: documenta o modelo de licença open source, créditos obrigatórios e status de uso da versão atual.
- * Entradas esperadas: não recebe props; renderiza conteúdo estático sobre termos de uso do projeto.
+ * Arquivo: src/pages/Admin/AboutPdvPage.tsx
+ * Objetivo: apresenta informações institucionais do projeto (história, autoria, licença e visão futura).
+ * Entradas esperadas: não recebe props; exibe conteúdo estático/documental do Hórus PDV.
  */
 
-import { BadgeCheck, BookMarked, Copyright, Scale } from "lucide-react";
+import { BookOpenText, Code2, HeartHandshake, Rocket } from "lucide-react";
 import PageHeader from "@/components/Admin/PageHeader";
 import PageLayout from "@/layout/PageLayout";
 
-export default function LicenseDetailsPage() {
+export default function AboutPdvPage() {
   return (
     <PageLayout className="space-y-4 py-4 md:space-y-6 md:py-6 lg:py-8">
       <PageHeader
-        title="Detalhes da Licença"
-        description="Informações de uso do Hórus PDV como projeto open source."
+        title="Sobre PDV"
+        description="História, propósito e modelo de uso do projeto Hórus PDV."
       />
 
       <section className="card overflow-hidden">
         <div className="border-b border-border-primary bg-gradient-to-r from-secondary/8 via-bg-light to-accent/8 px-4 py-4 md:px-5">
-          <h2 className="text-lg font-semibold text-text-primary">Licença de uso da versão atual</h2>
+          <h2 className="text-lg font-semibold text-text-primary">Projeto open source</h2>
           <p className="mt-1 text-sm text-text-secondary">
-            Esta instalação está vinculada ao modelo gratuito com atribuição de créditos.
+            O Hórus PDV é um projeto pessoal, aberto para estudo e uso da comunidade.
           </p>
         </div>
 
-        <div className="space-y-3 p-4 md:p-5">
+        <div className="space-y-4 p-4 md:p-5">
           <article className="rounded-xl border border-border-primary bg-bg-primary p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
-              <Scale size={16} className="text-accent" />
-              Modelo
+              <BookOpenText size={16} className="text-accent" />
+              Linha do tempo
             </p>
             <p className="mt-2 text-sm text-text-secondary">
-              O Hórus PDV pode ser utilizado gratuitamente nesta versão, para estudo, operação
-              e evolução do projeto.
+              O projeto foi criado em <strong>2020</strong> e evoluiu com várias melhorias de
+              arquitetura, usabilidade e organização até esta versão de <strong>2026</strong>.
             </p>
           </article>
 
           <article className="rounded-xl border border-border-primary bg-bg-primary p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
-              <Copyright size={16} className="text-accent" />
-              Créditos obrigatórios
+              <HeartHandshake size={16} className="text-accent" />
+              Uso gratuito
             </p>
             <p className="mt-2 text-sm text-text-secondary">
-              Ao usar, adaptar ou redistribuir, mantenha a referência ao projeto original e ao
-              autor nos devidos pontos de documentação e interface.
+              Esta versão pode ser usada gratuitamente, desde que sejam mantidos os devidos
+              créditos ao projeto e ao autor.
             </p>
             <div className="mt-3 space-y-1 text-sm text-text-secondary">
               <p>
@@ -76,23 +76,23 @@ export default function LicenseDetailsPage() {
 
           <article className="rounded-xl border border-border-primary bg-bg-primary p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
-              <BookMarked size={16} className="text-accent" />
-              Evolução do projeto
+              <Code2 size={16} className="text-accent" />
+              Objetivo da versão atual
             </p>
             <p className="mt-2 text-sm text-text-secondary">
-              Criado em 2020 e evoluído continuamente até esta versão de 2026, com melhorias de
-              arquitetura e experiência de uso.
+              Entregar uma base sólida para operação de PDV, com foco em produtividade, clareza
+              de fluxo e facilidade de evolução.
             </p>
           </article>
 
-          <article className="rounded-xl border border-success/30 bg-success/10 p-4">
-            <p className="inline-flex items-center gap-2 text-sm font-semibold text-success">
-              <BadgeCheck size={16} />
-              Status da licença atual
+          <article className="rounded-xl border border-border-primary bg-bg-primary p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <Rocket size={16} className="text-accent" />
+              Próximos passos
             </p>
-            <p className="mt-2 text-sm text-success">
-              Uso gratuito ativo para esta versão open source, respeitando os créditos e termos
-              definidos pelo mantenedor.
+            <p className="mt-2 text-sm text-text-secondary">
+              Futuramente poderá existir uma versão paga com módulos adicionais e recursos
+              avançados, mantendo a versão atual como referência aberta.
             </p>
           </article>
         </div>

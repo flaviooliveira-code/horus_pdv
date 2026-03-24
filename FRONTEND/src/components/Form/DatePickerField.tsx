@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/components/Form/DatePickerField.tsx
+ * Objetivo: fornece campo de data com calendário, navegação de mês/ano e suporte aos formatos ISO/BR.
+ * Entradas esperadas: recebe valor atual, callback de mudança e opções de placeholder, formato e estado desabilitado.
+ */
+
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
@@ -53,12 +59,15 @@ export default function DatePickerField({
   disabled = false,
   format = "iso",
 }: DatePickerFieldProps) {
+  // Controla abertura do popover de calendário.
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  // Data selecionada derivada do valor textual recebido por props.
   const selectedDate = useMemo(
     () => (format === "br" ? parseBrDate(value) : parseIsoDate(value)),
     [format, value],
   );
+  // Mês exibido no calendário (pode diferir da data selecionada).
   const [viewMonth, setViewMonth] = useState<Date>(selectedDate ?? new Date());
 
   const monthLabelFormatter = useMemo(
@@ -89,10 +98,12 @@ export default function DatePickerField({
   }, [selectedDate]);
 
   useEffect(() => {
+    // Mantém o calendário sincronizado quando o valor externo muda.
     if (selectedDate) setViewMonth(selectedDate);
   }, [selectedDate]);
 
   useEffect(() => {
+    // Fecha calendário ao clicar fora ou pressionar ESC.
     function handleClickOutside(event: MouseEvent) {
       if (!rootRef.current) return;
       if (rootRef.current.contains(event.target as Node)) return;

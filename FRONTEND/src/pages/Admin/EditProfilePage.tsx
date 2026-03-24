@@ -1,7 +1,19 @@
-import { Camera } from "lucide-react";
-import { useRef } from "react";
-import PageHeader from "@/components/Admin/PageHeader";
+/**
+ * Arquivo: src/pages/Admin/EditProfilePage.tsx
+ * Objetivo: permite visualizar dados da conta, atualizar avatar e alterar senha do usuário autenticado.
+ * Entradas esperadas: recebe dados do usuário e callbacks para upload/remoção de avatar e troca de senha.
+ */
+
+import { Camera, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import type { ChangeEvent } from "react";
+import { useStatusDialog } from "@/hooks/Dialog";
 import PageLayout from "@/layout/PageLayout";
+
+type ChangePasswordResult = {
+  success: boolean;
+  message: string;
+};
 
 type EditProfilePageProps = {
   userName: string;
@@ -9,6 +21,8 @@ type EditProfilePageProps = {
   userRole: string;
   userAvatarUrl: string | null;
   onUploadAvatar: (file: File) => void;
+  onRemoveAvatar: () => void;
+  onChangePassword: (currentPassword: string, nextPassword: string) => ChangePasswordResult;
 };
 
 export default function EditProfilePage({
@@ -17,8 +31,14 @@ export default function EditProfilePage({
   userRole,
   userAvatarUrl,
   onUploadAvatar,
+  onRemoveAvatar,
+  onChangePassword,
 }: EditProfilePageProps) {
-  const inputFileRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const statusDialog = useStatusDialog();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const initials = userName
     .trim()
@@ -27,17 +47,55 @@ export default function EditProfilePage({
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
 
-  return (
-    <PageLayout className="space-y-4 py-4 md:space-y-6 md:py-6 lg:py-8">
-      <PageHeader
-        title="Editar Perfil"
-        description="Atualize seus dados de identificação para o painel administrativo."
-      />
+  const handleSelectFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return;
+    onUploadAvatar(file);
+    event.target.value = "";
+  };
 
-      <section className="card p-4 md:p-5">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center">
-          <div className="relative">
-            <div className="h-20 w-20 overflow-hidden rounded-full bg-gradient-to-br from-accent to-secondary text-xl font-bold text-white shadow-sm">
+  const handleChangePassword = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      statusDialog.error("Preencha todos os campos de senha.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      statusDialog.error("A nova senha deve ter no mínimo 8 caracteres.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      statusDialog.error("A confirmação da nova senha não confere.");
+      return;
+    }
+
+    const result = onChangePassword(currentPassword, newPassword);
+    if (!result.success) {
+      statusDialog.error(result.message);
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    statusDialog.success(result.message);
+  };
+
+  return (
+    <PageLayout className="space-y-4 py-4 md:py-6 lg:py-8">
+      <section className="card overflow-hidden rounded-2xl">
+        <div className="border-b border-border-primary bg-gradient-to-r from-secondary/10 via-bg-light to-accent/10 px-4 py-4 md:px-5">
+          <h3 className="text-lg font-semibold text-text-primary">Perfil do usuário</h3>
+          <p className="text-sm text-text-secondary">
+            Dados de acesso e foto de exibição da sua conta.
+          </p>
+        </div>
+
+        <div className="grid gap-6 px-4 py-5 md:px-5 lg:grid-cols-[240px_1fr]">
+          <div className="flex self-start flex-col items-center rounded-2xl border border-border-primary bg-bg-primary p-4">
+            <div className="relative">
+              <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-gradient-to-br from-accent to-secondary text-3xl font-bold text-white shadow-md md:h-36 md:w-36">
               {userAvatarUrl ? (
                 <img
                   src={userAvatarUrl}
@@ -45,43 +103,124 @@ export default function EditProfilePage({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  {initials || "HP"}
-                </div>
+                initials || "HP"
               )}
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -right-1 -bottom-1 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border-primary bg-white text-accent shadow-sm transition hover:bg-accent/10 md:h-10 md:w-10"
+                aria-label="Alterar foto do perfil"
+              >
+                <Camera size={16} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => inputFileRef.current?.click()}
-              className="absolute -right-1 -bottom-1 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-white text-accent shadow-sm transition hover:bg-accent/10"
-            >
-              <Camera size={16} />
-            </button>
+
             <input
-              ref={inputFileRef}
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(event) => {
-                const selectedFile = event.target.files?.[0];
-                if (selectedFile) onUploadAvatar(selectedFile);
-              }}
+              onChange={handleSelectFile}
             />
+
+            <div className="mt-4 flex w-full max-w-xs flex-col items-center gap-3">
+              <button
+                type="button"
+                className="btn-outline-secondary inline-flex min-h-11 w-full items-center justify-center gap-2"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={14} />
+                Subir foto
+              </button>
+              {userAvatarUrl && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-red-50"
+                  onClick={onRemoveAvatar}
+                >
+                  <Trash2 size={14} />
+                  Remover foto
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="grid w-full gap-3 md:grid-cols-2">
-            <input className="input-field w-full" defaultValue={userName} />
-            <input className="input-field w-full" defaultValue={userEmail} />
-            <input className="input-field w-full md:col-span-2" defaultValue={userRole} />
-          </div>
-        </div>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-text-primary">
+                Nome
+              </label>
+              <input value={userName} readOnly disabled className="input-field w-full" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-text-primary">
+                Email
+              </label>
+              <input value={userEmail} readOnly disabled className="input-field w-full" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-text-primary">
+                Permissão de usuário
+              </label>
+              <input value={userRole} readOnly disabled className="input-field w-full" />
+            </div>
 
-        <div className="mt-4 flex justify-end">
-          <button type="button" className="btn-primary">
-            Salvar
-          </button>
+            <div className="rounded-xl border border-border-primary bg-bg-primary p-3 md:p-4">
+              <p className="text-sm font-semibold text-text-primary">Trocar senha</p>
+              <p className="mt-1 text-xs text-text-secondary">
+                Após definir a nova senha, ela passa a valer no próximo login.
+              </p>
+
+              <div className="mt-3 grid gap-3">
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-text-secondary">
+                    Senha atual
+                  </span>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    className="input-field w-full"
+                    placeholder="Digite sua senha atual"
+                  />
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-text-secondary">
+                    Nova senha
+                  </span>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="input-field w-full"
+                    placeholder="Mínimo 8 caracteres"
+                  />
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-text-secondary">
+                    Confirmar nova senha
+                  </span>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="input-field w-full"
+                    placeholder="Repita a nova senha"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 flex justify-end">
+                <button type="button" className="btn-primary" onClick={handleChangePassword}>
+                  Atualizar senha
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
+      {statusDialog.Dialog}
     </PageLayout>
   );
 }

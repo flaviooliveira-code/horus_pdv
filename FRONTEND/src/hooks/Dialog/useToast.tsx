@@ -1,3 +1,9 @@
+/**
+ * Arquivo: src/hooks/Dialog/useToast.tsx
+ * Objetivo: disponibiliza API global de notificações toast e componentes/hooks para consumo na UI.
+ * Entradas esperadas: recebe tipo, mensagem e duração opcional para criar/remover toasts.
+ */
+
 /* eslint-disable react-refresh/only-export-components */
 /**
  * Arquivo: src/hooks/Dialog/useToast.tsx
@@ -25,10 +31,12 @@ const backgroundByType = {
   loading: "bg-dark text-white",
 } satisfies Record<ToastType, string>;
 
+// Estado global em memória para permitir disparo de toast fora da árvore de componentes.
 let toastState: ToastProps[] = [];
 const listeners = new Set<ToastListener>();
 
 const notify = () => {
+  // Emite cópia imutável para evitar mutação acidental por consumidor.
   const snapshot = [...toastState];
   listeners.forEach((listener) => listener(snapshot));
 };
@@ -46,6 +54,7 @@ const addToast = (type: ToastType, message: string, duration?: number) => {
   notify();
 
   if (type !== "loading") {
+    // Toats comuns expiram automaticamente.
     window.setTimeout(() => removeToast(id), duration ?? 3000);
   }
 
@@ -73,6 +82,7 @@ export function ToastContainer() {
   const [toasts, setToasts] = useState<ToastProps[]>([]);
 
   useEffect(() => {
+    // Registra listener para refletir mudanças globais no componente visual.
     const unsubscribe = subscribe(setToasts);
     return unsubscribe;
   }, []);
@@ -111,6 +121,7 @@ export function useToast() {
   const [toasts, setToasts] = useState<ToastProps[]>([]);
 
   useEffect(() => {
+    // Mantém o hook sincronizado com fila global de toast.
     const unsubscribe = subscribe(setToasts);
     return unsubscribe;
   }, []);

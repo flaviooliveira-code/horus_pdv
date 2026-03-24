@@ -1,8 +1,16 @@
+/**
+ * Arquivo: src/utils/validators.ts
+ * Objetivo: centraliza validações de documento, e-mail e data de nascimento utilizadas nos formulários.
+ * Entradas esperadas: recebe strings brutas de campos (CPF/CNPJ/e-mail/data) e retorna flags ou valores derivados.
+ */
+
 import { onlyDigits } from "./inputMasks";
 
+// Bloqueia sequências inválidas como 11111111111.
 const repeatedDigits = (value: string) => /^(\d)\1+$/.test(value);
 
 export function isValidCpf(rawCpf: string) {
+  // Normaliza removendo pontuação para aplicar algoritmo oficial do CPF.
   const cpf = onlyDigits(rawCpf);
   if (cpf.length !== 11 || repeatedDigits(cpf)) return false;
 
@@ -20,6 +28,7 @@ export function isValidCpf(rawCpf: string) {
 }
 
 export function isValidCnpj(rawCnpj: string) {
+  // Normaliza removendo pontuação para aplicar algoritmo oficial do CNPJ.
   const cnpj = onlyDigits(rawCnpj);
   if (cnpj.length !== 14 || repeatedDigits(cnpj)) return false;
 
@@ -38,6 +47,7 @@ export function isValidCnpj(rawCnpj: string) {
 }
 
 export function isValidEmail(email: string) {
+  // Campo vazio é tratado como válido para deixar obrigatoriedade a cargo do formulário.
   if (!email.trim()) return true;
   return /\S+@\S+\.\S+/.test(email.trim());
 }
@@ -61,6 +71,7 @@ export function getAgeFromBirthDate(rawValue: string) {
   if (!birthDate) return null;
 
   const today = new Date();
+  // Calcula idade real considerando se o aniversário já ocorreu no ano corrente.
   let age = today.getFullYear() - birthDate.getFullYear();
   const hasBirthdayPassed =
     today.getMonth() > birthDate.getMonth() ||
