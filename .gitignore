@@ -16,3 +16,6 @@ dist/
 .vite/
 .cache/
 
+#CSharp Build output
+bin/
+obj/
