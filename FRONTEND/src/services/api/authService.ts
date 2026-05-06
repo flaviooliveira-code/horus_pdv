@@ -18,6 +18,23 @@ export type LoginResponse = {
   user: AuthenticatedUser;
 };
 
+export type RegisterPayload = {
+  cnpj: string;
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  confirmPassword: string;
+  recaptchaToken?: string;
+};
+
+export type ForgotPasswordResponse = {
+  accepted: boolean;
+  maskedEmail?: string;
+  resetToken?: string;
+  expiresAt?: string;
+};
+
 export const authService = {
   async login(payload: LoginPayload) {
     const response = await apiRequest<LoginResponse>(`${AUTH_API_URL}/login`, {
@@ -44,11 +61,29 @@ export const authService = {
     });
   },
 
-  async forgotPassword(email: string, recaptchaToken?: string) {
-    await apiRequest<object>(`${AUTH_API_URL}/forgot-password`, {
+  async forgotPassword(cnpj: string, email: string, recaptchaToken?: string) {
+    const response = await apiRequest<ForgotPasswordResponse>(`${AUTH_API_URL}/forgot-password`, {
       method: "POST",
-      body: JSON.stringify({ email, recaptchaToken }),
+      body: JSON.stringify({ cnpj, email, recaptchaToken }),
       skipAuth: true,
     });
+    return response.data;
+  },
+
+  async resetPassword(token: string, nextPassword: string, confirmPassword: string, recaptchaToken?: string) {
+    await apiRequest<AuthenticatedUser>(`${AUTH_API_URL}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ token, nextPassword, confirmPassword, recaptchaToken }),
+      skipAuth: true,
+    });
+  },
+
+  async register(payload: RegisterPayload) {
+    const response = await apiRequest<AuthenticatedUser>(`${AUTH_API_URL}/register`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      skipAuth: true,
+    });
+    return response.data;
   },
 };

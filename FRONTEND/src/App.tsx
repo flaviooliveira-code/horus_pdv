@@ -8,7 +8,11 @@ import { Menu } from "lucide-react";
 import AppSidebar, { type PageKey } from "@/components/AppSidebar/AppSidebar";
 import LoadingBar from "@/components/Loading/LoadingBar";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
+import ForgotPasswordPage from "@/pages/Auth/ForgotPasswordPage";
 import LoginPage from "@/pages/Auth/LoginPage";
+import RegisterPage from "@/pages/Auth/RegisterPage";
+import ResetPasswordPage from "@/pages/Auth/ResetPasswordPage";
+import type { RegisterFormPayload } from "@/pages/Auth/types";
 import { authService } from "@/services/api/authService";
 import { cashRegisterService } from "@/services/api/cashRegisterService";
 import {
@@ -61,6 +65,7 @@ type CurrentUser = {
 };
 
 type ThemeMode = "light" | "dark";
+type PublicAuthPage = "login" | "forgot-password" | "reset-password" | "register";
 
 function formatRole(role: string) {
   const labels: Record<string, string> = {
@@ -151,6 +156,9 @@ export default function App() {
           : null,
     };
   });
+  const [publicAuthPage, setPublicAuthPage] = useState<PublicAuthPage>("login");
+  const [authLoginEmail, setAuthLoginEmail] = useState(currentUser.email);
+  const [passwordResetToken, setPasswordResetToken] = useState("");
 
   const pageTitleByKey: Record<PageKey, string> = {
     home: "Home",
@@ -359,13 +367,17 @@ export default function App() {
     }
   };
 
-  const handleForgotPassword = async (email: string, recaptchaToken?: string) => {
+  const handleForgotPassword = async (
+    cnpj: string,
+    email: string,
+    recaptchaToken?: string,
+  ) => {
     try {
-      await authService.forgotPassword(email.trim(), recaptchaToken);
+      const data = await authService.forgotPassword(cnpj.trim(), email.trim(), recaptchaToken);
       return {
         success: true,
-        message:
-          "Se o e-mail estiver cadastrado, a recuperação de senha será direcionada ao responsável do sistema.",
+        message: "Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação.",
+        data,
       };
     } catch (error) {
       return {
@@ -374,6 +386,43 @@ export default function App() {
           error instanceof Error
             ? error.message
             : "Erro ao solicitar recuperação de senha.",
+      };
+    }
+  };
+
+  const handleResetPassword = async (
+    token: string,
+    nextPassword: string,
+    confirmPassword: string,
+    recaptchaToken?: string,
+  ) => {
+    try {
+      await authService.resetPassword(token.trim(), nextPassword, confirmPassword, recaptchaToken);
+      return { success: true, message: "Senha redefinida com sucesso. Faça login novamente." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao redefinir senha.",
+      };
+    }
+  };
+
+  const handleRegister = async (
+    payload: RegisterFormPayload,
+    recaptchaToken?: string,
+  ) => {
+    try {
+      await authService.register({
+        ...payload,
+        email: payload.email.trim(),
+        name: payload.name.trim(),
+        recaptchaToken,
+      });
+      return { success: true, message: "Cadastro criado com sucesso. Faça login para continuar." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao criar cadastro.",
       };
     }
   };
@@ -439,11 +488,49 @@ export default function App() {
   }, [activePage, isStandalonePos]);
 
   if (!isAuthenticated) {
+    if (publicAuthPage === "forgot-password") {
+      return (
+        <ForgotPasswordPage
+          defaultEmail={authLoginEmail}
+          onForgotPassword={handleForgotPassword}
+          onOpenLogin={() => setPublicAuthPage("login")}
+          onOpenResetPassword={(token) => {
+            setPasswordResetToken(token);
+            setPublicAuthPage("reset-password");
+          }}
+        />
+      );
+    }
+
+    if (publicAuthPage === "reset-password") {
+      return (
+        <ResetPasswordPage
+          initialToken={passwordResetToken}
+          onResetPassword={handleResetPassword}
+          onOpenLogin={() => setPublicAuthPage("login")}
+        />
+      );
+    }
+
+    if (publicAuthPage === "register") {
+      return (
+        <RegisterPage
+          onRegister={handleRegister}
+          onOpenLogin={() => setPublicAuthPage("login")}
+          onRegisterSuccess={(email) => {
+            setAuthLoginEmail(email);
+            setPublicAuthPage("login");
+          }}
+        />
+      );
+    }
+
     return (
       <LoginPage
-        defaultEmail={currentUser.email}
+        defaultEmail={authLoginEmail}
         onLogin={handleLogin}
-        onForgotPassword={handleForgotPassword}
+        onOpenForgotPassword={() => setPublicAuthPage("forgot-password")}
+        onOpenRegister={() => setPublicAuthPage("register")}
       />
     );
   }

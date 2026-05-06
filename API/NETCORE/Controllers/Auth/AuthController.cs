@@ -71,6 +71,15 @@ public class AuthController(
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
+        if (!HorusSecurityStore.IsValidCnpj(request.Cnpj))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Informe um CNPJ válido."
+            });
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
         {
             return BadRequest(new ApiResponse<object>
@@ -95,12 +104,81 @@ public class AuthController(
             });
         }
 
-        securityStore.RegisterPasswordRecoveryRequest(request.Email);
+        var resetRequest = securityStore.CreatePasswordResetToken(request.Cnpj, request.Email);
         return Ok(new ApiResponse<object>
         {
             Success = true,
-            Message = "Se o e-mail estiver cadastrado, a recuperação de senha será direcionada ao responsável do sistema."
+            Message = "Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação.",
+            Data = resetRequest
         });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPasswordWithToken([FromBody] ResetPasswordWithTokenRequest request)
+    {
+        var recaptchaValidation = await recaptchaService.VerifyAsync(
+            request.RecaptchaToken,
+            "password_reset",
+            GetClientIp(),
+            HttpContext.RequestAborted);
+        if (!recaptchaValidation.Success)
+        {
+            return StatusCode(recaptchaValidation.StatusCode, new ApiResponse<object>
+            {
+                Success = false,
+                Message = recaptchaValidation.Message,
+                Details = recaptchaValidation.Details
+            });
+        }
+
+        try
+        {
+            var user = securityStore.ResetPasswordWithToken(request.Token, request.NextPassword, request.ConfirmPassword);
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Senha redefinida com sucesso.",
+                Data = user
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+    }
+
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] AuthRegisterRequest request)
+    {
+        var recaptchaValidation = await recaptchaService.VerifyAsync(
+            request.RecaptchaToken,
+            "signup_complete",
+            GetClientIp(),
+            HttpContext.RequestAborted);
+        if (!recaptchaValidation.Success)
+        {
+            return StatusCode(recaptchaValidation.StatusCode, new ApiResponse<object>
+            {
+                Success = false,
+                Message = recaptchaValidation.Message,
+                Details = recaptchaValidation.Details
+            });
+        }
+
+        try
+        {
+            var user = securityStore.RegisterPublicUser(request);
+            return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Cadastro criado com sucesso.",
+                Data = user
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
     }
 
     [HttpGet("me")]

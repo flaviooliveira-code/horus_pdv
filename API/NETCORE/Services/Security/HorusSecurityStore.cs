@@ -8,9 +8,11 @@ public class HorusSecurityStore
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan AttemptWindow = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan PasswordResetExpiration = TimeSpan.FromMinutes(30);
     private readonly object _syncRoot = new();
     private readonly List<SecurityUser> _users = [];
     private readonly List<SecuritySession> _sessions = [];
+    private readonly List<PasswordResetToken> _passwordResetTokens = [];
     private readonly Dictionary<string, LoginAttemptBucket> _attempts = new(StringComparer.OrdinalIgnoreCase);
 
     public HorusSecurityStore()
@@ -33,6 +35,37 @@ public class HorusSecurityStore
         lock (_syncRoot)
         {
             var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request, true);
+            ValidateDuplicates(user, null);
+            _users.Insert(0, user);
+            return ToDto(user);
+        }
+    }
+
+    public SecurityUserDto RegisterPublicUser(AuthRegisterRequest request)
+    {
+        if (!IsValidCnpj(request.Cnpj))
+        {
+            throw new InvalidOperationException("CNPJ invalido.");
+        }
+
+        if (!request.Password.Equals(request.ConfirmPassword, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A confirmação de senha não confere.");
+        }
+
+        lock (_syncRoot)
+        {
+            var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", new UsuarioRequest
+            {
+                Cpf = request.Cnpj,
+                Name = request.Name,
+                Email = request.Email,
+                Phone = request.Phone,
+                Role = "atendente",
+                Status = "ativo",
+                Password = request.Password
+            }, true);
+            user.MustChangePassword = false;
             ValidateDuplicates(user, null);
             _users.Insert(0, user);
             return ToDto(user);
@@ -191,19 +224,68 @@ public class HorusSecurityStore
         }
     }
 
-    public bool RegisterPasswordRecoveryRequest(string email)
+    public PasswordResetRequestResult CreatePasswordResetToken(string cnpj, string email)
     {
+        var normalizedCnpj = OnlyDigits(cnpj);
         var normalizedEmail = email.Trim().ToLowerInvariant();
+        var now = DateTimeOffset.UtcNow;
         lock (_syncRoot)
         {
+            _passwordResetTokens.RemoveAll(item => item.ExpiresAt <= now || item.ConsumedAt is not null);
             var user = _users.FirstOrDefault(item =>
+                OnlyDigits(item.Cpf) == normalizedCnpj &&
                 item.Email.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase) &&
                 item.Status == "ativo");
-            if (user is null) return false;
+            if (user is null)
+            {
+                return PasswordResetRequestResult.Create();
+            }
 
-            user.MustChangePassword = true;
+            _passwordResetTokens.RemoveAll(item => item.UserId == user.Id);
+            var token = GenerateSecureToken();
+            var expiresAt = now.Add(PasswordResetExpiration);
+            _passwordResetTokens.Add(new PasswordResetToken
+            {
+                Token = token,
+                UserId = user.Id,
+                Email = user.Email,
+                CreatedAt = now,
+                ExpiresAt = expiresAt
+            });
             _sessions.RemoveAll(item => item.UserId == user.Id);
-            return true;
+            return PasswordResetRequestResult.Create(MaskEmail(user.Email), token, expiresAt);
+        }
+    }
+
+    public SecurityUserDto ResetPasswordWithToken(string token, string nextPassword, string confirmPassword)
+    {
+        if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("Token de redefinição inválido.");
+        if (!nextPassword.Equals(confirmPassword, StringComparison.Ordinal)) throw new InvalidOperationException("A confirmação de senha não confere.");
+        if (nextPassword.Length < 8) throw new InvalidOperationException("A nova senha deve ter no minimo 8 caracteres.");
+
+        var now = DateTimeOffset.UtcNow;
+        lock (_syncRoot)
+        {
+            var passwordToken = _passwordResetTokens.FirstOrDefault(item =>
+                item.Token.Equals(token.Trim(), StringComparison.Ordinal) &&
+                item.ConsumedAt is null);
+            if (passwordToken is null || passwordToken.ExpiresAt <= now)
+            {
+                throw new InvalidOperationException("Token de redefinição inválido ou expirado.");
+            }
+
+            var user = _users.FirstOrDefault(item => item.Id == passwordToken.UserId && item.Status == "ativo");
+            if (user is null)
+            {
+                throw new InvalidOperationException("Usuário inativo ou inexistente.");
+            }
+
+            user.PasswordHash = PasswordHasher.Hash(nextPassword);
+            user.MustChangePassword = false;
+            passwordToken.ConsumedAt = now;
+            _passwordResetTokens.RemoveAll(item => item.UserId == user.Id);
+            _sessions.RemoveAll(item => item.UserId == user.Id);
+            return ToDto(user);
         }
     }
 
@@ -255,7 +337,11 @@ public class HorusSecurityStore
 
     private SecurityUser MapRequest(string id, UsuarioRequest request, bool isCreate)
     {
-        if (request.Cpf.Count(char.IsDigit) != 11) throw new InvalidOperationException("CPF invalido.");
+        var documentDigits = OnlyDigits(request.Cpf);
+        if (documentDigits.Length != 11 && documentDigits.Length != 14)
+        {
+            throw new InvalidOperationException("CPF/CNPJ invalido.");
+        }
         if (string.IsNullOrWhiteSpace(request.Name)) throw new InvalidOperationException("Nome e obrigatorio.");
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@')) throw new InvalidOperationException("E-mail invalido.");
         if (isCreate && request.Password.Length < 8) throw new InvalidOperationException("Senha deve ter no minimo 8 caracteres.");
@@ -306,6 +392,46 @@ public class HorusSecurityStore
         };
 
     private static string OnlyDigits(string value) => new(value.Where(char.IsDigit).ToArray());
+
+    public static bool IsValidCnpj(string rawCnpj)
+    {
+        var cnpj = OnlyDigits(rawCnpj);
+        if (cnpj.Length != 14 || cnpj.All(digit => digit == cnpj[0])) return false;
+
+        static int CalcDigit(string baseValue, int[] factors)
+        {
+            var sum = 0;
+            for (var index = 0; index < factors.Length; index += 1)
+            {
+                sum += (baseValue[index] - '0') * factors[index];
+            }
+
+            var remainder = sum % 11;
+            return remainder < 2 ? 0 : 11 - remainder;
+        }
+
+        var base12 = cnpj[..12];
+        var firstDigit = CalcDigit(base12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+        var secondDigit = CalcDigit($"{base12}{firstDigit}", [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+        return cnpj.EndsWith($"{firstDigit}{secondDigit}", StringComparison.Ordinal);
+    }
+
+    private static string GenerateSecureToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .Replace("+", "-", StringComparison.Ordinal)
+            .Replace("/", "_", StringComparison.Ordinal)
+            .TrimEnd('=');
+    }
+
+    private static string MaskEmail(string email)
+    {
+        var parts = email.Split('@', 2);
+        if (parts.Length != 2 || parts[0].Length == 0) return email;
+        var prefix = parts[0].Length == 1 ? parts[0] : $"{parts[0][0]}***{parts[0][^1]}";
+        return $"{prefix}@{parts[1]}";
+    }
 
     private static SecurityUserDto ToDto(SecurityUser source) => new()
     {
@@ -359,6 +485,12 @@ public class SecuritySessionDto
 }
 
 public record ResetPasswordResult(SecurityUserDto User, string Password);
+public record PasswordResetRequestResult(bool Accepted, string? MaskedEmail, string? ResetToken, DateTimeOffset? ExpiresAt)
+{
+    public static PasswordResetRequestResult Create(string? maskedEmail = null, string? resetToken = null, DateTimeOffset? expiresAt = null)
+        => new(true, maskedEmail, resetToken, expiresAt);
+}
+
 public record LoginResult(bool Success, string Message, SecurityUserDto? User, SecuritySession? Session, DateTimeOffset? LockedUntil)
 {
     public static LoginResult Ok(SecurityUserDto user, SecuritySession session) => new(true, "Login realizado com sucesso.", user, session, null);
@@ -398,6 +530,16 @@ internal class LoginAttemptBucket
     public DateTimeOffset FirstAttemptAt { get; set; }
     public DateTimeOffset LastAttemptAt { get; set; }
     public DateTimeOffset? LockedUntil { get; set; }
+}
+
+internal class PasswordResetToken
+{
+    public string Token { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? ConsumedAt { get; set; }
 }
 
 internal static class PasswordHasher
