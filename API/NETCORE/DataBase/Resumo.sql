@@ -224,90 +224,50 @@ BEGIN
     CREATE INDEX IX_ModuloMercadoRegistros_ModuleId ON ModuloMercadoRegistros (ModuleId);
 END;
 
-IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Id = N'usr-001')
+IF EXISTS (SELECT 1 FROM Usuarios WHERE Id = N'usr-001')
+BEGIN
+    UPDATE Usuarios
+       SET Cpf = N'123.456.789-01',
+           Name = N'Flávio Oliveira',
+           Email = N'flavio@hpdv.com.br',
+           Phone = N'(11) 98888-1111',
+           Role = N'administrador',
+           Status = N'ativo',
+           CreatedAt = N'2026-02-10',
+           LastLoginAt = N'-',
+           PasswordHash = N'100000.kop8te8YGY/xSBBtEPR1yA==.iff4Jd546alYO+CLav8GVyX+p0cquoJK6fEpl6upHZc=',
+           MustChangePassword = 0
+     WHERE Id = N'usr-001';
+END
+ELSE
 BEGIN
     INSERT INTO Usuarios (Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword)
-    VALUES
-        (N'usr-001', N'123.456.789-01', N'Flávio Oliveira', N'flavio@hpdv.com.br', N'(11) 98888-1111', N'administrador', N'ativo', N'2026-02-10', N'-', N'100000.kop8te8YGY/xSBBtEPR1yA==.iff4Jd546alYO+CLav8GVyX+p0cquoJK6fEpl6upHZc=', 0),
-        (N'usr-002', N'234.567.890-12', N'Maria Santos', N'maria@hpdv.com.br', N'(11) 97777-2222', N'gerente', N'ativo', N'2026-02-15', N'-', N'100000.LPJzIY8cWIKmbMrdOWghJA==./g/K2agBRS8vR+qIfbe7zrTV3528etwqkF+PsYH8ONg=', 0),
-        (N'usr-003', N'345.678.901-23', N'João Costa', N'joao@hpdv.com.br', N'(11) 96666-3333', N'atendente', N'inativo', N'2026-03-01', N'-', N'100000.7+juWboKfCxabxeBX30K9A==.XdVmx1FOROPd0vGy/IeNrjXMwhFm+j0PN7PxLw4pjNM=', 1);
+    VALUES (N'usr-001', N'123.456.789-01', N'Flávio Oliveira', N'flavio@hpdv.com.br', N'(11) 98888-1111', N'administrador', N'ativo', N'2026-02-10', N'-', N'100000.kop8te8YGY/xSBBtEPR1yA==.iff4Jd546alYO+CLav8GVyX+p0cquoJK6fEpl6upHZc=', 0);
 END;
 
-IF NOT EXISTS (SELECT 1 FROM Fornecedores WHERE Id = N'fr-001')
+IF EXISTS (SELECT 1 FROM Empresas WHERE Id = N'empresa-principal')
 BEGIN
-    INSERT INTO Fornecedores (Id, CompanyName, FantasyName, Cnpj, Cep, City, State, Address, Neighborhood, Number, Telephone, Cellphone, Email)
-    VALUES
-        (N'fr-001', N'Distribuidora Alfa LTDA', N'Distribuidora Alfa', N'12.345.678/0001-95', N'01001-000', N'São Paulo', N'SP', N'Praça da Sé', N'Sé', N'100', N'(11) 3322-1100', N'(11) 98888-3344', N'comercial@alfa.com.br'),
-        (N'fr-002', N'Atacado Vitória LTDA', N'Atacado Vitória', N'98.765.432/0001-10', N'20040-020', N'Rio de Janeiro', N'RJ', N'Rua da Quitanda', N'Centro', N'55', N'(21) 2222-1000', N'(21) 97777-2211', N'vendas@vitoria.com.br');
-END;
-
-IF NOT EXISTS (SELECT 1 FROM Produtos WHERE Id = N'pr-001')
-BEGIN
-    INSERT INTO Produtos (Id, ProductName, ProductCode, ProductSupplier, SupplierId, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct)
-    VALUES
-        (N'pr-001', N'Café Tradicional 500g', N'CAF500', N'Distribuidora Alfa', N'fr-001', N'Café torrado e moído 500g', N'120', N'14,90', N'18,90', N'1.788,00'),
-        (N'pr-002', N'Óleo de Soja', N'OLE900', N'Atacado Vitória', N'fr-002', N'Óleo de soja 900ml', N'56', N'3,29', N'6,99', N'184,24'),
-        (N'pr-003', N'Erva Chimarrão', N'ERV500', N'Distribuidora Alfa', N'fr-001', N'Erva mate para chimarrão 500g', N'24', N'9,80', N'15,00', N'235,20');
-END;
-
-IF NOT EXISTS (SELECT 1 FROM Clientes WHERE Id = N'cl-001')
-BEGIN
-    INSERT INTO Clientes (Id, CustomerName, Document, BirthDate, Age, Cep, City, State, Address, Neighborhood, Number, Telephone, Cellphone, Email)
-    VALUES (N'cl-001', N'Ana Martins', N'123.456.789-09', N'16/10/1991', N'34', N'06010-000', N'Osasco', N'SP', N'Rua Primitiva Vianco', N'Centro', N'100', N'(11) 3681-1000', N'(11) 99888-1122', N'ana.martins@email.com');
-END;
-
-IF NOT EXISTS (SELECT 1 FROM Empresas WHERE Id = N'empresa-principal')
+    UPDATE Empresas
+       SET FantasyName = N'Hórus PDV',
+           CorporateName = N'Hórus PDV LTDA',
+           Cnpj = N'06.332.765/0001-05',
+           StateRegistration = N'123.456.789.110',
+           Website = N'https://www.horuspdv.com.br',
+           Email = N'contato@hpdv.com.br',
+           SacPhone = N'(11) 3000-1000',
+           Phone = N'(11) 3149-5959',
+           Mobile = N'(11) 98888-1000',
+           Cep = N'01310-200',
+           Address = N'Avenida Paulista',
+           Number = N'1578',
+           Neighborhood = N'Bela Vista',
+           City = N'São Paulo',
+           Uf = N'SP',
+           Complement = N'Próximo ao MASP'
+     WHERE Id = N'empresa-principal';
+END
+ELSE
 BEGIN
     INSERT INTO Empresas (Id, FantasyName, CorporateName, Cnpj, StateRegistration, Website, Email, SacPhone, Phone, Mobile, Cep, Address, Number, Neighborhood, City, Uf, Complement)
-    VALUES (N'empresa-principal', N'Festa & Fantasia', N'Festa & Fantasia Comercio LTDA', N'06.332.765/0001-05', N'123.456.789.110', N'https://www.horuspdv.com.br', N'contato@hpdv.com.br', N'(11) 3000-1000', N'(11) 3681-1000', N'(11) 98888-1000', N'06010-000', N'Rua Primitiva Vianco', N'100', N'Centro', N'Osasco', N'SP', N'Sala 12');
-END;
-
-IF NOT EXISTS (SELECT 1 FROM CaixaSessoes WHERE Id = N'cx-001')
-BEGIN
-    INSERT INTO CaixaSessoes (Id, OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, OperatorId, OperatorName, ClosedById, ClosedByName, Note)
-    VALUES (N'cx-001', DATEADD(HOUR, 8, CONVERT(DATETIMEOFFSET, CONVERT(DATE, DATEADD(DAY, -1, SYSDATETIMEOFFSET())))), DATEADD(HOUR, 18, CONVERT(DATETIMEOFFSET, CONVERT(DATE, DATEADD(DAY, -1, SYSDATETIMEOFFSET())))), N'250,00', N'3.418,90', N'usr-001', N'Flávio Oliveira', N'usr-001', N'Flávio Oliveira', N'Fechamento do período anterior.');
-END;
-
-IF NOT EXISTS (SELECT 1 FROM Vendas WHERE Id = N'sale-15039')
-BEGIN
-    INSERT INTO Vendas (Id, SaleNumber, CustomerName, CustomerCpf, SaleDate)
-    VALUES
-        (N'sale-15039', N'15039', N'Ana Martins', N'123.456.789-09', CONVERT(DATETIMEOFFSET, N'2026-03-21T14:12:08+00:00')),
-        (N'sale-15038', N'15038', N'Lucas Souza', N'427.632.180-01', CONVERT(DATETIMEOFFSET, N'2026-03-21T13:42:11+00:00')),
-        (N'sale-15037', N'15037', N'Beatriz Lima', N'064.822.390-16', CONVERT(DATETIMEOFFSET, N'2026-03-21T12:55:46+00:00'));
-
-    INSERT INTO VendaItens (Id, VendaId, ProductCode, ProductName, Quantity)
-    VALUES
-        (N'sale-15039-item-001', N'sale-15039', N'CAF500', N'Café Tradicional 500g', 3),
-        (N'sale-15038-item-001', N'sale-15038', N'ACH400', N'Achocolatado 400g', 1),
-        (N'sale-15037-item-001', N'sale-15037', N'ARR5KG', N'Arroz Tipo 1 5kg', 2);
-END;
-
-IF NOT EXISTS (SELECT 1 FROM ModulosMercado WHERE Id = N'estoque')
-BEGIN
-    INSERT INTO ModulosMercado (Id, Title)
-    VALUES
-        (N'fiscal', N'Fiscal NFC-e / NF-e'),
-        (N'pagamentos', N'Pagamentos Integrados'),
-        (N'estoque', N'Estoque e Inventário'),
-        (N'caixa', N'Abertura e Fechamento de Caixa'),
-        (N'compras', N'Compras e Reposição'),
-        (N'devolucoes', N'Trocas e Devoluções'),
-        (N'crm-fidelidade', N'CRM e Fidelidade'),
-        (N'omnichannel', N'Omnichannel e Integrações');
-
-    INSERT INTO ModuloMercadoRegistros (Id, ModuleId, Title, Description, Status, Amount, Meta)
-    SELECT CONCAT(Id, N'-001'), Id, CONCAT(Title, N' - Registro 001'), N'Registro principal do módulo.', N'Ativo', N'R$ 184,90', N'Sincronizado agora'
-    FROM ModulosMercado
-    WHERE Id IN (N'fiscal', N'pagamentos', N'estoque', N'caixa', N'compras', N'devolucoes', N'crm-fidelidade', N'omnichannel');
-
-    INSERT INTO ModuloMercadoRegistros (Id, ModuleId, Title, Description, Status, Amount, Meta)
-    SELECT CONCAT(Id, N'-002'), Id, CONCAT(Title, N' - Registro 002'), N'Item aguardando validação operacional.', N'Pendente', N'R$ 59,80', N'Prioridade média'
-    FROM ModulosMercado
-    WHERE Id IN (N'fiscal', N'pagamentos', N'estoque', N'caixa', N'compras', N'devolucoes', N'crm-fidelidade', N'omnichannel');
-
-    INSERT INTO ModuloMercadoRegistros (Id, ModuleId, Title, Description, Status, Amount, Meta)
-    SELECT CONCAT(Id, N'-003'), Id, CONCAT(Title, N' - Registro 003'), N'Evento de auditoria e acompanhamento.', N'Auditado', N'R$ 1.240,00', N'Responsável: Administrador'
-    FROM ModulosMercado
-    WHERE Id IN (N'fiscal', N'pagamentos', N'estoque', N'caixa', N'compras', N'devolucoes', N'crm-fidelidade', N'omnichannel');
+    VALUES (N'empresa-principal', N'Hórus PDV', N'Hórus PDV LTDA', N'06.332.765/0001-05', N'123.456.789.110', N'https://www.horuspdv.com.br', N'contato@hpdv.com.br', N'(11) 3000-1000', N'(11) 3149-5959', N'(11) 98888-1000', N'01310-200', N'Avenida Paulista', N'1578', N'Bela Vista', N'São Paulo', N'SP', N'Próximo ao MASP');
 END;

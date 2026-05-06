@@ -13,6 +13,23 @@ public class ModuloMercadoAB(Connection connection)
         return Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
     }
 
+    public async Task GarantirModuloAsync(string id, string title)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            IF NOT EXISTS (SELECT 1 FROM ModulosMercado WHERE Id = @Id)
+            BEGIN
+                INSERT INTO ModulosMercado (Id, Title)
+                VALUES (@Id, @Title);
+            END;
+            """,
+            db);
+        command.Parameters.AddWithValue("@Id", id);
+        command.Parameters.AddWithValue("@Title", title);
+        await command.ExecuteNonQueryAsync();
+    }
+
     public async Task<List<ModuloMercadoRegistroAD>> ListarRegistrosAsync(string id)
     {
         await using var db = await connection.OpenConnectionAsync();

@@ -40,6 +40,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
 
         try
         {
+            await moduloMercadoAB.GarantirModuloAsync(id, BuildModuleTitle(id)!);
             await moduloMercadoAB.CriarRegistroAsync(MapRequest(id, $"mm-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request));
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
@@ -111,7 +112,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     private async Task<object?> BuildConfigAsync(string id)
     {
         var title = BuildModuleTitle(id);
-        if (title is null || !await ModuleExistsAsync(id, false)) return null;
+        if (title is null) return null;
 
         var records = (await moduloMercadoAB.ListarRegistrosAsync(id)).Select(ToModel).ToList();
         var pendingCount = records.Count(item => IsPending(item.Status));
@@ -170,7 +171,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     private async Task<bool> ModuleExistsAsync(string id, bool validateKnownModule = true)
     {
         if (validateKnownModule && BuildModuleTitle(id) is null) return false;
-        return await moduloMercadoAB.ExisteAsync(id);
+        return BuildModuleTitle(id) is not null || await moduloMercadoAB.ExisteAsync(id);
     }
 
     private static string? BuildModuleTitle(string id) => id switch
