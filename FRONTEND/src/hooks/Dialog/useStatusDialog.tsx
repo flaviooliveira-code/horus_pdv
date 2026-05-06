@@ -13,6 +13,8 @@ type DialogConfig = {
   type: DialogType;
   message?: string;
   confirmIntent?: ConfirmIntent;
+  cancelLabel?: string;
+  confirmLabel?: string;
 };
 
 let resolver: ((value?: boolean) => void) | null = null;
@@ -23,14 +25,22 @@ export function useStatusDialog() {
     type: "success",
     message: "",
     confirmIntent: "warning",
+    cancelLabel: "Não",
+    confirmLabel: "Sim",
   });
 
   const show = useCallback(
-    (type: DialogType, message?: string, options?: { confirmIntent?: ConfirmIntent }) => {
+    (
+      type: DialogType,
+      message?: string,
+      options?: { confirmIntent?: ConfirmIntent; cancelLabel?: string; confirmLabel?: string },
+    ) => {
       setConfig({
         type,
         message,
         confirmIntent: options?.confirmIntent ?? "warning",
+        cancelLabel: options?.cancelLabel ?? "Não",
+        confirmLabel: options?.confirmLabel ?? "Sim",
       });
       setOpen(true);
 
@@ -111,14 +121,14 @@ export function useStatusDialog() {
               onClick={() => handleClose(false)}
               className="btn-cancel flex-1"
             >
-              Não
+              {config.cancelLabel ?? "Não"}
             </button>
             <button
               type="button"
               onClick={() => handleClose(true)}
               className="btn-success flex-1"
             >
-              Sim
+              {config.confirmLabel ?? "Sim"}
             </button>
           </div>
         )}
@@ -131,7 +141,10 @@ export function useStatusDialog() {
     success: (msg?: string) => show("success", msg),
     error: (msg?: string) => show("error", msg),
     loading: (msg?: string) => show("loading", msg),
-    confirm: (msg?: string, options?: { confirmIntent?: ConfirmIntent }) =>
+    confirm: (
+      msg?: string,
+      options?: { confirmIntent?: ConfirmIntent; cancelLabel?: string; confirmLabel?: string },
+    ) =>
       show("confirm", msg || "Tem certeza?", options),
     close: () => handleClose(),
     Dialog,

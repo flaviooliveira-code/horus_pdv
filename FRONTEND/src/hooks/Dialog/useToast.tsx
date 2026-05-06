@@ -25,10 +25,10 @@ export interface ToastProps {
 type ToastListener = (toasts: ToastProps[]) => void;
 
 const backgroundByType = {
-  success: "bg-success text-white",
-  error: "bg-primary text-white",
-  info: "bg-secondary text-white",
-  loading: "bg-dark text-white",
+  success: "toast-success",
+  error: "toast-error",
+  info: "toast-info",
+  loading: "toast-loading",
 } satisfies Record<ToastType, string>;
 
 // Estado global em memória para permitir disparo de toast fora da árvore de componentes.

@@ -5,8 +5,21 @@
 import { ShieldCheck, UserPlus, X } from "lucide-react";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { SearchableSelectField } from "@/components/Form";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import type { UserRole, UserStatus } from "./types";
+
+const ROLE_OPTIONS: Array<{ value: UserRole; label: string }> = [
+  { value: "administrador", label: "Administrador" },
+  { value: "gerente", label: "Gerente" },
+  { value: "atendente", label: "Atendente" },
+  { value: "financeiro", label: "Financeiro" },
+];
+
+const STATUS_OPTIONS: Array<{ value: UserStatus; label: string }> = [
+  { value: "ativo", label: "Ativo" },
+  { value: "inativo", label: "Inativo" },
+];
 
 export type UserFormState = {
   cpf: string;
@@ -112,31 +125,25 @@ export default function UserFormDrawer({
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">Perfil</span>
-                <select
-                  value={form.role}
-                  onChange={(event) => setField("role", event.target.value as UserRole)}
-                  className="select-field w-full"
-                >
-                  <option value="administrador">Administrador</option>
-                  <option value="gerente">Gerente</option>
-                  <option value="atendente">Atendente</option>
-                  <option value="financeiro">Financeiro</option>
-                </select>
-              </label>
+              <SearchableSelectField
+                label="Perfil"
+                value={form.role}
+                options={ROLE_OPTIONS}
+                onChange={(nextValue) => setField("role", nextValue as UserRole)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                placeholder="Selecione o perfil"
+              />
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">Status</span>
-                <select
-                  value={form.status}
-                  onChange={(event) => setField("status", event.target.value as UserStatus)}
-                  className="select-field w-full"
-                >
-                  <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo</option>
-                </select>
-              </label>
+              <SearchableSelectField
+                label="Status"
+                value={form.status}
+                options={STATUS_OPTIONS}
+                onChange={(nextValue) => setField("status", nextValue as UserStatus)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                placeholder="Selecione o status"
+              />
             </div>
           </section>
 

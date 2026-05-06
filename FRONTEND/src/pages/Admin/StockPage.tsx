@@ -1,6 +1,5 @@
-import MarketModulePage from "@/components/Admin/MarketModulePage";
-import { stockModuleConfig } from "./marketModuleConfigs";
+import MarketModuleRoutePage from "@/components/Admin/MarketModuleRoutePage";
 
 export default function StockPage() {
-  return <MarketModulePage config={stockModuleConfig} />;
+  return <MarketModuleRoutePage moduleId="estoque" />;
 }

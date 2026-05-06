@@ -5,6 +5,7 @@
  */
 
 import { useRef } from "react";
+import { SearchableSelectField } from "@/components/Form";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 
 export type AddressContactValue = {
@@ -52,6 +53,8 @@ const STATE_OPTIONS = [
   "EX",
 ];
 
+const STATE_SELECT_OPTIONS = STATE_OPTIONS.map((state) => ({ value: state, label: state }));
+
 type AddressContactFieldsProps = {
   value: AddressContactValue;
   loadingCep: boolean;
@@ -65,14 +68,15 @@ export default function AddressContactFields({
   onChange,
   onFillAddressFromCep,
 }: AddressContactFieldsProps) {
-  const { maskCep, maskTelephoneBr, maskCellphoneBr } = useInputMasks();
+  const { maskCep, maskTelephoneBr, maskCellphoneBr, onlyDigits, sanitizeIntegerInput } =
+    useInputMasks();
   // Evita consultas repetidas do mesmo CEP durante digitação.
   const lastAutoLookupCepRef = useRef("");
   // Debounce para não disparar busca de CEP a cada tecla.
   const debounceTimerRef = useRef<number | null>(null);
 
   const runCepLookupIfReady = (maskedCep: string) => {
-    const digits = maskedCep.replace(/\D/g, "");
+    const digits = onlyDigits(maskedCep);
     if (digits.length !== 8 || loadingCep) return;
     if (lastAutoLookupCepRef.current === digits) return;
     lastAutoLookupCepRef.current = digits;
@@ -80,7 +84,7 @@ export default function AddressContactFields({
   };
 
   const scheduleCepLookup = (maskedCep: string) => {
-    const digits = maskedCep.replace(/\D/g, "");
+    const digits = onlyDigits(maskedCep);
     if (digits.length !== 8) {
       if (debounceTimerRef.current) {
         window.clearTimeout(debounceTimerRef.current);
@@ -137,23 +141,16 @@ export default function AddressContactFields({
               placeholder="Cidade"
             />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm text-text-secondary">
-              UF *
-            </span>
-            <select
-              value={value.state}
-              onChange={(event) => onChange("state", event.target.value)}
-              className="select-field w-full"
-            >
-              <option value="">UF</option>
-              {STATE_OPTIONS.map((state) => (
-                <option key={state} value={state}>
-                  {state}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableSelectField
+            label="UF *"
+            value={value.state}
+            options={STATE_SELECT_OPTIONS}
+            onChange={(nextValue) => onChange("state", nextValue)}
+            getOptionValue={(option) => option.value}
+            getOptionLabel={(option) => option.label}
+            placeholder="UF"
+            emptyMessage="UF não encontrada."
+          />
           <label className="block md:col-span-2">
             <span className="mb-1.5 block text-sm text-text-secondary">
               Endereço *
@@ -196,7 +193,7 @@ export default function AddressContactFields({
             <input
               value={value.number}
               onChange={(event) =>
-                onChange("number", event.target.value.replace(/\D/g, ""))
+                onChange("number", sanitizeIntegerInput(event.target.value))
               }
               className="input-field w-full"
               placeholder="Número"

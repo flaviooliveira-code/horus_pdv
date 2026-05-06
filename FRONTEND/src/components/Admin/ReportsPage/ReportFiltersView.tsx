@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, FileSpreadsheet, FileText } from "lucide-react";
-import { DatePickerField } from "@/components/Form";
+import { DatePickerField, SearchableSelectField, TimePickerField } from "@/components/Form";
 import TablePagination from "@/components/Pagination/TablePagination";
 import type { ReportFilter, ReportDefinition } from "./reportsConfig";
 import type {
@@ -14,7 +14,7 @@ import type {
   ReportResultColumn,
   ReportResultRow,
 } from "./reportResultTypes";
-import { generateReportResult } from "./reportMockResults";
+import { reportService } from "@/services/api/reportService";
 
 type FilterValue = string | string[] | boolean;
 
@@ -59,6 +59,11 @@ function createInitialFilterValues(filters: ReportFilter[]): ReportFilterValues 
       return accumulator;
     }
 
+    if (filter.type === "time") {
+      accumulator[filter.id] = filter.id.toLowerCase().includes("start") ? "08:00" : "18:00";
+      return accumulator;
+    }
+
     const defaultOption = filter.options?.[0]?.value ?? "";
     accumulator[filter.id] = defaultOption;
     return accumulator;
@@ -79,7 +84,7 @@ function escapeHtml(value: unknown) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
 
@@ -233,12 +238,14 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setValues(initialValues);
     setSubmittedValues(initialValues);
     setResultColumns([]);
     setResultRows([]);
     setHasGenerated(false);
     setCurrentPage(1);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [initialValues]);
 
   const handleChange = (filterId: string, nextValue: FilterValue) => {
@@ -270,8 +277,7 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
     event.preventDefault();
     setIsLoading(true);
 
-    await new Promise((resolve) => window.setTimeout(resolve, 250));
-    const result = generateReportResult(report.id, values);
+    const result = await reportService.generate(report.id, values);
 
     setSubmittedValues({ ...values });
     setResultColumns(result.columns);
@@ -315,7 +321,7 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
         return accumulator;
       }
 
-      if (filter.type === "date") {
+      if (filter.type === "date" || filter.type === "time") {
         accumulator.push(`${filter.label}: ${formatTableCellValue(value)}`);
         return accumulator;
       }
@@ -417,22 +423,35 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
               );
             }
 
+            if (filter.type === "time") {
+              const value = typeof values[filter.id] === "string" ? (values[filter.id] as string) : "";
+              return (
+                <label key={filter.id} className="space-y-1">
+                  <span className="text-sm font-semibold text-text-primary">{filter.label}</span>
+                  <TimePickerField
+                    value={value}
+                    onChange={(nextValue) => handleChange(filter.id, nextValue)}
+                    className="w-full"
+                    minuteStep={15}
+                    isClearable
+                  />
+                </label>
+              );
+            }
+
             const selectedValue = typeof values[filter.id] === "string" ? (values[filter.id] as string) : "";
             return (
-              <label key={filter.id} className="space-y-1">
-                <span className="text-sm font-semibold text-text-primary">{filter.label}</span>
-                <select
-                  value={selectedValue}
-                  onChange={(event) => handleChange(filter.id, event.target.value)}
-                  className="select-field w-full"
-                >
-                  {filter.options?.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SearchableSelectField
+                key={filter.id}
+                label={filter.label}
+                value={selectedValue}
+                options={filter.options ?? []}
+                onChange={(nextValue) => handleChange(filter.id, nextValue)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                placeholder="Selecione uma opção"
+                emptyMessage="Nenhuma opção encontrada."
+              />
             );
           })}
         </div>

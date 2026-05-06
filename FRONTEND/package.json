@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev:dev": "vite --mode development",
+    "dev:prod": "vite --mode prod",
+    "build": "tsc -b && vite build --mode prod",
+    "build:dev": "tsc -b && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && vite build --mode development",
+    "build:prod": "tsc -b && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && vite build --mode prod",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -19,15 +23,19 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.0",
+    "eslint": "^10.1.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
+    "typescript-eslint": "^8.48.1",
     "vite": "^8.0.0"
   }
 }

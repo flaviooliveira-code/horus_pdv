@@ -8,7 +8,21 @@ import { Menu } from "lucide-react";
 import AppSidebar, { type PageKey } from "@/components/AppSidebar/AppSidebar";
 import LoadingBar from "@/components/Loading/LoadingBar";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
+import ForgotPasswordPage from "@/pages/Auth/ForgotPasswordPage";
 import LoginPage from "@/pages/Auth/LoginPage";
+import RegisterPage from "@/pages/Auth/RegisterPage";
+import ResetPasswordPage from "@/pages/Auth/ResetPasswordPage";
+import type { RegisterFormPayload } from "@/pages/Auth/types";
+import { authService } from "@/services/api/authService";
+import { cashRegisterService } from "@/services/api/cashRegisterService";
+import {
+  clearAuthSession,
+  getAuthToken,
+  getStoredAuthUser,
+  isTokenExpired,
+  setAuthSession,
+  type AuthenticatedUser,
+} from "@/utils/authStorage";
 
 const HomePage = lazy(() => import("@/pages/Admin/HomePage"));
 const CustomerRegisterPage = lazy(
@@ -38,13 +52,12 @@ const EditProfilePage = lazy(() => import("@/pages/Admin/EditProfilePage"));
 const PROFILE_AVATAR_STORAGE_KEY = "horuspdv.profile.avatar";
 const ACTIVE_PAGE_STORAGE_KEY = "horuspdv.activePage";
 const THEME_STORAGE_KEY = "horuspdv.theme";
-const USER_PASSWORD_STORAGE_KEY = "horuspdv.current-user.password";
-const AUTH_STORAGE_KEY = "horuspdv.authenticated";
 const POS_TAB_NAME = "horuspdv-pdv-tab";
 
 const EmptyPage = () => null;
 
 type CurrentUser = {
+  id: string;
   name: string;
   email: string;
   permission: string;
@@ -52,6 +65,30 @@ type CurrentUser = {
 };
 
 type ThemeMode = "light" | "dark";
+type PublicAuthPage = "login" | "forgot-password" | "reset-password" | "register";
+
+function formatRole(role: string) {
+  const labels: Record<string, string> = {
+    administrador: "Administrador",
+    gerente: "Gerente",
+    atendente: "Atendente",
+    financeiro: "Financeiro",
+  };
+  return labels[role] ?? role;
+}
+
+function toCurrentUser(user: AuthenticatedUser): CurrentUser {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    permission: formatRole(user.role),
+    avatarUrl:
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(PROFILE_AVATAR_STORAGE_KEY)
+        : null,
+  };
+}
 
 export default function App() {
   const statusDialog = useStatusDialog();
@@ -100,24 +137,28 @@ export default function App() {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === "dark" ? "dark" : "light";
   });
-  const [currentUserPassword, setCurrentUserPassword] = useState(() => {
-    if (typeof window === "undefined") return "Admin@1234";
-    return window.localStorage.getItem(USER_PASSWORD_STORAGE_KEY) ?? "Admin@1234";
-  });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(AUTH_STORAGE_KEY) === "1";
+    const token = getAuthToken();
+    return Boolean(token && !isTokenExpired(token) && getStoredAuthUser());
   });
 
-  const [currentUser, setCurrentUser] = useState<CurrentUser>(() => ({
-    name: "Administrador do Sistema",
-    email: "admin@hpdv.com.br",
-    permission: "Administrador",
-    avatarUrl:
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(PROFILE_AVATAR_STORAGE_KEY)
-        : null,
-  }));
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(() => {
+    const storedUser = typeof window !== "undefined" ? getStoredAuthUser() : null;
+    return {
+      id: storedUser?.id || "",
+      name: storedUser?.name || "Operador",
+      email: storedUser?.email || "flavio@hpdv.com.br",
+      permission: formatRole(storedUser?.role || "atendente"),
+      avatarUrl:
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(PROFILE_AVATAR_STORAGE_KEY)
+          : null,
+    };
+  });
+  const [publicAuthPage, setPublicAuthPage] = useState<PublicAuthPage>("login");
+  const [authLoginEmail, setAuthLoginEmail] = useState(currentUser.email);
+  const [passwordResetToken, setPasswordResetToken] = useState("");
 
   const pageTitleByKey: Record<PageKey, string> = {
     home: "Home",
@@ -197,7 +238,8 @@ export default function App() {
     setActivePage("home");
     window.localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, "home");
     setIsAuthenticated(false);
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    authService.logout().catch(() => undefined);
+    clearAuthSession();
   };
 
   const handleUploadAvatar = (file: File) => {
@@ -218,16 +260,51 @@ export default function App() {
     });
   };
 
-  const handleChangePassword = (currentPassword: string, nextPassword: string) => {
-    if (currentPassword !== currentUserPassword) {
-      return { success: false, message: "Senha atual inválida." };
+  const handleChangePassword = async (currentPassword: string, nextPassword: string) => {
+    try {
+      await authService.changePassword(currentPassword, nextPassword);
+      clearAuthSession();
+      setIsAuthenticated(false);
+      return { success: true, message: "Senha atualizada com sucesso. Faça login novamente." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao atualizar senha.",
+      };
     }
-    setCurrentUserPassword(nextPassword);
-    window.localStorage.setItem(USER_PASSWORD_STORAGE_KEY, nextPassword);
-    return { success: true, message: "Senha atualizada com sucesso." };
   };
 
   const handleOpenSalesInNewTab = async () => {
+    try {
+      const cashStatus = await cashRegisterService.status();
+      if (!cashStatus?.canSell) {
+        const shouldOpenCashRegister = await statusDialog.confirm(
+          cashStatus?.blockReason ||
+            "Para iniciar vendas, abra o caixa do dia primeiro.",
+          {
+            confirmIntent: "success",
+            cancelLabel: "Agora não",
+            confirmLabel: "Abrir caixa",
+          },
+        );
+
+        if (shouldOpenCashRegister) {
+          setActivePage("caixa");
+        }
+
+        setMobileSidebarOpen(false);
+        return;
+      }
+    } catch (error) {
+      Toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível validar o status do caixa.",
+      );
+      setMobileSidebarOpen(false);
+      return;
+    }
+
     const url = new URL(window.location.href);
     url.searchParams.set("pdv", "1");
 
@@ -259,23 +336,138 @@ export default function App() {
     setMobileSidebarOpen(false);
   };
 
-  const handleLogin = (email: string, password: string) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const currentEmail = currentUser.email.trim().toLowerCase();
+  const handleLogin = async (
+    email: string,
+    password: string,
+    remember: boolean,
+    recaptchaToken?: string,
+  ) => {
+    try {
+      const result = await authService.login({
+        email: email.trim(),
+        password,
+        rememberMe: remember,
+        recaptchaToken,
+      });
 
-    if (normalizedEmail !== currentEmail) {
-      return { success: false, message: "E-mail não encontrado." };
+      if (!result) {
+        return { success: false, message: "A API não retornou os dados de login." };
+      }
+
+      setAuthSession(result.token, result.user, remember);
+      setCurrentUser(toCurrentUser(result.user));
+      setIsAuthenticated(true);
+      setActivePage(isStandalonePos ? "vendas" : "home");
+      return { success: true, message: "Login realizado com sucesso." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao fazer login.",
+      };
     }
-
-    if (password !== currentUserPassword) {
-      return { success: false, message: "Senha inválida." };
-    }
-
-    setIsAuthenticated(true);
-    window.localStorage.setItem(AUTH_STORAGE_KEY, "1");
-    setActivePage(isStandalonePos ? "vendas" : "home");
-    return { success: true, message: "Login realizado com sucesso." };
   };
+
+  const handleForgotPassword = async (
+    cnpj: string,
+    email: string,
+    recaptchaToken?: string,
+  ) => {
+    try {
+      const data = await authService.forgotPassword(cnpj.trim(), email.trim(), recaptchaToken);
+      return {
+        success: true,
+        message: "Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação.",
+        data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Erro ao solicitar recuperação de senha.",
+      };
+    }
+  };
+
+  const handleResetPassword = async (
+    token: string,
+    nextPassword: string,
+    confirmPassword: string,
+    recaptchaToken?: string,
+  ) => {
+    try {
+      await authService.resetPassword(token.trim(), nextPassword, confirmPassword, recaptchaToken);
+      return { success: true, message: "Senha redefinida com sucesso. Faça login novamente." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao redefinir senha.",
+      };
+    }
+  };
+
+  const handleRegister = async (
+    payload: RegisterFormPayload,
+    recaptchaToken?: string,
+  ) => {
+    try {
+      await authService.register({
+        ...payload,
+        email: payload.email.trim(),
+        name: payload.name.trim(),
+        recaptchaToken,
+      });
+      return { success: true, message: "Cadastro criado com sucesso. Faça login para continuar." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao criar cadastro.",
+      };
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    authService
+      .me()
+      .then((user) => {
+        if (!user) return;
+        const token = getAuthToken();
+        if (token) setAuthSession(token, user);
+        setCurrentUser(toCurrentUser(user));
+      })
+      .catch(() => {
+        clearAuthSession();
+        setIsAuthenticated(false);
+      });
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const syncAuthState = () => {
+      const token = getAuthToken();
+      if (!token || isTokenExpired(token)) {
+        clearAuthSession();
+        setIsAuthenticated(false);
+        return;
+      }
+
+      const user = getStoredAuthUser();
+      if (user) {
+        setCurrentUser(toCurrentUser(user));
+        setIsAuthenticated(true);
+      }
+    };
+
+    window.addEventListener("storage", syncAuthState);
+    window.addEventListener("horuspdv-auth-change", syncAuthState);
+    window.addEventListener("focus", syncAuthState);
+    return () => {
+      window.removeEventListener("storage", syncAuthState);
+      window.removeEventListener("horuspdv-auth-change", syncAuthState);
+      window.removeEventListener("focus", syncAuthState);
+    };
+  }, []);
 
   useEffect(() => {
     if (isStandalonePos) return;
@@ -296,7 +488,51 @@ export default function App() {
   }, [activePage, isStandalonePos]);
 
   if (!isAuthenticated) {
-    return <LoginPage defaultEmail={currentUser.email} onLogin={handleLogin} />;
+    if (publicAuthPage === "forgot-password") {
+      return (
+        <ForgotPasswordPage
+          defaultEmail={authLoginEmail}
+          onForgotPassword={handleForgotPassword}
+          onOpenLogin={() => setPublicAuthPage("login")}
+          onOpenResetPassword={(token) => {
+            setPasswordResetToken(token);
+            setPublicAuthPage("reset-password");
+          }}
+        />
+      );
+    }
+
+    if (publicAuthPage === "reset-password") {
+      return (
+        <ResetPasswordPage
+          initialToken={passwordResetToken}
+          onResetPassword={handleResetPassword}
+          onOpenLogin={() => setPublicAuthPage("login")}
+        />
+      );
+    }
+
+    if (publicAuthPage === "register") {
+      return (
+        <RegisterPage
+          onRegister={handleRegister}
+          onOpenLogin={() => setPublicAuthPage("login")}
+          onRegisterSuccess={(email) => {
+            setAuthLoginEmail(email);
+            setPublicAuthPage("login");
+          }}
+        />
+      );
+    }
+
+    return (
+      <LoginPage
+        defaultEmail={authLoginEmail}
+        onLogin={handleLogin}
+        onOpenForgotPassword={() => setPublicAuthPage("forgot-password")}
+        onOpenRegister={() => setPublicAuthPage("register")}
+      />
+    );
   }
 
   if (activePage === "vendas") {
@@ -311,6 +547,7 @@ export default function App() {
         >
           <SalesStartPage
             standalone={isStandalonePos}
+            operatorName={currentUser.name}
             onExit={() => {
               if (isStandalonePos) {
                 window.close();

@@ -20,6 +20,7 @@ type DatePickerFieldProps = {
   className?: string;
   disabled?: boolean;
   format?: DateOutputFormat;
+  minDate?: string;
 };
 
 type PopoverPosition = {
@@ -70,7 +71,9 @@ export default function DatePickerField({
   className = "",
   disabled = false,
   format = "iso",
+  minDate,
 }: DatePickerFieldProps) {
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
   // Controla abertura do popover de calendário.
   const [open, setOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<PopoverPosition | null>(null);
@@ -80,6 +83,10 @@ export default function DatePickerField({
   const selectedDate = useMemo(
     () => (format === "br" ? parseBrDate(value) : parseIsoDate(value)),
     [format, value],
+  );
+  const minSelectableDate = useMemo(
+    () => (format === "br" ? parseBrDate(minDate || "") : parseIsoDate(minDate || "")),
+    [format, minDate],
   );
   // Mês exibido no calendário (pode diferir da data selecionada).
   const [viewMonth, setViewMonth] = useState<Date>(selectedDate ?? new Date());
@@ -101,10 +108,26 @@ export default function DatePickerField({
     [monthLabelFormatter],
   );
 
-  const yearOptions = useMemo(
-    () => Array.from({ length: 101 }, (_, index) => 1970 + index),
-    [],
-  );
+  const yearOptions = useMemo(() => {
+    const selectedYear = selectedDate?.getFullYear();
+    const minYear = minSelectableDate?.getFullYear();
+    const viewYear = viewMonth.getFullYear();
+    const startYear = Math.min(
+      1900,
+      currentYear - 100,
+      selectedYear ?? currentYear,
+      minYear ?? currentYear,
+      viewYear,
+    );
+    const endYear = Math.max(
+      currentYear + 20,
+      selectedYear ?? currentYear,
+      minYear ?? currentYear,
+      viewYear,
+    );
+
+    return Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index);
+  }, [currentYear, minSelectableDate, selectedDate, viewMonth]);
 
   const displayValue = useMemo(() => {
     if (!selectedDate) return "";
@@ -278,7 +301,15 @@ export default function DatePickerField({
             month={viewMonth}
             onMonthChange={setViewMonth}
             hideNavigation
+            disabled={minSelectableDate ? { before: minSelectableDate } : undefined}
             onSelect={(nextDate) => {
+              if (
+                nextDate &&
+                minSelectableDate &&
+                nextDate.getTime() < minSelectableDate.getTime()
+              ) {
+                return;
+              }
               onChange(format === "br" ? toBrDate(nextDate) : toIsoDate(nextDate));
               if (nextDate) setOpen(false);
             }}

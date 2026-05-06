@@ -345,6 +345,9 @@ export default function AppSidebar({
             onOpenSettings();
             onCloseMobile();
           }}
+          onOpenCompany={() => handleChangePage("minha-empresa")}
+          onOpenLicense={() => handleChangePage("detalhe-licenca")}
+          onOpenAbout={() => handleChangePage("sobre-pdv")}
           onLogout={() => {
             onLogout();
             onCloseMobile();

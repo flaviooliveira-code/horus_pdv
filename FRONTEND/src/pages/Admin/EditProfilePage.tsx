@@ -22,7 +22,7 @@ type EditProfilePageProps = {
   userAvatarUrl: string | null;
   onUploadAvatar: (file: File) => void;
   onRemoveAvatar: () => void;
-  onChangePassword: (currentPassword: string, nextPassword: string) => ChangePasswordResult;
+  onChangePassword: (currentPassword: string, nextPassword: string) => Promise<ChangePasswordResult>;
 };
 
 export default function EditProfilePage({
@@ -54,7 +54,7 @@ export default function EditProfilePage({
     event.target.value = "";
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       statusDialog.error("Preencha todos os campos de senha.");
       return;
@@ -70,7 +70,7 @@ export default function EditProfilePage({
       return;
     }
 
-    const result = onChangePassword(currentPassword, newPassword);
+    const result = await onChangePassword(currentPassword, newPassword);
     if (!result.success) {
       statusDialog.error(result.message);
       return;
@@ -212,7 +212,7 @@ export default function EditProfilePage({
               </div>
 
               <div className="mt-3 flex justify-end">
-                <button type="button" className="btn-primary" onClick={handleChangePassword}>
+                <button type="button" className="btn-primary" onClick={() => void handleChangePassword()}>
                   Atualizar senha
                 </button>
               </div>

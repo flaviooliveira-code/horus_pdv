@@ -19,41 +19,12 @@ import {
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { PageKey } from "@/components/AppSidebar/AppSidebar";
 import PageHeader from "@/components/Admin/PageHeader";
 import KpiTrendCard from "@/components/Admin/KpiTrendCard";
 import PageLayout from "@/layout/PageLayout";
-
-const cards = [
-  {
-    label: "Vendas do dia",
-    value: "42",
-    helper: "+12% vs ontem",
-    color: "#2563eb",
-    trend: [24, 27, 29, 31, 35, 38, 42],
-  },
-  {
-    label: "Ticket médio",
-    value: "R$ 186,30",
-    helper: "+4,2% vs ontem",
-    color: "#16a34a",
-    trend: [162, 168, 171, 174, 178, 182, 186],
-  },
-  {
-    label: "Clientes atendidos",
-    value: "31",
-    helper: "Pico às 15:00",
-    color: "#ff6b00",
-    trend: [18, 20, 22, 24, 26, 29, 31],
-  },
-  {
-    label: "Pedidos abertos",
-    value: "6",
-    helper: "2 aguardando pagamento",
-    color: "#7c3aed",
-    trend: [2, 3, 4, 4, 5, 6, 6],
-  },
-];
+import { homeService, type HomeKpiDto } from "@/services/api/homeService";
 
 // Atalhos principais para reduzir cliques no fluxo operacional do dia a dia.
 const shortcuts = [
@@ -86,7 +57,7 @@ const shortcuts = [
 const marketShortcuts = [
   {
     title: "Fiscal NFC-e / NF-e",
-    description: "Emissão, XML, DANFE e contingência mockados",
+    description: "Emissão, XML, DANFE e contingência",
     icon: Receipt,
     page: "fiscal" as PageKey,
   },
@@ -140,6 +111,12 @@ type HomePageProps = {
 };
 
 export default function HomePage({ onNavigate, onOpenSalesInNewTab }: HomePageProps) {
+  const [cards, setCards] = useState<HomeKpiDto[]>([]);
+
+  useEffect(() => {
+    homeService.get().then((data) => setCards(data?.cards ?? [])).catch(() => setCards([]));
+  }, []);
+
   return (
     <PageLayout className="space-y-4 py-4 md:space-y-6 md:py-6 lg:py-8">
       <PageHeader
@@ -209,9 +186,9 @@ export default function HomePage({ onNavigate, onOpenSalesInNewTab }: HomePagePr
       </section>
 
       <section className="card p-4 md:p-5">
-        <h2 className="text-base font-semibold text-text-primary">Módulos competitivos mockados</h2>
+        <h2 className="text-base font-semibold text-text-primary">Gestão avançada</h2>
         <p className="mt-1 text-sm text-text-secondary">
-          Áreas que aproximam o Hórus PDV de sistemas comerciais completos.
+          Acesse os módulos operacionais para acompanhar rotinas do PDV.
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

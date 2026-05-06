@@ -1,9 +1,9 @@
 /**
  * Arquivo: src/components/AppSidebar/UserMenu.tsx
  * Objetivo: exibe avatar e menu de ações do usuário no rodapé da sidebar.
- * Entradas esperadas: dados do usuário e callbacks para perfil, configurações e logout.
+ * Entradas esperadas: dados do usuário e callbacks para páginas rápidas e logout.
  */
-import { ChevronUp, LogOut, Settings, User } from "lucide-react";
+import { Building2, ChevronUp, Info, LogOut, Settings, User, WalletCards } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -14,6 +14,9 @@ type UserMenuProps = {
   avatarUrl: string | null;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
+  onOpenCompany: () => void;
+  onOpenLicense: () => void;
+  onOpenAbout: () => void;
   onLogout: () => void;
 };
 
@@ -24,6 +27,9 @@ export default function UserMenu({
   avatarUrl,
   onOpenProfile,
   onOpenSettings,
+  onOpenCompany,
+  onOpenLicense,
+  onOpenAbout,
   onLogout,
 }: UserMenuProps) {
   // Controla abertura do dropdown de usuário.
@@ -33,7 +39,7 @@ export default function UserMenu({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [panelTop, setPanelTop] = useState(0);
   const [panelLeft, setPanelLeft] = useState(0);
-  const panelWidth = 220;
+  const panelWidth = 240;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -54,7 +60,7 @@ export default function UserMenu({
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
 
-      const measuredHeight = panelRef.current?.getBoundingClientRect().height ?? 170;
+      const measuredHeight = panelRef.current?.getBoundingClientRect().height ?? 310;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const preferredTop = rect.top - measuredHeight - 8;
@@ -157,6 +163,46 @@ export default function UserMenu({
                 <Settings size={16} />
                 Configurações
               </button>
+
+              <div className="my-1 border-t border-border-primary" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenCompany();
+                  setShowUserMenu(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-accent/10"
+              >
+                <Building2 size={16} />
+                Minha Empresa
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenLicense();
+                  setShowUserMenu(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-accent/10"
+              >
+                <WalletCards size={16} />
+                Detalhes da Licença
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenAbout();
+                  setShowUserMenu(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-accent/10"
+              >
+                <Info size={16} />
+                Sobre o PDV
+              </button>
+
+              <div className="my-1 border-t border-border-primary" />
 
               <button
                 type="button"

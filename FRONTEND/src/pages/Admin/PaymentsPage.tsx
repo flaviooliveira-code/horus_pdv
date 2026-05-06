@@ -1,6 +1,15 @@
-import MarketModulePage from "@/components/Admin/MarketModulePage";
-import { paymentsModuleConfig } from "./marketModuleConfigs";
+import UnderDevelopmentPage from "@/components/Admin/UnderDevelopmentPage";
 
 export default function PaymentsPage() {
-  return <MarketModulePage config={paymentsModuleConfig} />;
+  return (
+    <UnderDevelopmentPage
+      title="Pagamentos Integrados"
+      description="TEF, adquirentes, carteiras digitais e conciliação automática."
+      checkpoints={[
+        "Integração TEF e provedores de pagamento",
+        "Conciliação por venda, bandeira e adquirente",
+        "Estorno, cancelamento e comprovantes transacionais",
+      ]}
+    />
+  );
 }

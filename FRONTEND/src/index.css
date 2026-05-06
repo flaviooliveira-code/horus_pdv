@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Outfit:wght@400;500;600;700&display=swap");
 
 /* =====================================================
    Theme - 
@@ -7,48 +7,64 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Manrope", "Inter", sans-serif;
-  --font-body: "Inter", sans-serif;
+  --font-display: "Manrope", "Outfit", sans-serif;
+  --font-body: "Outfit", sans-serif;
 
-  /* cores base do projeto */
-  --color-primary: #ef4444; /* vermelho finalizar */
-  --color-secondary: #4e53bd; /* indigo da identidade Hórus */
-  --color-success: #16a34a; /* verde iniciar/enviar */
-  --color-accent: #2ebff4; /* cyan destaque */
-  --color-dark: #1e293b;
-  --color-light: #f7f9ff;
+  /* cores base do projeto com contraste AA */
+  --color-primary: #dc2626; /* erro/perigo */
+  --color-secondary: #4f46e5; /* identidade Hórus */
+  --color-success: #15803d; /* sucesso/confirmar */
+  --color-accent: #0369a1; /* destaque operacional */
+  --color-dark: #111827;
+  --color-light: #f8fafc;
 
   /* textos */
   --color-text-light: #ffffff;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #42526b;
-  --color-text-tertiary: #7b8ba5;
+  --color-text-primary: #111827;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
 
   /* background */
-  --color-bg-primary: #f4f7ff;
+  --color-bg-primary: #f8fafc;
   --color-bg-light: #ffffff;
-  --color-bg-gray-theme: #eaf0ff;
+  --color-bg-gray-theme: #f1f5f9;
 
   /* hover */
-  --color-hover-primary: #dc2626;
-  --color-hover-secondary: #3f43a1;
-  --color-hover-success: #15803d;
-  --color-hover-accent: #0ea5e9;
-  --color-hover-light: #dde6fb;
+  --color-hover-primary: #b91c1c;
+  --color-hover-secondary: #4338ca;
+  --color-hover-success: #166534;
+  --color-hover-accent: #075985;
+  --color-hover-light: #e2e8f0;
 
   /* bordas */
-  --color-border-primary: #dbe4f5;
-  --color-border-secondary: #becce7;
+  --color-border-primary: #e2e8f0;
+  --color-border-secondary: #cbd5e1;
 
   /* chat */
-  --color-chat-agent-bg: #ddf5ff;
-  --color-chat-agent-text: #093045;
+  --color-chat-agent-bg: #e0f2fe;
+  --color-chat-agent-text: #082f49;
   --color-chat-user-bg: #ffffff;
-  --color-chat-user-text: #0f172a;
+  --color-chat-user-text: #111827;
 }
 
 @layer base {
   :root {
+    --color-action-primary: #dc2626;
+    --color-action-secondary: #4f46e5;
+    --color-action-success: #15803d;
+    --color-action-accent: #0369a1;
+    --color-action-dark: #111827;
+    --color-action-hover-primary: #b91c1c;
+    --color-action-hover-secondary: #4338ca;
+    --color-action-hover-success: #166534;
+    --color-action-hover-accent: #075985;
+    --color-action-on-primary: #ffffff;
+    --color-action-on-secondary: #ffffff;
+    --color-action-on-success: #ffffff;
+    --color-action-on-accent: #ffffff;
+    --color-focus-ring: rgba(3, 105, 161, 0.28);
+    --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.06);
+    --shadow-floating: 0 20px 50px rgba(15, 23, 42, 0.22);
     --z-layer-fab: 45;
     --z-layer-mobile-header: 30;
     --z-layer-sidebar: 40;
@@ -70,18 +86,7 @@
     font-family: var(--font-body);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     color: var(--color-text-primary);
-    background:
-      radial-gradient(
-        circle at top left,
-        color-mix(in srgb, var(--color-secondary) 8%, transparent),
-        transparent 45%
-      ),
-      radial-gradient(
-        circle at top right,
-        color-mix(in srgb, var(--color-accent) 10%, transparent),
-        transparent 40%
-      ),
-      var(--color-bg-primary);
+    background: linear-gradient(180deg, var(--color-bg-primary) 0%, var(--color-bg-gray-theme) 100%);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition:
@@ -89,44 +94,61 @@
       color 0.25s ease;
   }
 
+  .grecaptcha-badge {
+    visibility: hidden;
+  }
+
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    letter-spacing: 0;
   }
 
   html[data-theme="dark"] {
     color-scheme: dark;
     --color-primary: #f87171;
-    --color-secondary: #7d83f6;
+    --color-secondary: #a5b4fc;
     --color-success: #4ade80;
-    --color-accent: #67d6fa;
-    --color-dark: #0a1024;
-    --color-light: #0a1227;
+    --color-accent: #38bdf8;
+    --color-dark: #020617;
+    --color-light: #0f172a;
 
-    --color-text-light: #f8fbff;
-    --color-text-primary: #e6ecfb;
-    --color-text-secondary: #9fb0cf;
-    --color-text-tertiary: #7283a4;
+    --color-text-light: #ffffff;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #cbd5e1;
+    --color-text-tertiary: #94a3b8;
 
-    --color-bg-primary: #060b1a;
-    --color-bg-light: #101a34;
-    --color-bg-gray-theme: #131f3d;
+    --color-bg-primary: #0b1120;
+    --color-bg-light: #111827;
+    --color-bg-gray-theme: #1e293b;
 
-    --color-hover-primary: #ef4444;
-    --color-hover-secondary: #6b72ea;
-    --color-hover-success: #22c55e;
-    --color-hover-accent: #2ebff4;
-    --color-hover-light: #1a274a;
+    --color-hover-primary: #fb7185;
+    --color-hover-secondary: #c4b5fd;
+    --color-hover-success: #86efac;
+    --color-hover-accent: #075985;
+    --color-hover-light: #273449;
 
-    --color-border-primary: #1f2c53;
-    --color-border-secondary: #2a3a68;
+    --color-border-primary: #334155;
+    --color-border-secondary: #475569;
 
-    --color-chat-agent-bg: #12344d;
-    --color-chat-agent-text: #d5f2ff;
-    --color-chat-user-bg: #1a2746;
-    --color-chat-user-text: #e6ecfb;
+    --color-chat-agent-bg: #0c4a6e;
+    --color-chat-agent-text: #f0f9ff;
+    --color-chat-user-bg: #1e293b;
+    --color-chat-user-text: #f8fafc;
+
+    --color-action-primary: #dc2626;
+    --color-action-secondary: #4f46e5;
+    --color-action-success: #15803d;
+    --color-action-accent: #0369a1;
+    --color-action-dark: #020617;
+    --color-action-hover-primary: #b91c1c;
+    --color-action-hover-secondary: #4338ca;
+    --color-action-hover-success: #166534;
+    --color-action-hover-accent: #075985;
+    --color-focus-ring: rgba(56, 189, 248, 0.34);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 16px 36px rgba(0, 0, 0, 0.18);
+    --shadow-floating: 0 24px 60px rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -169,66 +191,84 @@
   .input-field {
     @apply px-3 py-2 border border-border-secondary rounded-xl bg-bg-light
     text-text-primary shadow-sm
-    focus:outline-none focus:ring-0 focus:border-accent/50
-    focus:shadow-[0_0_0_3px_rgba(46,191,244,0.22)]
+    focus:outline-none focus:ring-0 focus:border-accent
     transition duration-200 ease-in-out;
+  }
+
+  .input-field:focus {
+    box-shadow: 0 0 0 3px var(--color-focus-ring);
   }
 
   .input-field:disabled,
   input[disabled] {
-    @apply bg-hover-light text-text-secondary cursor-not-allowed;
+    @apply bg-hover-light text-text-tertiary cursor-not-allowed opacity-80;
   }
 
   /* SELECT */
   .select-field {
     @apply px-3 py-2 border border-border-secondary rounded-xl bg-bg-light
     text-text-primary shadow-sm
-    focus:outline-none focus:ring-0 focus:border-accent/50
-    focus:shadow-[0_0_0_3px_rgba(46,191,244,0.22)]
+    focus:outline-none focus:ring-0 focus:border-accent
     transition duration-200 ease-in-out;
+  }
+
+  .select-field:focus {
+    box-shadow: 0 0 0 3px var(--color-focus-ring);
   }
 
   .select-field:disabled,
   select[disabled] {
-    @apply bg-hover-light text-text-secondary cursor-not-allowed;
+    @apply bg-hover-light text-text-tertiary cursor-not-allowed opacity-80;
   }
 
   /* BOTÃO PRIMÁRIO (AZUL) */
   .btn-primary {
-    @apply bg-secondary text-white font-semibold
+    background: var(--color-action-secondary);
+    color: var(--color-action-on-secondary);
+    @apply font-semibold
     py-2 px-4 rounded-xl shadow-md
     transition duration-300 ease-in-out
     active:translate-y-px;
   }
 
   .btn-primary:disabled {
-    @apply bg-secondary/50 text-white/70 cursor-not-allowed;
+    @apply cursor-not-allowed opacity-60;
   }
 
   .btn-primary:hover {
-    @apply bg-hover-secondary;
+    background: var(--color-action-hover-secondary);
   }
 
   /* BOTÃO SUCESSO (VERDE) */
   .btn-success {
-    @apply bg-success text-white font-semibold
+    background: var(--color-action-success);
+    color: var(--color-action-on-success);
+    @apply font-semibold
     py-2 px-4 rounded-xl shadow-md
-    hover:bg-hover-success
     transition duration-300 ease-in-out
     active:translate-y-px;
+  }
+
+  .btn-success:hover {
+    background: var(--color-action-hover-success);
   }
 
   /* BOTÃO CANCELAR (VERMELHO) */
   .btn-cancel {
-    @apply bg-primary text-white font-semibold
+    background: var(--color-action-primary);
+    color: var(--color-action-on-primary);
+    @apply font-semibold
     py-2 px-4 rounded-xl shadow-md
-    hover:bg-hover-primary
     transition duration-300 ease-in-out
     active:translate-y-px;
   }
 
+  .btn-cancel:hover {
+    background: var(--color-action-hover-primary);
+  }
+
   .btn-cancel:disabled {
-    @apply bg-primary/50 text-white/70 cursor-not-allowed;
+    @apply cursor-not-allowed opacity-60;
   }
 
   /* BOTÃO VOLTAR  */
@@ -245,13 +285,18 @@
   .btn-outline-secondary {
     @apply bg-transparent border border-secondary text-secondary
     font-semibold py-2 px-4 rounded-xl shadow-sm
-    hover:bg-secondary hover:text-white
     transition duration-300 ease-in-out;
+  }
+
+  .btn-outline-secondary:hover {
+    background: var(--color-action-secondary);
+    color: var(--color-action-on-secondary);
   }
 
   /* CARD PADRÃO */
   .card {
-    @apply bg-bg-light rounded-2xl shadow-md border border-border-primary;
+    @apply bg-bg-light rounded-2xl border border-border-primary;
+    box-shadow: var(--shadow-card);
   }
 
   /* CHAT BUBBLE AGENTE */
@@ -271,8 +316,18 @@
   button {
     cursor: pointer;
   }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   button:disabled {
-    @apply bg-hover-light text-text-secondary cursor-not-allowed;
+    @apply cursor-not-allowed opacity-60;
   }
 }
 
@@ -307,9 +362,9 @@
   width: 52px;
   border-radius: 9999px;
   border: 0;
-  background: var(--color-success);
-  color: var(--color-text-light);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  background: var(--color-action-success);
+  color: var(--color-action-on-success);
+  box-shadow: var(--shadow-floating);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -320,7 +375,7 @@
 
 .departments-fab:hover {
   transform: translateY(-1px) scale(1.04);
-  background: var(--color-hover-success);
+  background: var(--color-action-hover-success);
 }
 
 .dept-modal-overlay {
@@ -343,7 +398,7 @@
   border-radius: 16px;
   border: 1px solid var(--color-border-primary);
   background: var(--color-bg-light);
-  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.25);
+  box-shadow: var(--shadow-floating);
   animation: deptZoomIn 0.2s ease-out;
 }
 
@@ -362,7 +417,7 @@
   max-width: 760px;
   background: var(--color-bg-light);
   border-left: 1px solid var(--color-border-primary);
-  box-shadow: -12px 0 30px rgba(15, 23, 42, 0.2);
+  box-shadow: -12px 0 30px rgba(15, 23, 42, 0.22);
   animation: deptDrawerIn 0.24s ease-out;
   display: flex;
   flex-direction: column;
@@ -513,7 +568,12 @@
 }
 
 .finance-table-btn-primary {
-  @apply bg-secondary text-white hover:bg-hover-secondary;
+  background: var(--color-action-secondary);
+  color: var(--color-action-on-secondary);
+}
+
+.finance-table-btn-primary:hover {
+  background: var(--color-action-hover-secondary);
 }
 
 .finance-table-btn-secondary {
@@ -539,7 +599,7 @@
   border-radius: 16px;
   border: 1px solid var(--color-border-primary);
   background: var(--color-bg-light);
-  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.25);
+  box-shadow: var(--shadow-floating);
 }
 
 .finance-modal-header {
@@ -573,6 +633,51 @@
 
 *::-webkit-scrollbar-thumb:hover {
   background: var(--color-hover-accent);
+}
+
+.toast-success {
+  background: var(--color-action-success);
+  color: var(--color-action-on-success);
+}
+
+.toast-error {
+  background: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+}
+
+.toast-info {
+  background: var(--color-action-secondary);
+  color: var(--color-action-on-secondary);
+}
+
+.toast-loading {
+  background: var(--color-action-dark);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .bg-primary.text-white,
+html[data-theme="dark"] .bg-secondary.text-white,
+html[data-theme="dark"] .bg-success.text-white,
+html[data-theme="dark"] .bg-accent.text-white,
+html[data-theme="dark"] .bg-accent.text-text-light {
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .bg-primary.text-white {
+  background-color: var(--color-action-primary);
+}
+
+html[data-theme="dark"] .bg-secondary.text-white {
+  background-color: var(--color-action-secondary);
+}
+
+html[data-theme="dark"] .bg-success.text-white {
+  background-color: var(--color-action-success);
+}
+
+html[data-theme="dark"] .bg-accent.text-white,
+html[data-theme="dark"] .bg-accent.text-text-light {
+  background-color: var(--color-action-accent);
 }
 
 @keyframes deptFadeIn {

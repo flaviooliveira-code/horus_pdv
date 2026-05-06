@@ -3,6 +3,7 @@
  * Objetivo: centraliza e reexporta módulos relacionados à página de configurações.
  */
 export { default as ThemeSettingsCard } from "./ThemeSettingsCard";
+export { default as PrintSettingsCard } from "./PrintSettingsCard";
 export {
   default as SecuritySessionsCard,
   type ActiveSession,

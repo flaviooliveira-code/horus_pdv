@@ -1,6 +1,5 @@
-import MarketModulePage from "@/components/Admin/MarketModulePage";
-import { returnsModuleConfig } from "./marketModuleConfigs";
+import MarketModuleRoutePage from "@/components/Admin/MarketModuleRoutePage";
 
 export default function ReturnsPage() {
-  return <MarketModulePage config={returnsModuleConfig} />;
+  return <MarketModuleRoutePage moduleId="devolucoes" />;
 }

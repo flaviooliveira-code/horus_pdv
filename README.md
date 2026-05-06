@@ -1,193 +1,252 @@
 # Hórus PDV
 
-[PT-BR](#pt-br) | [EN](#en)
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-f59e0b)
+![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-2563eb)
+![Backend](https://img.shields.io/badge/backend-.NET%208-512bd4)
+![License](https://img.shields.io/badge/license-MIT-16a34a)
 
----
+Hórus PDV é um projeto open source de frente de caixa e gestão operacional para pequenos e médios comércios.
 
-## PT-BR
+O projeto está em evolução ativa, com frontend em React, API em ASP.NET Core e módulos operacionais conectados à API em memória enquanto a camada de banco de dados definitiva ainda não foi implementada.
 
-Projeto open source de frente de caixa (PDV) criado por **Flávio Oliveira**.
+## Sumário
 
-O Hórus PDV começou em 2020, passou por evoluções de arquitetura e UX ao longo dos anos, e nesta fase de 2026 está organizado para crescimento em camadas separadas de frontend e backend.
+- [Status do Projeto](#status-do-projeto)
+- [Stack](#stack)
+- [Funcionalidades](#funcionalidades)
+- [Estrutura](#estrutura)
+- [Quick Start](#quick-start)
+- [Variáveis de Ambiente](#variáveis-de-ambiente)
+- [Scripts](#scripts)
+- [Autenticação e Segurança](#autenticação-e-segurança)
+- [Módulos em Desenvolvimento](#módulos-em-desenvolvimento)
+- [Roadmap](#roadmap)
+- [Contribuindo](#contribuindo)
+- [Licença](#licença)
+- [Autor](#autor)
 
-### Filosofia do Projeto
+## Status do Projeto
 
-- Uso gratuito nesta versão open source.
-- Reutilização e aprendizado para a comunidade.
-- Evolução contínua com foco em qualidade de código, clareza e manutenção.
-- Possibilidade de versões pagas no futuro com módulos adicionais.
+Este repositório está em fase de desenvolvimento. O frontend já conversa com a API .NET, mas os dados ainda são mantidos em memória na API até a implementação do banco.
 
-### Estrutura do Repositório
+| Área | Status |
+| --- | --- |
+| Frontend React | Em desenvolvimento ativo |
+| API .NET | Em desenvolvimento ativo |
+| Autenticação JWT | Implementada |
+| reCAPTCHA v3 | Implementado, opcional por configuração |
+| Banco de dados | Pendente |
+| Fiscal NFC-e / NF-e | Em desenvolvimento |
+| Pagamentos integrados | Em desenvolvimento |
+| Sistema legado | Mantido como referência histórica |
 
-```text
-horus_pdv/
-├── FRONTEND/       # Aplicação cliente (React + Vite + TypeScript)
-├── API/            # Backends em desenvolvimento (NETCORE, NODE, PHP)
-└── SYSTEM-LEGACY/  # Base legada para consulta histórica/migração
-```
+## Stack
 
-### Status Atual
+**Frontend**
 
-- `FRONTEND`: em desenvolvimento ativo.
-- `API/NETCORE`: em desenvolvimento.
-- `API/NODE`: em desenvolvimento.
-- `API/PHP`: em desenvolvimento.
-- `SYSTEM-LEGACY`: referência da versão anterior.
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- Lucide React
+- Recharts
 
-### Executando o Frontend
+**Backend**
 
-Pré-requisitos:
+- .NET 8
+- ASP.NET Core Web API
+- Swagger
+- JWT
+- Rate limit local
+- Stores em memória para esta fase
+
+## Funcionalidades
+
+- Login com JWT.
+- Cadastro público por CNPJ.
+- Recuperação e redefinição de senha.
+- Gestão de clientes, fornecedores e produtos.
+- Frente de caixa com carrinho, pagamento e baixa de estoque.
+- Abertura e fechamento de caixa.
+- Histórico de vendas.
+- Relatórios.
+- Minha empresa, licença, perfil e configurações.
+- Gestão de usuários.
+- Temas light/dark.
+
+## Estrutura
+
+<pre><code class="language-text">horus_pdv/
+├── API/
+│   └── NETCORE/          # API ASP.NET Core
+├── FRONTEND/             # Aplicação React + Vite
+├── SYSTEM-LEGACY/        # Base legada para consulta/migração
+├── LICENSE
+└── README.md
+</code></pre>
+
+## Quick Start
+
+### Requisitos
 
 - Node.js 20+
 - npm 10+
+- .NET SDK 8+
 
-Passos:
+### 1. Clonar o projeto
 
-```bash
-cd FRONTEND
+<pre><code class="language-bash">git clone https://github.com/flaviooliveira-code/horus_pdv.git
+cd horus_pdv
+</code></pre>
+
+### 2. Configurar o frontend
+
+<pre><code class="language-bash">cd FRONTEND
+cp .env.example .env
 npm install
+</code></pre>
+
+### 3. Subir a API .NET
+
+Em outro terminal:
+
+<pre><code class="language-bash">cd API/NETCORE
+dotnet restore
+dotnet run --urls http://localhost:5260
+</code></pre>
+
+Swagger local:
+
+<pre><code class="language-text">http://localhost:5260/swagger
+</code></pre>
+
+### 4. Subir o frontend
+
+<pre><code class="language-bash">cd FRONTEND
 npm run dev
-```
+</code></pre>
 
-Build de produção:
+URL local padrão:
 
-```bash
-npm run build
-```
+<pre><code class="language-text">http://localhost:5173
+</code></pre>
 
-### Backend (API)
+## Variáveis de Ambiente
 
-A pasta `API` está preparada para organização de implementações de backend por tecnologia.
+O frontend usa um arquivo `.env` para mapear os endpoints da API.
 
-Cada subpasta possui documentação própria:
+Exemplo:
 
-- `API/NETCORE/README.md`
-- `API/NODE/README.md`
-- `API/PHP/README.md`
+<pre><code class="language-env">VITE_AUTH_API_URL=http://localhost:5260/api/Auth
+VITE_PRODUTO_API_URL=http://localhost:5260/api/Produto
+VITE_CLIENTE_API_URL=http://localhost:5260/api/Cliente
+VITE_FORNECEDOR_API_URL=http://localhost:5260/api/Fornecedor
+VITE_EMPRESA_API_URL=http://localhost:5260/api/Empresa
+VITE_RECAPTCHA_SITE_KEY=
+</code></pre>
 
-### Open Source e Créditos
+Arquivos disponíveis:
 
-Você pode usar esta versão gratuitamente em projetos pessoais, estudos e adaptações, mantendo os devidos créditos ao autor.
+- `FRONTEND/.env.example`
+- `FRONTEND/.env.development`
+- `FRONTEND/.env.prod`
 
-Autor:
+Na API, configurações sensíveis como JWT, CORS e reCAPTCHA ficam em `API/NETCORE/appsettings.json` durante o desenvolvimento local.
 
-- **Flávio Oliveira**
-- GitHub: https://github.com/flaviooliveira-code
-- LinkedIn: https://www.linkedin.com/in/fladoliveira
+## Scripts
 
-### Contribuindo
+### Frontend
+
+<pre><code class="language-bash">cd FRONTEND
+npm run dev          # servidor local Vite
+npm run dev:dev      # Vite em modo development
+npm run dev:prod     # Vite em modo prod
+npm run lint         # ESLint
+npm run build:dev    # build usando env de desenvolvimento
+npm run build:prod   # build usando env de produção
+npm run preview      # preview do build
+</code></pre>
+
+### API .NET
+
+<pre><code class="language-bash">cd API/NETCORE
+dotnet restore
+dotnet build
+dotnet run --urls http://localhost:5260
+</code></pre>
+
+## Autenticação e Segurança
+
+O projeto já possui uma base de segurança para desenvolvimento:
+
+- JWT com sessão.
+- Middleware de autenticação.
+- Controle de sessão ativa.
+- Rate limit local.
+- Bloqueio por tentativas inválidas de login.
+- Recuperação de senha por token temporário.
+- reCAPTCHA v3 opcional para login, cadastro e recuperação de senha.
+- CORS configurado para ambientes locais do frontend.
+
+> Importante: antes de produção, altere `Auth:JwtSecret`, habilite armazenamento persistente e configure chaves reais de reCAPTCHA quando necessário.
+
+## Módulos em Desenvolvimento
+
+Algumas áreas aparecem no menu para indicar a direção do produto, mas ainda não devem ser usadas em operação real:
+
+- Fiscal NFC-e / NF-e.
+- Pagamentos integrados.
+
+Essas páginas mostram estado visual de "Em desenvolvimento" até as integrações e homologações ficarem prontas.
+
+## Dados e Persistência
+
+Nesta fase, a API mantém dados em memória. Isso permite validar o fluxo completo do frontend com a API sem depender ainda de banco.
+
+Impacto:
+
+- Ao reiniciar a API, dados criados em runtime podem ser perdidos.
+- Tokens de recuperação de senha são temporários e ficam em memória.
+- A próxima etapa estrutural é criar a camada de banco e migrations.
+
+## Roadmap
+
+- Implementar banco de dados.
+- Persistir autenticação, usuários, produtos, vendas e caixa.
+- Criar migrations e seeds.
+- Expandir testes automatizados.
+- Consolidar regras fiscais.
+- Integrar TEF/provedores de pagamento.
+- Melhorar documentação técnica da API.
+- Criar guias de deploy.
+
+## Contribuindo
 
 Contribuições são bem-vindas.
 
 Fluxo sugerido:
 
-1. Faça um fork.
-2. Crie uma branch (`feature/minha-melhoria`).
-3. Commit suas alterações.
-4. Abra um Pull Request com contexto técnico e evidências de teste.
+<pre><code class="language-bash">git checkout -b feature/minha-melhoria
+npm --prefix FRONTEND run lint
+npm --prefix FRONTEND run build:prod
+dotnet build API/NETCORE
+</code></pre>
 
-### Roadmap (alto nível)
+Antes de abrir um pull request:
 
-- Consolidação da API principal.
-- Integração real entre frontend e backend.
-- Módulos extras (financeiro avançado, fiscal, integrações externas).
-- Melhorias contínuas de UX mobile e acessibilidade.
+- Explique o problema resolvido.
+- Liste arquivos ou módulos impactados.
+- Informe como validou a mudança.
+- Evite misturar refatorações grandes com correções pequenas.
 
-### Licença
 
-Consulte o arquivo [LICENSE](./LICENSE).
+## Licença
 
----
+Este projeto está sob licença MIT. Consulte [LICENSE](./LICENSE).
 
-## EN
+## Autor
 
-Open-source point of sale (POS) project created by **Flávio Oliveira**.
+Criado por **Flávio Oliveira**.
 
-Hórus PDV started in 2020 and has gone through architecture and UX evolution over the years. In this 2026 phase, it is organized for growth with separated frontend and backend layers.
-
-### Project Philosophy
-
-- Free usage in this open-source version.
-- Reuse and learning for the community.
-- Continuous evolution focused on code quality, clarity, and maintainability.
-- Possible paid editions in the future with additional modules.
-
-### Repository Structure
-
-```text
-horus_pdv/
-├── FRONTEND/       # Client application (React + Vite + TypeScript)
-├── API/            # Backends in development (NETCORE, NODE, PHP)
-└── SYSTEM-LEGACY/  # Legacy base for historical reference/migration
-```
-
-### Current Status
-
-- `FRONTEND`: actively under development.
-- `API/NETCORE`: in development.
-- `API/NODE`: in development.
-- `API/PHP`: in development.
-- `SYSTEM-LEGACY`: previous version reference.
-
-### Running the Frontend
-
-Requirements:
-
-- Node.js 20+
-- npm 10+
-
-Steps:
-
-```bash
-cd FRONTEND
-npm install
-npm run dev
-```
-
-Production build:
-
-```bash
-npm run build
-```
-
-### Backend (API)
-
-The `API` folder is prepared to organize backend implementations by technology.
-
-Each subfolder has its own documentation:
-
-- `API/NETCORE/README.md`
-- `API/NODE/README.md`
-- `API/PHP/README.md`
-
-### Open Source and Credits
-
-You can use this version for free in personal projects, studies, and adaptations, keeping proper credit to the author.
-
-Author:
-
-- **Flávio Oliveira**
-- GitHub: https://github.com/flaviooliveira-code
-- LinkedIn: https://www.linkedin.com/in/fladoliveira
-
-### Contributing
-
-Contributions are welcome.
-
-Suggested flow:
-
-1. Fork this repository.
-2. Create a branch (`feature/my-improvement`).
-3. Commit your changes.
-4. Open a Pull Request with technical context and test evidence.
-
-### Roadmap (high-level)
-
-- Main API consolidation.
-- Real frontend-backend integration.
-- Extra modules (advanced finance, fiscal, external integrations).
-- Ongoing mobile UX and accessibility improvements.
-
-### License
-
-See [LICENSE](./LICENSE).
+- GitHub: <https://github.com/flaviooliveira-code>
+- LinkedIn: <https://www.linkedin.com/in/fladoliveira>

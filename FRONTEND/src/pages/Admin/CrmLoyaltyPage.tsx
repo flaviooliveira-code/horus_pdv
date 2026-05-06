@@ -1,6 +1,5 @@
-import MarketModulePage from "@/components/Admin/MarketModulePage";
-import { crmModuleConfig } from "./marketModuleConfigs";
+import MarketModuleRoutePage from "@/components/Admin/MarketModuleRoutePage";
 
 export default function CrmLoyaltyPage() {
-  return <MarketModulePage config={crmModuleConfig} />;
+  return <MarketModuleRoutePage moduleId="crm-fidelidade" />;
 }

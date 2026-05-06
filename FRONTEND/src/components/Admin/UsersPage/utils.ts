@@ -5,7 +5,9 @@
 import type { AdminUser } from "./types";
 
 export function statusClass(status: AdminUser["status"]) {
-  return status === "ativo" ? "bg-success/15 text-success" : "bg-primary/15 text-primary";
+  return status === "ativo"
+    ? "border border-success/30 bg-success/15 text-success"
+    : "border border-primary/30 bg-primary/15 text-primary";
 }
 
 export function buildUserId() {

@@ -5,14 +5,16 @@
  */
 
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { DatePickerField } from "@/components/Form";
+import TablePagination from "@/components/Pagination/TablePagination";
 import AddressContactFields from "@/components/Register/AddressContactFields";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
+import { customerService } from "@/services/api/customerService";
 import { lookupAddressByCep } from "@/utils/cepLookup";
 import {
   getAgeFromBirthDate,
@@ -20,6 +22,7 @@ import {
   isValidCpf,
   isValidEmail,
 } from "@/utils/validators";
+import { onlyDigits } from "@/utils/inputMasks";
 
 type Customer = {
   id: string;
@@ -59,27 +62,6 @@ const EMPTY_FORM: CustomerFormData = {
   cellphone: "",
   email: "",
 };
-
-const INITIAL_CUSTOMERS: Customer[] = [
-  {
-    id: "cl-001",
-    customerName: "Ana Martins",
-    document: "123.456.789-09",
-    birthDate: "16/10/1991",
-    age: "34",
-    cep: "06010-000",
-    city: "Osasco",
-    state: "SP",
-    address: "Rua Primitiva Vianco",
-    neighborhood: "Centro",
-    streetComplement: "",
-    number: "100",
-    referencePoint: "",
-    telephone: "(11) 3681-1000",
-    cellphone: "(11) 99888-1122",
-    email: "ana.martins@email.com",
-  },
-];
 
 function CustomerFormDrawer({
   open,
@@ -218,12 +200,24 @@ function CustomerFormDrawer({
 
 export default function CustomerRegisterPage() {
   const statusDialog = useStatusDialog();
-  const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loadingCep, setLoadingCep] = useState(false);
   const [form, setForm] = useState<CustomerFormData>(EMPTY_FORM);
+
+  useEffect(() => {
+    customerService
+      .list()
+      .then(setCustomers)
+      .catch(() => {
+        Toast.error("Não foi possível carregar clientes da API.");
+      });
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -234,6 +228,42 @@ export default function CustomerRegisterPage() {
         customer.document.includes(normalized),
     );
   }, [customers, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedCustomers = useMemo(() => {
+    const start = (safeCurrentPage - 1) * itemsPerPage;
+    return filteredCustomers.slice(start, start + itemsPerPage);
+  }, [filteredCustomers, itemsPerPage, safeCurrentPage]);
+  const selectedCustomersOnPage = paginatedCustomers.filter((customer) =>
+    selectedCustomerIds.has(customer.id),
+  );
+  const allCustomersOnPageSelected =
+    paginatedCustomers.length > 0 && selectedCustomersOnPage.length === paginatedCustomers.length;
+
+  const toggleCustomerSelection = (customerId: string) => {
+    setSelectedCustomerIds((current) => {
+      const next = new Set(current);
+      if (next.has(customerId)) {
+        next.delete(customerId);
+      } else {
+        next.add(customerId);
+      }
+      return next;
+    });
+  };
+
+  const toggleCurrentPageSelection = () => {
+    setSelectedCustomerIds((current) => {
+      const next = new Set(current);
+      if (allCustomersOnPageSelected) {
+        paginatedCustomers.forEach((customer) => next.delete(customer.id));
+      } else {
+        paginatedCustomers.forEach((customer) => next.add(customer.id));
+      }
+      return next;
+    });
+  };
 
   const openCreateDrawer = () => {
     setEditingId(null);
@@ -252,12 +282,60 @@ export default function CustomerRegisterPage() {
       `Deseja excluir o cliente "${customer.customerName}"?`,
     );
     if (!confirmed) return;
-    setCustomers((current) => current.filter((item) => item.id !== customer.id));
-    statusDialog.success("Cliente excluído com sucesso.");
+    try {
+      await customerService.remove(customer.id);
+      setCustomers((current) => current.filter((item) => item.id !== customer.id));
+      setSelectedCustomerIds((current) => {
+        const next = new Set(current);
+        next.delete(customer.id);
+        return next;
+      });
+      statusDialog.success("Cliente excluído com sucesso.");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Erro ao excluir cliente.");
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const selectedIds = Array.from(selectedCustomerIds);
+    if (selectedIds.length === 0) return;
+
+    const confirmed = await statusDialog.confirm(
+      `Excluir ${selectedIds.length} cliente(s) selecionado(s)?`,
+    );
+    if (!confirmed) return;
+
+    const results = await Promise.allSettled(
+      selectedIds.map(async (customerId) => {
+        await customerService.remove(customerId);
+        return customerId;
+      }),
+    );
+    const removedIds = results
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    if (removedIds.length > 0) {
+      const removedIdSet = new Set(removedIds);
+      setCustomers((current) => current.filter((customer) => !removedIdSet.has(customer.id)));
+      setSelectedCustomerIds((current) => {
+        const next = new Set(current);
+        removedIds.forEach((customerId) => next.delete(customerId));
+        return next;
+      });
+    }
+
+    const failedCount = selectedIds.length - removedIds.length;
+    if (failedCount > 0) {
+      Toast.error(`${failedCount} cliente(s) não puderam ser excluído(s).`);
+      return;
+    }
+
+    Toast.success("Clientes selecionados excluídos com sucesso.");
   };
 
   const fillAddressFromCep = async () => {
-    if (form.cep.replace(/\D/g, "").length !== 8) {
+    if (onlyDigits(form.cep).length !== 8) {
       Toast.error("CEP inválido.");
       return;
     }
@@ -307,7 +385,7 @@ export default function CustomerRegisterPage() {
       return false;
     }
 
-    const documentDigits = form.document.replace(/\D/g, "");
+    const documentDigits = onlyDigits(form.document);
     const isCpf = documentDigits.length === 11;
     const isCnpj = documentDigits.length === 14;
 
@@ -329,23 +407,26 @@ export default function CustomerRegisterPage() {
     return true;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) return;
 
-    if (editingId) {
-      setCustomers((current) =>
-        current.map((customer) =>
-          customer.id === editingId ? { ...customer, ...form } : customer,
-        ),
-      );
-      Toast.success("Cliente atualizado com sucesso.");
-    } else {
-      const created: Customer = {
-        id: `cl-${Date.now()}`,
-        ...form,
-      };
-      setCustomers((current) => [created, ...current]);
-      Toast.success("Cliente cadastrado com sucesso.");
+    try {
+      if (editingId) {
+        const updated = await customerService.update(editingId, form);
+        if (!updated) return;
+        setCustomers((current) =>
+          current.map((customer) => (customer.id === editingId ? updated : customer)),
+        );
+        Toast.success("Cliente atualizado com sucesso.");
+      } else {
+        const created = await customerService.create(form);
+        if (!created) return;
+        setCustomers((current) => [created, ...current]);
+        Toast.success("Cliente cadastrado com sucesso.");
+      }
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Erro ao salvar cliente.");
+      return;
     }
 
     setDrawerOpen(false);
@@ -374,7 +455,11 @@ export default function CustomerRegisterPage() {
           />
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setCurrentPage(1);
+              setSelectedCustomerIds(new Set());
+            }}
             className="input-field w-full pl-9"
             placeholder="Pesquise por nome ou CPF"
           />
@@ -382,10 +467,34 @@ export default function CustomerRegisterPage() {
       </section>
 
       <section className="card overflow-hidden">
+        {selectedCustomerIds.size > 0 ? (
+          <div className="flex flex-col gap-2 border-b border-border-primary bg-primary/8 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-text-primary">
+              {selectedCustomerIds.size} cliente(s) selecionado(s)
+            </p>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="btn-cancel inline-flex items-center justify-center gap-2"
+            >
+              <Trash2 size={15} />
+              Excluir selecionados
+            </button>
+          </div>
+        ) : null}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px] text-sm">
             <thead className="bg-bg-primary text-left text-text-secondary">
               <tr>
+                <th className="w-12 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allCustomersOnPageSelected}
+                    onChange={toggleCurrentPageSelection}
+                    aria-label="Selecionar clientes desta página"
+                    className="h-4 w-4 rounded border-border-secondary accent-accent"
+                  />
+                </th>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Documento</th>
                 <th className="px-4 py-3">Cidade</th>
@@ -395,8 +504,17 @@ export default function CustomerRegisterPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredCustomers.map((customer) => (
+              {paginatedCustomers.map((customer) => (
                 <tr key={customer.id} className="border-t border-border-primary">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedCustomerIds.has(customer.id)}
+                      onChange={() => toggleCustomerSelection(customer.id)}
+                      aria-label={`Selecionar ${customer.customerName}`}
+                      className="h-4 w-4 rounded border-border-secondary accent-accent"
+                    />
+                  </td>
                   <td className="px-4 py-3">{customer.customerName}</td>
                   <td className="px-4 py-3">{customer.document}</td>
                   <td className="px-4 py-3">{customer.city}</td>
@@ -425,6 +543,19 @@ export default function CustomerRegisterPage() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="px-4 py-4">
+          <TablePagination
+            totalItems={filteredCustomers.length}
+            currentPage={safeCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(value) => {
+              setItemsPerPage(value);
+              setCurrentPage(1);
+              setSelectedCustomerIds(new Set());
+            }}
+          />
         </div>
       </section>
 

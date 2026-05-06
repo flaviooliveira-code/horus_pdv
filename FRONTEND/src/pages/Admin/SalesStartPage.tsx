@@ -4,14 +4,32 @@
  * Entradas esperadas: recebe flag opcional de modo standalone para ajustar comportamento da aba PDV.
  */
 
-import { Image as ImageIcon, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Image as ImageIcon, Printer, ReceiptText, Search, Trash2, X } from "lucide-react";
+import {
+  type ClipboardEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { SearchableSelectField } from "@/components/Form";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
+import {
+  cashRegisterService,
+  type CashRegisterStatusDto,
+} from "@/services/api/cashRegisterService";
+import { companyService, type CompanyDto } from "@/services/api/companyService";
+import { productService } from "@/services/api/productService";
+import { salesHistoryService } from "@/services/api/salesHistoryService";
+import { getPrintPreviewEnabled } from "@/utils/pdvPreferences";
 
 type SalesStartPageProps = {
   onExit?: () => void;
   standalone?: boolean;
+  operatorName?: string;
 };
 
 type Product = {
@@ -33,12 +51,44 @@ type CartItem = {
 
 type PaymentType = "dinheiro" | "pix" | "debito" | "credito";
 
-const PRODUCTS: Product[] = [
-  { id: "pr-001", name: "BOLA DE CAMPO - ADIDAS++", code: "BOL110", stock: 25, salePrice: 110 },
-  { id: "pr-002", name: "Óleo de Soja", code: "OLE900", stock: 56, salePrice: 3.29 },
-  { id: "pr-003", name: "Erva Chimarrão", code: "ERV500", stock: 24, salePrice: 15 },
-  { id: "pr-004", name: "Bala Tic Tac", code: "BAL018", stock: 110, salePrice: 3 },
+type ReceiptItem = CartItem & {
+  total: number;
+};
+
+type SaleReceipt = {
+  saleNumber: string;
+  issuedAt: string;
+  company: Pick<
+    CompanyDto,
+    | "fantasyName"
+    | "corporateName"
+    | "cnpj"
+    | "address"
+    | "number"
+    | "neighborhood"
+    | "city"
+    | "uf"
+    | "phone"
+    | "sacPhone"
+  > | null;
+  customerCpf: string;
+  paymentType: PaymentType;
+  paymentLabel: string;
+  operatorName: string;
+  subtotal: number;
+  cashGiven: number;
+  change: number;
+  items: ReceiptItem[];
+};
+
+const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string }> = [
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "pix", label: "PIX" },
+  { value: "debito", label: "Cartão Débito" },
+  { value: "credito", label: "Cartão Crédito" },
 ];
+
+const LAST_RECEIPT_STORAGE_KEY = "horus-pdv-last-receipt";
 
 function formatDateTime(date: Date) {
   return {
@@ -55,14 +105,180 @@ function formatDateTime(date: Date) {
   };
 }
 
-export default function SalesStartPage({ standalone = false }: SalesStartPageProps) {
-  const { formatMoneyBr, maskMoneyBr, parseMoneyBr } = useInputMasks();
+function preventNonDigitBeforeInput(event: FormEvent<HTMLInputElement>) {
+  const data = (event.nativeEvent as InputEvent).data ?? "";
+  if (data && /\D/.test(data)) {
+    event.preventDefault();
+  }
+}
+
+function getPaymentLabel(paymentType: PaymentType) {
+  return PAYMENT_OPTIONS.find((option) => option.value === paymentType)?.label ?? paymentType;
+}
+
+function formatReceiptDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatCashElapsed(minutes?: number) {
+  if (!minutes || minutes < 1) return "menos de 1 min";
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours === 0) return `${remainingMinutes} min`;
+  return `${hours}h ${String(remainingMinutes).padStart(2, "0")}min`;
+}
+
+function ReceiptPreviewModal({
+  receipt,
+  formatMoney,
+  onClose,
+}: {
+  receipt: SaleReceipt;
+  formatMoney: (value: number) => string;
+  onClose: () => void;
+}) {
+  const companyName =
+    receipt.company?.fantasyName || receipt.company?.corporateName || "Hórus PDV";
+  const companyAddress = [
+    receipt.company?.address,
+    receipt.company?.number,
+    receipt.company?.neighborhood,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const companyCity = [receipt.company?.city, receipt.company?.uf].filter(Boolean).join(" - ");
+
+  return (
+    <div className="fixed inset-0 z-layer-dialog flex items-end bg-black/50 px-3 backdrop-blur-sm md:items-center md:justify-center">
+      <div className="w-full max-w-xl rounded-t-2xl border border-border-primary bg-bg-light shadow-2xl md:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-border-primary px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <ReceiptText size={18} />
+            </span>
+            <div>
+              <h2 className="text-base font-semibold text-text-primary">Prévia de impressão</h2>
+              <p className="text-xs text-text-secondary">Cupom da venda {receipt.saleNumber}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary text-text-secondary hover:bg-hover-light"
+            aria-label="Fechar prévia de impressão"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="max-h-[72vh] overflow-y-auto bg-bg-primary p-4">
+          <div className="mx-auto w-full max-w-[360px] border border-border-secondary bg-white px-5 py-4 font-mono text-[12px] leading-tight text-slate-950 shadow-sm">
+            <div className="text-center">
+              <p className="text-sm font-bold uppercase">{companyName}</p>
+              <p>{receipt.company?.corporateName || companyName}</p>
+              <p>CNPJ: {receipt.company?.cnpj || "-"}</p>
+              {companyAddress ? <p>{companyAddress}</p> : null}
+              {companyCity ? <p>{companyCity}</p> : null}
+              <p>Telefone: {receipt.company?.phone || receipt.company?.sacPhone || "-"}</p>
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+
+            <div className="space-y-1">
+              <p>CUPOM NAO FISCAL</p>
+              <p>Venda: {receipt.saleNumber}</p>
+              <p>Emissao: {formatReceiptDate(receipt.issuedAt)}</p>
+              <p>Operador: {receipt.operatorName}</p>
+              <p>CPF/CNPJ consumidor: {receipt.customerCpf || "-"}</p>
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+
+            <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1 font-bold">
+              <span>#</span>
+              <span>ITEM</span>
+              <span className="text-right">QTD</span>
+              <span className="text-right">TOTAL</span>
+            </div>
+            <div className="mt-1 space-y-2">
+              {receipt.items.map((item, index) => (
+                <div key={`${item.id}-${index}`}>
+                  <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1">
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <span className="truncate">{item.name}</span>
+                    <span className="text-right">{item.quantity}</span>
+                    <span className="text-right">{formatMoney(item.total)}</span>
+                  </div>
+                  <p className="pl-7 text-[11px]">
+                    {item.code} - UN {formatMoney(item.unitPrice)}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+
+            <div className="space-y-1">
+              <div className="flex justify-between font-bold">
+                <span>TOTAL</span>
+                <span>R$ {formatMoney(receipt.subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pagamento</span>
+                <span>{receipt.paymentLabel}</span>
+              </div>
+              {receipt.paymentType === "dinheiro" ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Valor recebido</span>
+                    <span>R$ {formatMoney(receipt.cashGiven)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Troco</span>
+                    <span>R$ {formatMoney(receipt.change)}</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+            <p className="text-center">Obrigado pela preferencia.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-border-primary px-4 py-3">
+          <button type="button" onClick={onClose} className="btn-primary">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SalesStartPage({
+  standalone = false,
+  operatorName = "Operador",
+}: SalesStartPageProps) {
+  const { formatMoneyBr, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } = useInputMasks();
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
 
   const [now, setNow] = useState(new Date());
   const [productSearch, setProductSearch] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [company, setCompany] = useState<CompanyDto | null>(null);
+  const [cashStatus, setCashStatus] = useState<CashRegisterStatusDto | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [showProductOptions, setShowProductOptions] = useState(false);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
@@ -73,10 +289,20 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
   const [paymentType, setPaymentType] = useState<PaymentType>("dinheiro");
   const [cpfNota, setCpfNota] = useState("");
   const [cashGiven, setCashGiven] = useState("");
+  const [lastReceipt, setLastReceipt] = useState<SaleReceipt | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<SaleReceipt | null>(null);
+  const [printPreviewEnabled, setPrintPreviewEnabled] = useState(() =>
+    getPrintPreviewEnabled(),
+  );
+
+  const pasteCashGiven = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    setCashGiven(maskMoneyBr(event.clipboardData.getData("text")));
+  };
 
   const selectedProduct = useMemo(
-    () => PRODUCTS.find((item) => item.id === selectedProductId) ?? null,
-    [selectedProductId],
+    () => products.find((item) => item.id === selectedProductId) ?? null,
+    [products, selectedProductId],
   );
 
   const quantity = useMemo(() => {
@@ -87,13 +313,13 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
 
   const filteredProducts = useMemo(() => {
     const normalized = productSearch.trim().toLowerCase();
-    if (!normalized) return PRODUCTS;
-    return PRODUCTS.filter(
+    if (!normalized) return products;
+    return products.filter(
       (item) =>
         item.name.toLowerCase().includes(normalized) ||
         item.code.toLowerCase().includes(normalized),
     );
-  }, [productSearch]);
+  }, [products, productSearch]);
 
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
@@ -114,12 +340,87 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
     if (selectedProduct) return selectedProduct;
     const lastItem = cart[cart.length - 1];
     if (!lastItem) return null;
-    return PRODUCTS.find((item) => item.id === lastItem.id) ?? null;
-  }, [selectedProduct, cart]);
+    return products.find((item) => item.id === lastItem.id) ?? null;
+  }, [selectedProduct, products, cart]);
+
+  const loadProducts = useCallback(async () => {
+    const items = await productService.list();
+    setProducts(
+      items.map((item) => ({
+        id: item.id,
+        name: item.productName,
+        code: item.productCode,
+        stock: Number(item.productQnt || 0),
+        salePrice: parseMoneyBr(item.productSalePrice || "0"),
+        imageUrl: item.productImageUrl,
+      })),
+    );
+  }, [parseMoneyBr]);
+
+  const loadCashStatus = useCallback(async () => {
+    const status = await cashRegisterService.status();
+    setCashStatus(status ?? null);
+    return status ?? null;
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadProducts().catch(() => {
+      Toast.error("Não foi possível carregar produtos da API no PDV.");
+    });
+  }, [loadProducts]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadCashStatus().catch(() => {
+      setCashStatus(null);
+      Toast.error("Não foi possível validar a abertura de caixa.");
+    });
+  }, [loadCashStatus]);
+
+  useEffect(() => {
+    companyService
+      .get()
+      .then((data) => {
+        if (data) setCompany(data);
+      })
+      .catch(() => {
+        Toast.error("Não foi possível carregar dados da empresa no PDV.");
+      });
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedReceipt = window.localStorage.getItem(LAST_RECEIPT_STORAGE_KEY);
+      if (!storedReceipt) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLastReceipt(JSON.parse(storedReceipt) as SaleReceipt);
+    } catch {
+      window.localStorage.removeItem(LAST_RECEIPT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncPrintPreviewPreference = () => setPrintPreviewEnabled(getPrintPreviewEnabled());
+    const onCustomPreferenceChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      setPrintPreviewEnabled(typeof enabled === "boolean" ? enabled : getPrintPreviewEnabled());
+    };
+
+    window.addEventListener("focus", syncPrintPreviewPreference);
+    window.addEventListener("storage", syncPrintPreviewPreference);
+    window.addEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
+
+    return () => {
+      window.removeEventListener("focus", syncPrintPreviewPreference);
+      window.removeEventListener("storage", syncPrintPreviewPreference);
+      window.removeEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -134,6 +435,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
 
   useEffect(() => {
     if (filteredProducts.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHighlightedProductIndex(-1);
       return;
     }
@@ -152,7 +454,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
     qtyInputRef.current?.focus();
   };
 
-  const addItem = () => {
+  const addItem = useCallback(() => {
     const matchedFromSearch =
       selectedProduct ??
       filteredProducts.find(
@@ -200,13 +502,30 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
     setShowProductOptions(false);
     setQuantityInput("1");
     productInputRef.current?.focus();
-  };
+  }, [filteredProducts, productSearch, quantity, selectedProduct]);
 
   const removeItem = (id: string) => {
     setCart((current) => current.filter((item) => item.id !== id));
   };
 
-  const cancelSale = async () => {
+  const saveLastReceipt = (receipt: SaleReceipt) => {
+    setLastReceipt(receipt);
+    try {
+      window.localStorage.setItem(LAST_RECEIPT_STORAGE_KEY, JSON.stringify(receipt));
+    } catch {
+      // Mantem apenas em memoria caso o navegador bloqueie o armazenamento local.
+    }
+  };
+
+  const printLastSale = () => {
+    if (!lastReceipt) {
+      Toast.info("Nenhuma venda finalizada nesta estação.");
+      return;
+    }
+    setReceiptPreview(lastReceipt);
+  };
+
+  const cancelSale = useCallback(async () => {
     if (cart.length === 0) return;
     const confirmed = await statusDialog.confirm("Cancelar venda atual?");
     if (!confirmed) return;
@@ -215,25 +534,100 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
     setCashGiven("");
     setCheckoutOpen(false);
     Toast.info("Venda cancelada.");
-  };
+  }, [cart.length, statusDialog]);
 
-  const openPayment = () => {
+  const openPayment = useCallback(async () => {
     if (cart.length === 0) {
       Toast.error("Adicione ao menos um item.");
       return;
     }
+
+    try {
+      const latestCashStatus = await loadCashStatus();
+      if (!latestCashStatus?.canSell) {
+        Toast.error(
+          latestCashStatus?.blockReason || "Abra o caixa antes de iniciar uma venda.",
+        );
+        return;
+      }
+    } catch {
+      Toast.error("Não foi possível validar a abertura de caixa.");
+      return;
+    }
+
     setPaymentType("dinheiro");
     setCashGiven(formatMoneyBr(subtotal));
     setCheckoutOpen(true);
-  };
+  }, [cart.length, formatMoneyBr, loadCashStatus, subtotal]);
 
   const confirmPayment = async () => {
     if (paymentType === "dinheiro" && cashGivenValue < subtotal) {
       Toast.error("Valor recebido menor que total.");
       return;
     }
-    setCheckoutOpen(false);
-    await statusDialog.success("Pagamento confirmado.");
+
+    try {
+      const latestCashStatus = await loadCashStatus();
+      if (!latestCashStatus?.canSell) {
+        Toast.error(
+          latestCashStatus?.blockReason || "Abra o caixa antes de confirmar a venda.",
+        );
+        return;
+      }
+
+      const result = await salesHistoryService.register({
+        customerName: "Consumidor",
+        customerCpf: cpfNota || "-",
+        paymentType,
+        totalAmount: formatMoneyBr(subtotal),
+        items: cart.map((item) => ({
+          productCode: item.code,
+          productName: item.name,
+          quantity: item.quantity,
+        })),
+      });
+      const receipt: SaleReceipt = {
+        saleNumber: result?.saleNumber || `PDV-${Date.now()}`,
+        issuedAt: new Date().toISOString(),
+        company: company
+          ? {
+              fantasyName: company.fantasyName,
+              corporateName: company.corporateName,
+              cnpj: company.cnpj,
+              address: company.address,
+              number: company.number,
+              neighborhood: company.neighborhood,
+              city: company.city,
+              uf: company.uf,
+              phone: company.phone,
+              sacPhone: company.sacPhone,
+            }
+          : null,
+        customerCpf: cpfNota || "-",
+        paymentType,
+        paymentLabel: getPaymentLabel(paymentType),
+        operatorName,
+        subtotal,
+        cashGiven: paymentType === "dinheiro" ? cashGivenValue : subtotal,
+        change: paymentType === "dinheiro" ? changeValue : 0,
+        items: cart.map((item) => ({
+          ...item,
+          total: item.quantity * item.unitPrice,
+        })),
+      };
+
+      setCheckoutOpen(false);
+      await loadProducts();
+      saveLastReceipt(receipt);
+      if (printPreviewEnabled) {
+        setReceiptPreview(receipt);
+      }
+      Toast.success(`Pagamento confirmado. Venda ${receipt.saleNumber} registrada.`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Erro ao registrar venda.");
+      return;
+    }
+
     setCart([]);
     setSelectedProductId("");
     setProductSearch("");
@@ -284,9 +678,15 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [checkoutOpen, quantity, selectedProductId, cart.length, showProductOptions]);
+  }, [addItem, cancelSale, checkoutOpen, openPayment, quantity, selectedProductId, cart.length, showProductOptions]);
 
   const { dateLabel, timeLabel } = formatDateTime(now);
+  const cashCanSell = cashStatus?.canSell === true;
+  const cashLabel = cashStatus
+    ? cashCanSell
+      ? `Caixa aberto por ${formatCashElapsed(cashStatus.currentSession?.elapsedMinutes)}`
+      : cashStatus.blockReason || "Caixa fechado"
+    : "Validando caixa...";
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-bg-primary p-1.5 md:overflow-hidden md:p-2">
@@ -395,9 +795,15 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
               <input
                 ref={qtyInputRef}
                 value={quantityInput}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                onFocus={(event) => event.target.select()}
                 onChange={(event) =>
-                  setQuantityInput(event.target.value.replace(/\D/g, "").slice(0, 4) || "1")
+                  setQuantityInput(sanitizeIntegerInput(event.target.value).slice(0, 4))
                 }
+                onBlur={() => {
+                  if (!quantityInput || Number(quantityInput) < 1) setQuantityInput("1");
+                }}
                 className="input-field h-10 w-full text-lg font-semibold"
               />
             </label>
@@ -453,11 +859,22 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
           <section className="flex min-h-[55vh] flex-col bg-bg-light lg:min-h-0">
             <div className="grid grid-cols-1 gap-1 border-b border-border-primary bg-bg-gray-theme px-3 py-2 text-xs text-text-primary sm:grid-cols-[1fr_200px] sm:gap-0">
               <p>
-                <span className="font-semibold">Cliente:</span> McDonads
+                <span className="font-semibold">Empresa:</span>{" "}
+                {company?.fantasyName || "Hórus PDV"}
               </p>
               <p className="sm:text-right">
-                <span className="font-semibold">CPF / CNPJ:</span> 06.332.765/0001-05
+                <span className="font-semibold">CNPJ:</span> {company?.cnpj || "-"}
               </p>
+            </div>
+
+            <div
+              className={`border-b px-3 py-2 text-xs font-semibold ${
+                cashCanSell
+                  ? "border-success/20 bg-success/10 text-success"
+                  : "border-primary/20 bg-primary/10 text-primary"
+              }`}
+            >
+              {cashLabel}
             </div>
 
             <div className="border-b border-border-primary px-3 py-3">
@@ -579,7 +996,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={cancelSale}
@@ -589,17 +1006,31 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                 </button>
                 <button
                   type="button"
+                  onClick={printLastSale}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
+                >
+                  <Printer size={16} />
+                  Imprimir última venda
+                </button>
+                <button
+                  type="button"
                   onClick={openPayment}
-                  className="btn-success h-11 w-full rounded-xl"
+                  className="btn-success h-11 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!cashCanSell}
                 >
                   PAGAMENTO (F12)
                 </button>
               </div>
 
               <footer className="space-y-0.5 border-t border-border-primary bg-bg-primary px-3 py-2 text-[11px] text-text-secondary sm:grid sm:grid-cols-3 sm:items-center sm:space-y-0 sm:text-xs">
-                <p>Usuário: July</p>
-                <p className="sm:text-center">Estabelecimento: Festa & Fantasia</p>
-                <p className="sm:text-right">Nome caixa: PDV01</p>
+                <p>Usuário: {operatorName}</p>
+                <p className="sm:text-center">
+                  Estabelecimento: {company?.fantasyName || "Hórus PDV"}
+                </p>
+                <p className="sm:text-right">
+                  Prévia impressão: {printPreviewEnabled ? "Sim" : "Não"} • Caixa:{" "}
+                  {cashCanSell ? "PDV01 aberto" : "bloqueado"}
+                </p>
               </footer>
             </div>
           </section>
@@ -631,25 +1062,26 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">Forma de pagamento</span>
-                <select
-                  value={paymentType}
-                  onChange={(event) => setPaymentType(event.target.value as PaymentType)}
-                  className="select-field w-full"
-                >
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="pix">PIX</option>
-                  <option value="debito">Cartão Débito</option>
-                  <option value="credito">Cartão Crédito</option>
-                </select>
-              </label>
+              <SearchableSelectField
+                label="Forma de pagamento"
+                value={paymentType}
+                options={PAYMENT_OPTIONS}
+                onChange={(nextValue) => setPaymentType(nextValue as PaymentType)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                placeholder="Selecione a forma de pagamento"
+                emptyMessage="Forma de pagamento não encontrada."
+              />
 
               {paymentType === "dinheiro" && (
                 <label className="block">
                   <span className="mb-1.5 block text-sm text-text-secondary">Valor recebido</span>
                   <input
                     value={cashGiven}
+                    inputMode="numeric"
+                    pattern="[0-9,.]*"
+                    onBeforeInput={preventNonDigitBeforeInput}
+                    onPaste={pasteCashGiven}
                     onChange={(event) => setCashGiven(maskMoneyBr(event.target.value))}
                     className="input-field w-full"
                     placeholder="0,00"
@@ -682,6 +1114,14 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
           </div>
         </div>
       )}
+
+      {receiptPreview ? (
+        <ReceiptPreviewModal
+          receipt={receiptPreview}
+          formatMoney={formatMoneyBr}
+          onClose={() => setReceiptPreview(null)}
+        />
+      ) : null}
 
       {statusDialog.Dialog}
     </div>

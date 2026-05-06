@@ -1,6 +1,5 @@
-import MarketModulePage from "@/components/Admin/MarketModulePage";
-import { omnichannelModuleConfig } from "./marketModuleConfigs";
+import MarketModuleRoutePage from "@/components/Admin/MarketModuleRoutePage";
 
 export default function OmnichannelPage() {
-  return <MarketModulePage config={omnichannelModuleConfig} />;
+  return <MarketModuleRoutePage moduleId="omnichannel" />;
 }
