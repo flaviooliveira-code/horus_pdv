@@ -4,16 +4,24 @@
  */
 import {
   Building2,
+  BadgeDollarSign,
   ChevronRight,
+  CreditCard,
   FileText,
   History,
   House,
   Info,
+  Landmark,
   Menu,
   Package,
+  PackageCheck,
+  Receipt,
+  Repeat2,
   ShoppingCart,
+  Store,
   Truck,
   UserCog,
+  UsersRound,
   UserRoundPlus,
   WalletCards,
 } from "lucide-react";
@@ -28,6 +36,14 @@ export type PageKey =
   | "historico-vendas"
   | "relatorios"
   | "vendas"
+  | "fiscal"
+  | "pagamentos"
+  | "estoque"
+  | "caixa"
+  | "compras"
+  | "devolucoes"
+  | "crm-fidelidade"
+  | "omnichannel"
   | "conta-de-usuario"
   | "minha-empresa"
   | "configuracoes"
@@ -225,6 +241,66 @@ export default function AppSidebar({
               active={activePage === "vendas"}
               collapsed={collapsed}
               onClick={onOpenSalesInNewTab}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <SidebarSectionTitle label="Gestão Avançada" collapsed={collapsed} />
+            <SidebarItem
+              icon={<Receipt size={20} />}
+              label="Fiscal NFC-e / NF-e"
+              active={activePage === "fiscal"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("fiscal")}
+            />
+            <SidebarItem
+              icon={<CreditCard size={20} />}
+              label="Pagamentos Integrados"
+              active={activePage === "pagamentos"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("pagamentos")}
+            />
+            <SidebarItem
+              icon={<PackageCheck size={20} />}
+              label="Estoque e Inventário"
+              active={activePage === "estoque"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("estoque")}
+            />
+            <SidebarItem
+              icon={<Landmark size={20} />}
+              label="Abertura e Fechamento"
+              active={activePage === "caixa"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("caixa")}
+            />
+            <SidebarItem
+              icon={<BadgeDollarSign size={20} />}
+              label="Compras e Reposição"
+              active={activePage === "compras"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("compras")}
+            />
+            <SidebarItem
+              icon={<Repeat2 size={20} />}
+              label="Trocas e Devoluções"
+              active={activePage === "devolucoes"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("devolucoes")}
+            />
+            <SidebarItem
+              icon={<UsersRound size={20} />}
+              label="CRM e Fidelidade"
+              active={activePage === "crm-fidelidade"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("crm-fidelidade")}
+            />
+            <SidebarItem
+              icon={<Store size={20} />}
+              label="Omnichannel"
+              active={activePage === "omnichannel"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("omnichannel")}
             />
           </div>
 

@@ -22,6 +22,14 @@ const SalesHistoryPage = lazy(() => import("@/pages/Admin/SalesHistoryPage"));
 const SalesStartPage = lazy(() => import("@/pages/Admin/SalesStartPage"));
 const ReportsPage = lazy(() => import("@/pages/Admin/ReportsPage"));
 const UserAccountsPage = lazy(() => import("@/pages/Admin/UserAccountsPage"));
+const FiscalPage = lazy(() => import("@/pages/Admin/FiscalPage"));
+const PaymentsPage = lazy(() => import("@/pages/Admin/PaymentsPage"));
+const StockPage = lazy(() => import("@/pages/Admin/StockPage"));
+const CashRegisterPage = lazy(() => import("@/pages/Admin/CashRegisterPage"));
+const PurchasesPage = lazy(() => import("@/pages/Admin/PurchasesPage"));
+const ReturnsPage = lazy(() => import("@/pages/Admin/ReturnsPage"));
+const CrmLoyaltyPage = lazy(() => import("@/pages/Admin/CrmLoyaltyPage"));
+const OmnichannelPage = lazy(() => import("@/pages/Admin/OmnichannelPage"));
 const SettingsPage = lazy(() => import("@/pages/Admin/SettingsPage"));
 const MyCompanyPage = lazy(() => import("@/pages/Admin/MyCompanyPage"));
 const LicenseDetailsPage = lazy(() => import("@/pages/Admin/LicenseDetailsPage"));
@@ -61,6 +69,14 @@ export default function App() {
       "historico-vendas",
       "relatorios",
       "vendas",
+      "fiscal",
+      "pagamentos",
+      "estoque",
+      "caixa",
+      "compras",
+      "devolucoes",
+      "crm-fidelidade",
+      "omnichannel",
       "conta-de-usuario",
       "minha-empresa",
       "detalhe-licenca",
@@ -111,6 +127,14 @@ export default function App() {
     "historico-vendas": "Histórico de Vendas",
     relatorios: "Relatórios",
     vendas: "Iniciar Vendas",
+    fiscal: "Fiscal NFC-e / NF-e",
+    pagamentos: "Pagamentos Integrados",
+    estoque: "Estoque e Inventário",
+    caixa: "Abertura e Fechamento de Caixa",
+    compras: "Compras e Reposição",
+    devolucoes: "Trocas e Devoluções",
+    "crm-fidelidade": "CRM e Fidelidade",
+    omnichannel: "Omnichannel e Integrações",
     "conta-de-usuario": "Contas de Usuários",
     "minha-empresa": "Minha Empresa",
     "detalhe-licenca": "Detalhes da Licença",
@@ -133,6 +157,22 @@ export default function App() {
         return SalesHistoryPage;
       case "relatorios":
         return ReportsPage;
+      case "fiscal":
+        return FiscalPage;
+      case "pagamentos":
+        return PaymentsPage;
+      case "estoque":
+        return StockPage;
+      case "caixa":
+        return CashRegisterPage;
+      case "compras":
+        return PurchasesPage;
+      case "devolucoes":
+        return ReturnsPage;
+      case "crm-fidelidade":
+        return CrmLoyaltyPage;
+      case "omnichannel":
+        return OmnichannelPage;
       case "vendas":
         return SalesStartPage;
       case "conta-de-usuario":
