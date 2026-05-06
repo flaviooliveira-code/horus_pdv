@@ -13,6 +13,17 @@ public class HorusSecurityOptions(IConfiguration configuration, IWebHostEnvironm
         ? Math.Clamp(hours, 1, 24)
         : 8;
 
+    public bool RecaptchaEnabled { get; } =
+        bool.TryParse(configuration["Recaptcha:Enabled"], out var recaptchaEnabled) &&
+        recaptchaEnabled;
+
+    public string RecaptchaSecretKey { get; } = configuration["Recaptcha:SecretKey"] ?? "";
+
+    public double RecaptchaMinScore { get; } =
+        double.TryParse(configuration["Recaptcha:MinScore"], out var score)
+            ? Math.Clamp(score, 0.1d, 1d)
+            : 0.5d;
+
     public int RequestRateLimitWindowSeconds { get; } =
         int.TryParse(configuration["Security:RateLimit:WindowSeconds"], out var windowSeconds)
             ? Math.Clamp(windowSeconds, 10, 3600)
@@ -37,6 +48,12 @@ public class HorusSecurityOptions(IConfiguration configuration, IWebHostEnvironm
         {
             throw new InvalidOperationException(
                 "Auth:JwtSecret invalido em producao. Defina um segredo forte com pelo menos 32 caracteres.");
+        }
+
+        if (RecaptchaEnabled && string.IsNullOrWhiteSpace(RecaptchaSecretKey))
+        {
+            throw new InvalidOperationException(
+                "Recaptcha:SecretKey obrigatorio quando Recaptcha:Enabled estiver ativo.");
         }
     }
 }

@@ -6,6 +6,7 @@
 
 import { Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import useRecaptchaV3 from "@/hooks/Security/useRecaptchaV3";
 
 type LoginResult = {
   success: boolean;
@@ -18,16 +19,20 @@ type LoginPageProps = {
     email: string,
     password: string,
     remember: boolean,
+    recaptchaToken?: string,
   ) => Promise<LoginResult>;
+  onForgotPassword: (email: string, recaptchaToken?: string) => Promise<LoginResult>;
 };
 
-export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
+export default function LoginPage({ defaultEmail, onLogin, onForgotPassword }: LoginPageProps) {
+  const { executeRecaptcha, isRecaptchaConfigured } = useRecaptchaV3();
   // Estado do formulário de autenticação.
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   // Mensagem local de retorno da tentativa de login.
   const [feedback, setFeedback] = useState<LoginResult | null>(null);
 
@@ -43,10 +48,50 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
 
     setIsSubmitting(true);
     try {
-      const result = await onLogin(email, password, remember);
+      const recaptchaToken = isRecaptchaConfigured
+        ? await executeRecaptcha("login")
+        : "";
+      const result = await onLogin(email, password, remember, recaptchaToken);
       setFeedback(result);
+    } catch (error) {
+      setFeedback({
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível concluir a validação de segurança.",
+      });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setFeedback({
+        success: false,
+        message: "Informe o e-mail para solicitar recuperação de senha.",
+      });
+      return;
+    }
+
+    setIsRecoveringPassword(true);
+    try {
+      const recaptchaToken = isRecaptchaConfigured
+        ? await executeRecaptcha("password_forgot_request")
+        : "";
+      const result = await onForgotPassword(email, recaptchaToken);
+      setFeedback(result);
+    } catch (error) {
+      setFeedback({
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível concluir a validação de segurança.",
+      });
+    } finally {
+      setIsRecoveringPassword(false);
     }
   };
 
@@ -142,14 +187,24 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 text-sm text-text-secondary">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(event) => setRemember(event.target.checked)}
-                  />
-                  Manter sessão conectada
-                </label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <label className="flex items-center gap-2 text-sm text-text-secondary">
+                    <input
+                      type="checkbox"
+                      checked={remember}
+                      onChange={(event) => setRemember(event.target.checked)}
+                    />
+                    Manter sessão conectada
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={isRecoveringPassword || isSubmitting}
+                    className="text-left text-sm font-semibold text-secondary hover:text-hover-secondary disabled:opacity-60 sm:text-right"
+                  >
+                    {isRecoveringPassword ? "Enviando..." : "Esqueci minha senha"}
+                  </button>
+                </div>
 
                 {feedback ? (
                   <p
@@ -166,12 +221,15 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isRecoveringPassword}
                   className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2"
                 >
                   <LogIn size={16} />
                   {isSubmitting ? "Entrando..." : "Entrar"}
                 </button>
+                <p className="text-[11px] leading-relaxed text-text-tertiary">
+                  Este acesso é protegido por reCAPTCHA v3 quando configurado.
+                </p>
               </div>
             </div>
           </div>

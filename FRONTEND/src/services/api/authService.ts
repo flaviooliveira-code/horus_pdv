@@ -7,6 +7,7 @@ export type LoginPayload = {
   email: string;
   password: string;
   rememberMe: boolean;
+  recaptchaToken?: string;
 };
 
 export type LoginResponse = {
@@ -40,6 +41,14 @@ export const authService = {
     await apiRequest<object>(`${AUTH_API_URL}/change-password`, {
       method: "POST",
       body: JSON.stringify({ currentPassword, nextPassword }),
+    });
+  },
+
+  async forgotPassword(email: string, recaptchaToken?: string) {
+    await apiRequest<object>(`${AUTH_API_URL}/forgot-password`, {
+      method: "POST",
+      body: JSON.stringify({ email, recaptchaToken }),
+      skipAuth: true,
     });
   },
 };

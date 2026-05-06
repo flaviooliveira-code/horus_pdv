@@ -94,6 +94,10 @@
       color 0.25s ease;
   }
 
+  .grecaptcha-badge {
+    visibility: hidden;
+  }
+
   h1,
   h2,
   h3 {

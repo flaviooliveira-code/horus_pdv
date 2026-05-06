@@ -43,6 +43,7 @@ public class HorusAuthMiddleware(RequestDelegate next)
 
         var path = context.Request.Path.Value ?? "";
         return path.StartsWith("/api/Auth/login", StringComparison.OrdinalIgnoreCase) ||
+               path.StartsWith("/api/Auth/forgot-password", StringComparison.OrdinalIgnoreCase) ||
                path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase);
     }
 }

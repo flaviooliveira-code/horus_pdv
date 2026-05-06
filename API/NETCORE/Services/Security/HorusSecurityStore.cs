@@ -191,6 +191,22 @@ public class HorusSecurityStore
         }
     }
 
+    public bool RegisterPasswordRecoveryRequest(string email)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        lock (_syncRoot)
+        {
+            var user = _users.FirstOrDefault(item =>
+                item.Email.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase) &&
+                item.Status == "ativo");
+            if (user is null) return false;
+
+            user.MustChangePassword = true;
+            _sessions.RemoveAll(item => item.UserId == user.Id);
+            return true;
+        }
+    }
+
     private LoginAttemptBucket GetAttemptBucket(string key, DateTimeOffset now)
     {
         if (!_attempts.TryGetValue(key, out var bucket) || now - bucket.FirstAttemptAt > AttemptWindow)

@@ -32,6 +32,7 @@ builder.Services.AddSingleton<HorusCaixaService>();
 builder.Services.AddSingleton<HorusSecurityStore>();
 builder.Services.AddSingleton<HorusSecurityOptions>();
 builder.Services.AddSingleton<HorusJwtService>();
+builder.Services.AddHttpClient<HorusRecaptchaService>();
 builder.Services.AddScoped<IProdutoService, ProdutoService>();
 builder.Services.AddScoped<IClienteService, ClienteService>();
 builder.Services.AddScoped<IFornecedorService, FornecedorService>();

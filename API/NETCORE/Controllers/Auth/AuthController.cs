@@ -7,10 +7,13 @@ namespace HORUSPDV_API.Controllers.Auth;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(HorusSecurityStore securityStore, HorusJwtService jwtService) : ControllerBase
+public class AuthController(
+    HorusSecurityStore securityStore,
+    HorusJwtService jwtService,
+    HorusRecaptchaService recaptchaService) : ControllerBase
 {
     [HttpPost("login")]
-    public IActionResult Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
@@ -22,6 +25,21 @@ public class AuthController(HorusSecurityStore securityStore, HorusJwtService jw
         }
 
         var ip = GetClientIp();
+        var recaptchaValidation = await recaptchaService.VerifyAsync(
+            request.RecaptchaToken,
+            "login",
+            ip,
+            HttpContext.RequestAborted);
+        if (!recaptchaValidation.Success)
+        {
+            return StatusCode(recaptchaValidation.StatusCode, new ApiResponse<object>
+            {
+                Success = false,
+                Message = recaptchaValidation.Message,
+                Details = recaptchaValidation.Details
+            });
+        }
+
         var userAgent = Request.Headers.UserAgent.ToString();
         var result = securityStore.Authenticate(request.Email, request.Password, ip, userAgent);
         if (!result.Success || result.User is null || result.Session is null)
@@ -47,6 +65,41 @@ public class AuthController(HorusSecurityStore securityStore, HorusJwtService jw
                 sessionId = result.Session.Id,
                 user = result.User
             }
+        });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Informe um e-mail válido."
+            });
+        }
+
+        var recaptchaValidation = await recaptchaService.VerifyAsync(
+            request.RecaptchaToken,
+            "password_forgot_request",
+            GetClientIp(),
+            HttpContext.RequestAborted);
+        if (!recaptchaValidation.Success)
+        {
+            return StatusCode(recaptchaValidation.StatusCode, new ApiResponse<object>
+            {
+                Success = false,
+                Message = recaptchaValidation.Message,
+                Details = recaptchaValidation.Details
+            });
+        }
+
+        securityStore.RegisterPasswordRecoveryRequest(request.Email);
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Se o e-mail estiver cadastrado, a recuperação de senha será direcionada ao responsável do sistema."
         });
     }
 

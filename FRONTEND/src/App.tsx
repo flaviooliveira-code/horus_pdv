@@ -328,12 +328,18 @@ export default function App() {
     setMobileSidebarOpen(false);
   };
 
-  const handleLogin = async (email: string, password: string, remember: boolean) => {
+  const handleLogin = async (
+    email: string,
+    password: string,
+    remember: boolean,
+    recaptchaToken?: string,
+  ) => {
     try {
       const result = await authService.login({
         email: email.trim(),
         password,
         rememberMe: remember,
+        recaptchaToken,
       });
 
       if (!result) {
@@ -349,6 +355,25 @@ export default function App() {
       return {
         success: false,
         message: error instanceof Error ? error.message : "Erro ao fazer login.",
+      };
+    }
+  };
+
+  const handleForgotPassword = async (email: string, recaptchaToken?: string) => {
+    try {
+      await authService.forgotPassword(email.trim(), recaptchaToken);
+      return {
+        success: true,
+        message:
+          "Se o e-mail estiver cadastrado, a recuperação de senha será direcionada ao responsável do sistema.",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Erro ao solicitar recuperação de senha.",
       };
     }
   };
@@ -414,7 +439,13 @@ export default function App() {
   }, [activePage, isStandalonePos]);
 
   if (!isAuthenticated) {
-    return <LoginPage defaultEmail={currentUser.email} onLogin={handleLogin} />;
+    return (
+      <LoginPage
+        defaultEmail={currentUser.email}
+        onLogin={handleLogin}
+        onForgotPassword={handleForgotPassword}
+      />
+    );
   }
 
   if (activePage === "vendas") {
