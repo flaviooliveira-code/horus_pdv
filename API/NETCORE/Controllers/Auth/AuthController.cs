@@ -1,0 +1,132 @@
+using HORUSPDV_API.Models.Requests;
+using HORUSPDV_API.Models.Response;
+using HORUSPDV_API.Services.Security;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HORUSPDV_API.Controllers.Auth;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController(HorusSecurityStore securityStore, HorusJwtService jwtService) : ControllerBase
+{
+    [HttpPost("login")]
+    public IActionResult Login([FromBody] LoginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Informe e-mail e senha."
+            });
+        }
+
+        var ip = GetClientIp();
+        var userAgent = Request.Headers.UserAgent.ToString();
+        var result = securityStore.Authenticate(request.Email, request.Password, ip, userAgent);
+        if (!result.Success || result.User is null || result.Session is null)
+        {
+            return StatusCode(result.LockedUntil is null ? StatusCodes.Status401Unauthorized : StatusCodes.Status429TooManyRequests, new ApiResponse<object>
+            {
+                Success = false,
+                Message = result.Message,
+                Data = result.LockedUntil is null ? null : new { lockedUntil = result.LockedUntil.Value.ToString("o") }
+            });
+        }
+
+        var token = jwtService.CreateToken(result.User, result.Session, ip);
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Login realizado com sucesso.",
+            Data = new
+            {
+                token,
+                tokenType = "Bearer",
+                expiresInSeconds = jwtService.SessionHours * 60 * 60,
+                sessionId = result.Session.Id,
+                user = result.User
+            }
+        });
+    }
+
+    [HttpGet("me")]
+    public IActionResult Me()
+    {
+        if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+        }
+
+        var user = securityStore.GetActiveUser(currentUser.Id);
+        if (user is null)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Usuario inativo ou inexistente." });
+        }
+
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Usuario autenticado obtido com sucesso.",
+            Data = user
+        });
+    }
+
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        if (HttpContext.Items["CurrentUser"] is AuthenticatedUser currentUser)
+        {
+            securityStore.TerminateCurrentSession(currentUser.SessionId);
+        }
+
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Logout realizado com sucesso."
+        });
+    }
+
+    [HttpPost("change-password")]
+    public IActionResult ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+        }
+
+        try
+        {
+            var changed = securityStore.ChangePassword(currentUser.Id, request.CurrentPassword, request.NextPassword);
+            if (!changed)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Senha atual inválida."
+                });
+            }
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Senha atualizada com sucesso. Faça login novamente."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+    }
+
+    private string GetClientIp()
+    {
+        var forwarded = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(forwarded))
+        {
+            return forwarded.Split(',')[0].Trim();
+        }
+
+        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "0.0.0.0";
+    }
+}

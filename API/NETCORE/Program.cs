@@ -1,7 +1,9 @@
+using HORUSPDV_API.Middlewares;
 using HORUSPDV_API.Repositories.AcessoBanco;
 using HORUSPDV_API.Services.Clientes;
 using HORUSPDV_API.Services.Fornecedores;
 using HORUSPDV_API.Services.Produtos;
+using HORUSPDV_API.Services.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +35,8 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddSingleton<HorusMockDatabase>();
+builder.Services.AddSingleton<HorusSecurityStore>();
+builder.Services.AddSingleton<HorusJwtService>();
 builder.Services.AddScoped<IProdutoService, ProdutoService>();
 builder.Services.AddScoped<IClienteService, ClienteService>();
 builder.Services.AddScoped<IFornecedorService, FornecedorService>();
@@ -67,6 +71,7 @@ if (!app.Environment.IsDevelopment())
 }
 app.UseRouting();
 app.UseCors("HorusPdvCorsPolicy");
+app.UseMiddleware<HorusAuthMiddleware>();
 app.UseAuthorization();
 
 app.UseSwagger();

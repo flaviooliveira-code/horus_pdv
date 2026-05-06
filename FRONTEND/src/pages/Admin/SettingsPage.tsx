@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import {
+  PrintSettingsCard,
   SecuritySessionsCard,
   ThemeSettingsCard,
   type ActiveSession,
@@ -12,6 +13,7 @@ import {
 import { Toast } from "@/hooks/Dialog";
 import PageLayout from "@/layout/PageLayout";
 import { sessionService } from "@/services/api/sessionService";
+import { getPrintPreviewEnabled, setPrintPreviewEnabled } from "@/utils/pdvPreferences";
 
 type ThemeMode = "light" | "dark";
 
@@ -26,6 +28,9 @@ export default function SettingsPage({
 }: SettingsPageProps) {
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [isLoading] = useState(false);
+  const [printPreviewEnabled, setPrintPreviewEnabledState] = useState(() =>
+    getPrintPreviewEnabled(),
+  );
 
   useEffect(() => {
     sessionService.list().then(setSessions).catch(() => setSessions([]));
@@ -57,6 +62,16 @@ export default function SettingsPage({
     }
   };
 
+  const handleChangePrintPreview = (enabled: boolean) => {
+    setPrintPreviewEnabledState(enabled);
+    setPrintPreviewEnabled(enabled);
+    Toast.success(
+      enabled
+        ? "Prévia de impressão ativada no PDV."
+        : "Prévia de impressão desativada no PDV.",
+    );
+  };
+
   return (
     <div className="flex-1 py-4 md:py-6 lg:py-8">
       <PageLayout>
@@ -70,6 +85,10 @@ export default function SettingsPage({
 
           <div className="space-y-4 px-6 py-6">
             <ThemeSettingsCard themeMode={themeMode} onToggleTheme={onToggleTheme} />
+            <PrintSettingsCard
+              printPreviewEnabled={printPreviewEnabled}
+              onChangePrintPreview={handleChangePrintPreview}
+            />
             <SecuritySessionsCard
               sessions={sessions}
               isLoading={isLoading}

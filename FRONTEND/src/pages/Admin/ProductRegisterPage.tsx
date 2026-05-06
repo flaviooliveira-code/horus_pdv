@@ -5,15 +5,19 @@
  */
 
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { SearchableSelectField } from "@/components/Form";
+import AddressContactFields from "@/components/Register/AddressContactFields";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
 import { productService } from "@/services/api/productService";
-import { supplierService } from "@/services/api/supplierService";
+import { supplierService, type SupplierPayload } from "@/services/api/supplierService";
+import { lookupAddressByCep } from "@/utils/cepLookup";
+import { onlyDigits } from "@/utils/inputMasks";
+import { isValidCnpj, isValidEmail } from "@/utils/validators";
 
 type Product = {
   id: string;
@@ -31,6 +35,8 @@ type Product = {
 
 type ProductFormData = Omit<Product, "id">;
 
+type QuickSupplierDraft = SupplierPayload;
+
 const EMPTY_FORM: ProductFormData = {
   productImageUrl: "",
   productImageName: "",
@@ -44,6 +50,30 @@ const EMPTY_FORM: ProductFormData = {
   totalPriceOnProduct: "",
 };
 
+const EMPTY_SUPPLIER_DRAFT: QuickSupplierDraft = {
+  companyName: "",
+  fantasyName: "",
+  cnpj: "",
+  cep: "",
+  city: "",
+  state: "",
+  address: "",
+  neighborhood: "",
+  streetComplement: "",
+  number: "",
+  referencePoint: "",
+  telephone: "",
+  cellphone: "",
+  email: "",
+};
+
+function preventNonDigitBeforeInput(event: FormEvent<HTMLInputElement>) {
+  const data = (event.nativeEvent as InputEvent).data ?? "";
+  if (data && /\D/.test(data)) {
+    event.preventDefault();
+  }
+}
+
 function ProductFormDrawer({
   open,
   isEditMode,
@@ -52,6 +82,7 @@ function ProductFormDrawer({
   onChange,
   onSave,
   supplierOptions,
+  onCreateSupplier,
 }: {
   open: boolean;
   isEditMode: boolean;
@@ -60,10 +91,21 @@ function ProductFormDrawer({
   onChange: (next: ProductFormData) => void;
   onSave: () => void;
   supplierOptions: string[];
+  onCreateSupplier: (draft: QuickSupplierDraft) => Promise<string | null>;
 }) {
-  const { maskMoneyBr, parseMoneyBr, formatMoneyBr, sanitizeIntegerInput } = useInputMasks();
+  const {
+    maskCnpj,
+    maskMoneyBr,
+    parseMoneyBr,
+    formatMoneyBr,
+    sanitizeIntegerInput,
+  } = useInputMasks();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [supplierDraft, setSupplierDraft] = useState<QuickSupplierDraft>(EMPTY_SUPPLIER_DRAFT);
+  const [savingSupplier, setSavingSupplier] = useState(false);
+  const [loadingSupplierCep, setLoadingSupplierCep] = useState(false);
   if (!open) return null;
 
   const setField = <K extends keyof ProductFormData>(
@@ -90,6 +132,124 @@ function ProductFormDrawer({
       });
     };
     reader.readAsDataURL(file);
+  };
+
+  const setMoneyField = (
+    key: "productUnitPrice" | "productSalePrice",
+    fieldValue: string,
+  ) => {
+    setField(key, maskMoneyBr(fieldValue));
+  };
+
+  const pasteMoneyField = (
+    event: ClipboardEvent<HTMLInputElement>,
+    key: "productUnitPrice" | "productSalePrice",
+  ) => {
+    event.preventDefault();
+    setMoneyField(key, event.clipboardData.getData("text"));
+  };
+
+  const openSupplierModal = (searchTerm = "") => {
+    const name = searchTerm || value.productSupplier;
+    setSupplierDraft({
+      ...EMPTY_SUPPLIER_DRAFT,
+      companyName: name,
+      fantasyName: name,
+    });
+    setSupplierModalOpen(true);
+  };
+
+  const setSupplierField = <K extends keyof QuickSupplierDraft>(
+    key: K,
+    fieldValue: QuickSupplierDraft[K],
+  ) => {
+    setSupplierDraft((current) => ({ ...current, [key]: fieldValue }));
+  };
+
+  const fillSupplierAddressFromCep = async () => {
+    if (onlyDigits(supplierDraft.cep).length !== 8) {
+      Toast.error("CEP inválido.");
+      return;
+    }
+
+    setLoadingSupplierCep(true);
+    const result = await lookupAddressByCep(supplierDraft.cep);
+    setLoadingSupplierCep(false);
+
+    if (!result.success) {
+      Toast.error("CEP não encontrado.");
+      return;
+    }
+
+    setSupplierDraft((current) => ({
+      ...current,
+      address: result.data.endereco || current.address,
+      neighborhood: result.data.bairro || current.neighborhood,
+      city: result.data.cidade || current.city,
+      state: result.data.estado || current.state,
+      streetComplement: result.data.complemento || current.streetComplement,
+    }));
+  };
+
+  const validateSupplierDraft = () => {
+    const requiredFields: Array<keyof QuickSupplierDraft> = [
+      "companyName",
+      "fantasyName",
+      "cnpj",
+      "cep",
+      "city",
+      "state",
+      "address",
+      "neighborhood",
+      "number",
+      "cellphone",
+    ];
+
+    const missing = requiredFields.some((field) => !String(supplierDraft[field]).trim());
+    if (missing) {
+      Toast.error("Preencha os campos obrigatórios do fornecedor.");
+      return false;
+    }
+
+    if (supplierDraft.companyName.trim().length < 3) {
+      Toast.error("A razão social deve ter no mínimo 3 caracteres.");
+      return false;
+    }
+
+    if (supplierDraft.fantasyName.trim().length < 3) {
+      Toast.error("O nome fantasia deve ter no mínimo 3 caracteres.");
+      return false;
+    }
+
+    if (!isValidCnpj(supplierDraft.cnpj)) {
+      Toast.error("CNPJ inválido.");
+      return false;
+    }
+
+    if (!isValidEmail(supplierDraft.email)) {
+      Toast.error("E-mail inválido.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const submitSupplier = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!validateSupplierDraft()) return;
+
+    setSavingSupplier(true);
+    try {
+      const createdName = await onCreateSupplier(supplierDraft);
+      if (createdName) {
+        setField("productSupplier", createdName);
+        setSupplierModalOpen(false);
+        setSupplierDraft(EMPTY_SUPPLIER_DRAFT);
+      }
+    } finally {
+      setSavingSupplier(false);
+    }
   };
 
   return (
@@ -205,6 +365,8 @@ function ProductFormDrawer({
                 getOptionLabel={(supplier) => supplier}
                 placeholder="Pesquisar fornecedor"
                 emptyMessage="Nenhum fornecedor encontrado."
+                createActionLabel="Cadastrar fornecedor"
+                onCreateOption={openSupplierModal}
                 className="md:col-span-2"
               />
               <label className="block md:col-span-2">
@@ -230,6 +392,7 @@ function ProductFormDrawer({
                 </span>
                 <input
                   value={value.productQnt}
+                  inputMode="numeric"
                   onChange={(event) =>
                     setField("productQnt", sanitizeIntegerInput(event.target.value).slice(0, 8))
                   }
@@ -243,9 +406,11 @@ function ProductFormDrawer({
                 </span>
                 <input
                   value={value.productUnitPrice}
-                  onChange={(event) =>
-                    setField("productUnitPrice", maskMoneyBr(event.target.value))
-                  }
+                  inputMode="numeric"
+                  pattern="[0-9,.]*"
+                  onBeforeInput={preventNonDigitBeforeInput}
+                  onPaste={(event) => pasteMoneyField(event, "productUnitPrice")}
+                  onChange={(event) => setMoneyField("productUnitPrice", event.target.value)}
                   className="input-field w-full"
                   placeholder="0,00"
                 />
@@ -256,9 +421,11 @@ function ProductFormDrawer({
                 </span>
                 <input
                   value={value.productSalePrice}
-                  onChange={(event) =>
-                    setField("productSalePrice", maskMoneyBr(event.target.value))
-                  }
+                  inputMode="numeric"
+                  pattern="[0-9,.]*"
+                  onBeforeInput={preventNonDigitBeforeInput}
+                  onPaste={(event) => pasteMoneyField(event, "productSalePrice")}
+                  onChange={(event) => setMoneyField("productSalePrice", event.target.value)}
                   className="input-field w-full"
                   placeholder="0,00"
                 />
@@ -289,6 +456,104 @@ function ProductFormDrawer({
           </div>
         </div>
       </aside>
+
+      {supplierModalOpen ? (
+        <div
+          className="fixed inset-0 z-layer-dialog flex items-center justify-center bg-black/50 px-3 backdrop-blur-sm"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <form
+            onSubmit={submitSupplier}
+            className="w-full max-w-4xl rounded-2xl border border-border-primary bg-bg-light shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-border-primary px-4 py-3">
+              <div>
+                <h3 className="text-base font-semibold text-text-primary">
+                  Cadastrar fornecedor
+                </h3>
+                <p className="text-sm text-text-secondary">
+                  O fornecedor criado será selecionado neste produto.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSupplierModalOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-hover-light"
+                aria-label="Fechar cadastro de fornecedor"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto p-4">
+              <section className="card rounded-2xl p-4">
+                <h4 className="text-sm font-semibold text-text-secondary">Dados do fornecedor</h4>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-text-secondary">Razão social *</span>
+                    <input
+                      value={supplierDraft.companyName}
+                      onChange={(event) => setSupplierField("companyName", event.target.value)}
+                      className="input-field w-full"
+                      placeholder="Razão social"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-text-secondary">Nome fantasia *</span>
+                    <input
+                      value={supplierDraft.fantasyName}
+                      onChange={(event) => setSupplierField("fantasyName", event.target.value)}
+                      className="input-field w-full"
+                      placeholder="Nome fantasia"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-text-secondary">CNPJ *</span>
+                    <input
+                      value={supplierDraft.cnpj}
+                      onChange={(event) => setSupplierField("cnpj", maskCnpj(event.target.value))}
+                      className="input-field w-full"
+                      placeholder="00.000.000/0000-00"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <AddressContactFields
+                value={{
+                  cep: supplierDraft.cep,
+                  city: supplierDraft.city,
+                  state: supplierDraft.state,
+                  address: supplierDraft.address,
+                  neighborhood: supplierDraft.neighborhood,
+                  streetComplement: supplierDraft.streetComplement,
+                  number: supplierDraft.number,
+                  referencePoint: supplierDraft.referencePoint,
+                  telephone: supplierDraft.telephone,
+                  cellphone: supplierDraft.cellphone,
+                  email: supplierDraft.email,
+                }}
+                loadingCep={loadingSupplierCep}
+                onFillAddressFromCep={fillSupplierAddressFromCep}
+                onChange={(field, fieldValue) => setSupplierField(field, fieldValue)}
+              />
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-border-primary px-4 py-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setSupplierModalOpen(false)}
+                className="btn-cancel"
+              >
+                Cancelar
+              </button>
+              <button type="submit" disabled={savingSupplier} className="btn-primary">
+                {savingSupplier ? "Salvando..." : "Salvar fornecedor"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -311,7 +576,13 @@ export default function ProductRegisterPage() {
       });
     supplierService
       .list()
-      .then((items) => setSupplierOptions(items.map((item) => item.fantasyName)))
+      .then((items) =>
+        setSupplierOptions(
+          items
+            .map((item) => item.fantasyName || item.companyName)
+            .filter((supplierName) => supplierName.trim().length > 0),
+        ),
+      )
       .catch(() => setSupplierOptions([]));
   }, []);
 
@@ -348,6 +619,40 @@ export default function ProductRegisterPage() {
       statusDialog.success("Produto excluído com sucesso.");
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao excluir produto.");
+    }
+  };
+
+  const handleCreateSupplier = async (draft: QuickSupplierDraft) => {
+    const payload: SupplierPayload = {
+      companyName: draft.companyName.trim(),
+      fantasyName: draft.fantasyName.trim(),
+      cnpj: draft.cnpj.trim(),
+      cep: draft.cep.trim(),
+      city: draft.city.trim(),
+      state: draft.state.trim(),
+      address: draft.address.trim(),
+      neighborhood: draft.neighborhood.trim(),
+      streetComplement: draft.streetComplement.trim(),
+      number: draft.number.trim(),
+      referencePoint: draft.referencePoint.trim(),
+      telephone: draft.telephone.trim(),
+      cellphone: draft.cellphone.trim(),
+      email: draft.email.trim(),
+    };
+
+    try {
+      const created = await supplierService.create(payload);
+      if (!created) return null;
+
+      const supplierName = created.fantasyName || created.companyName;
+      setSupplierOptions((current) =>
+        current.includes(supplierName) ? current : [supplierName, ...current],
+      );
+      Toast.success("Fornecedor cadastrado com sucesso.");
+      return supplierName;
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Erro ao cadastrar fornecedor.");
+      return null;
     }
   };
 
@@ -513,6 +818,7 @@ export default function ProductRegisterPage() {
         onChange={setForm}
         onSave={handleSave}
         supplierOptions={supplierOptions}
+        onCreateSupplier={handleCreateSupplier}
       />
       {statusDialog.Dialog}
     </PageLayout>

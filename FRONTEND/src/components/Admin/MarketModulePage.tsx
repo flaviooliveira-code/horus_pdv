@@ -4,11 +4,12 @@
  * Entradas esperadas: configuração visual do módulo com KPIs, registros, fluxos e alertas.
  */
 import { CheckCircle2, CircleAlert, Clock3, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import { type ClipboardEvent, type FormEvent, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import { SearchableSelectField } from "@/components/Form";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
+import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
 
 export type MarketModuleKpi = {
@@ -108,6 +109,13 @@ function toPayload(record: MarketModuleRecord): MarketModuleRecordPayload {
   };
 }
 
+function preventNonDigitBeforeInput(event: FormEvent<HTMLInputElement>) {
+  const data = (event.nativeEvent as InputEvent).data ?? "";
+  if (data && /\D/.test(data)) {
+    event.preventDefault();
+  }
+}
+
 export default function MarketModulePage({
   config,
   onRefresh,
@@ -116,6 +124,7 @@ export default function MarketModulePage({
   onDelete,
 }: MarketModulePageProps) {
   const statusDialog = useStatusDialog();
+  const { maskCurrencyBr } = useInputMasks();
   const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MarketModuleRecord | null>(null);
   const [form, setForm] = useState<MarketModuleRecordPayload>(emptyForm);
@@ -152,6 +161,15 @@ export default function MarketModulePage({
 
   const updateField = (field: keyof MarketModuleRecordPayload, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateAmount = (value: string) => {
+    updateField("amount", maskCurrencyBr(value));
+  };
+
+  const pasteAmount = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    updateAmount(event.clipboardData.getData("text"));
   };
 
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {
@@ -432,7 +450,11 @@ export default function MarketModulePage({
                 <span className="mb-1 block text-sm font-semibold text-text-primary">Valor</span>
                 <input
                   value={form.amount}
-                  onChange={(event) => updateField("amount", event.target.value)}
+                  inputMode="numeric"
+                  pattern="[0-9,.]*"
+                  onBeforeInput={preventNonDigitBeforeInput}
+                  onPaste={pasteAmount}
+                  onChange={(event) => updateAmount(event.target.value)}
                   className="input-field w-full"
                   placeholder="R$ 0,00"
                 />

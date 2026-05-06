@@ -2,6 +2,8 @@
  * Arquivo: src/services/api/apiClient.ts
  * Objetivo: centralizar chamadas HTTP para a API .NET do Hórus PDV.
  */
+import { clearAuthSession, getAuthToken } from "@/utils/authStorage";
+
 export type ApiResponse<T> = {
   success: boolean;
   message: string;
@@ -9,19 +11,30 @@ export type ApiResponse<T> = {
   data?: T;
 };
 
+type ApiRequestOptions = RequestInit & {
+  skipAuth?: boolean;
+};
+
 export async function apiRequest<T>(
   endpointUrl: string,
-  options: RequestInit = {},
+  options: ApiRequestOptions = {},
 ): Promise<ApiResponse<T>> {
+  const { skipAuth, headers, ...requestOptions } = options;
+  const token = skipAuth ? null : getAuthToken();
   const response = await fetch(endpointUrl, {
     headers: {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
     },
-    ...options,
+    ...requestOptions,
   });
 
   const payload = (await response.json()) as ApiResponse<T>;
+  if (response.status === 401) {
+    clearAuthSession();
+  }
+
   if (!response.ok || !payload.success) {
     throw new Error(payload.message || "Erro ao comunicar com a API.");
   }

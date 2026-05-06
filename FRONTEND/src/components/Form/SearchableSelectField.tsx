@@ -3,7 +3,7 @@
  * Objetivo: padronizar seleção pesquisável para listas de entidades do sistema.
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 type SearchableSelectFieldProps<TOption> = {
   label?: string;
@@ -21,6 +21,8 @@ type SearchableSelectFieldProps<TOption> = {
   className?: string;
   inputClassName?: string;
   dropdownClassName?: string;
+  createActionLabel?: string;
+  onCreateOption?: (search: string) => void;
 };
 
 function normalizeSearchValue(value: string) {
@@ -47,6 +49,8 @@ export default function SearchableSelectField<TOption>({
   className = "",
   inputClassName = "",
   dropdownClassName = "",
+  createActionLabel,
+  onCreateOption,
 }: SearchableSelectFieldProps<TOption>) {
   const inputId = useId();
   const blurTimeoutRef = useRef<number | null>(null);
@@ -105,6 +109,12 @@ export default function SearchableSelectField<TOption>({
       setIsOpen(false);
       setSearch(selectedLabel);
     }, 120);
+  };
+
+  const handleCreateOption = () => {
+    if (!onCreateOption) return;
+    onCreateOption(search.trim());
+    setIsOpen(false);
   };
 
   const field = (
@@ -171,6 +181,21 @@ export default function SearchableSelectField<TOption>({
               {emptyMessage}
             </li>
           )}
+          {onCreateOption ? (
+            <li className="border-t border-border-primary p-1.5">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-secondary transition hover:bg-secondary/10"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  handleCreateOption();
+                }}
+              >
+                <Plus size={14} />
+                {createActionLabel || "Cadastrar novo"}
+              </button>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </>

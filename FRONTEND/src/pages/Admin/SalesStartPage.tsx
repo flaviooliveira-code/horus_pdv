@@ -4,18 +4,28 @@
  * Entradas esperadas: recebe flag opcional de modo standalone para ajustar comportamento da aba PDV.
  */
 
-import { Image as ImageIcon, Search, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Image as ImageIcon, Printer, ReceiptText, Search, Trash2, X } from "lucide-react";
+import {
+  type ClipboardEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { SearchableSelectField } from "@/components/Form";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import { companyService, type CompanyDto } from "@/services/api/companyService";
 import { productService } from "@/services/api/productService";
 import { salesHistoryService } from "@/services/api/salesHistoryService";
+import { getPrintPreviewEnabled } from "@/utils/pdvPreferences";
 
 type SalesStartPageProps = {
   onExit?: () => void;
   standalone?: boolean;
+  operatorName?: string;
 };
 
 type Product = {
@@ -37,12 +47,44 @@ type CartItem = {
 
 type PaymentType = "dinheiro" | "pix" | "debito" | "credito";
 
+type ReceiptItem = CartItem & {
+  total: number;
+};
+
+type SaleReceipt = {
+  saleNumber: string;
+  issuedAt: string;
+  company: Pick<
+    CompanyDto,
+    | "fantasyName"
+    | "corporateName"
+    | "cnpj"
+    | "address"
+    | "number"
+    | "neighborhood"
+    | "city"
+    | "uf"
+    | "phone"
+    | "sacPhone"
+  > | null;
+  customerCpf: string;
+  paymentType: PaymentType;
+  paymentLabel: string;
+  operatorName: string;
+  subtotal: number;
+  cashGiven: number;
+  change: number;
+  items: ReceiptItem[];
+};
+
 const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string }> = [
   { value: "dinheiro", label: "Dinheiro" },
   { value: "pix", label: "PIX" },
   { value: "debito", label: "Cartão Débito" },
   { value: "credito", label: "Cartão Crédito" },
 ];
+
+const LAST_RECEIPT_STORAGE_KEY = "horus-pdv-last-receipt";
 
 function formatDateTime(date: Date) {
   return {
@@ -59,7 +101,162 @@ function formatDateTime(date: Date) {
   };
 }
 
-export default function SalesStartPage({ standalone = false }: SalesStartPageProps) {
+function preventNonDigitBeforeInput(event: FormEvent<HTMLInputElement>) {
+  const data = (event.nativeEvent as InputEvent).data ?? "";
+  if (data && /\D/.test(data)) {
+    event.preventDefault();
+  }
+}
+
+function getPaymentLabel(paymentType: PaymentType) {
+  return PAYMENT_OPTIONS.find((option) => option.value === paymentType)?.label ?? paymentType;
+}
+
+function formatReceiptDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function ReceiptPreviewModal({
+  receipt,
+  formatMoney,
+  onClose,
+}: {
+  receipt: SaleReceipt;
+  formatMoney: (value: number) => string;
+  onClose: () => void;
+}) {
+  const companyName =
+    receipt.company?.fantasyName || receipt.company?.corporateName || "Hórus PDV";
+  const companyAddress = [
+    receipt.company?.address,
+    receipt.company?.number,
+    receipt.company?.neighborhood,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const companyCity = [receipt.company?.city, receipt.company?.uf].filter(Boolean).join(" - ");
+
+  return (
+    <div className="fixed inset-0 z-layer-dialog flex items-end bg-black/50 px-3 backdrop-blur-sm md:items-center md:justify-center">
+      <div className="w-full max-w-xl rounded-t-2xl border border-border-primary bg-bg-light shadow-2xl md:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-border-primary px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <ReceiptText size={18} />
+            </span>
+            <div>
+              <h2 className="text-base font-semibold text-text-primary">Prévia de impressão</h2>
+              <p className="text-xs text-text-secondary">Cupom da venda {receipt.saleNumber}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary text-text-secondary hover:bg-hover-light"
+            aria-label="Fechar prévia de impressão"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="max-h-[72vh] overflow-y-auto bg-bg-primary p-4">
+          <div className="mx-auto w-full max-w-[360px] border border-border-secondary bg-white px-5 py-4 font-mono text-[12px] leading-tight text-slate-950 shadow-sm">
+            <div className="text-center">
+              <p className="text-sm font-bold uppercase">{companyName}</p>
+              <p>{receipt.company?.corporateName || companyName}</p>
+              <p>CNPJ: {receipt.company?.cnpj || "-"}</p>
+              {companyAddress ? <p>{companyAddress}</p> : null}
+              {companyCity ? <p>{companyCity}</p> : null}
+              <p>Telefone: {receipt.company?.phone || receipt.company?.sacPhone || "-"}</p>
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+
+            <div className="space-y-1">
+              <p>CUPOM NAO FISCAL</p>
+              <p>Venda: {receipt.saleNumber}</p>
+              <p>Emissao: {formatReceiptDate(receipt.issuedAt)}</p>
+              <p>Operador: {receipt.operatorName}</p>
+              <p>CPF/CNPJ consumidor: {receipt.customerCpf || "-"}</p>
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+
+            <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1 font-bold">
+              <span>#</span>
+              <span>ITEM</span>
+              <span className="text-right">QTD</span>
+              <span className="text-right">TOTAL</span>
+            </div>
+            <div className="mt-1 space-y-2">
+              {receipt.items.map((item, index) => (
+                <div key={`${item.id}-${index}`}>
+                  <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1">
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <span className="truncate">{item.name}</span>
+                    <span className="text-right">{item.quantity}</span>
+                    <span className="text-right">{formatMoney(item.total)}</span>
+                  </div>
+                  <p className="pl-7 text-[11px]">
+                    {item.code} - UN {formatMoney(item.unitPrice)}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+
+            <div className="space-y-1">
+              <div className="flex justify-between font-bold">
+                <span>TOTAL</span>
+                <span>R$ {formatMoney(receipt.subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pagamento</span>
+                <span>{receipt.paymentLabel}</span>
+              </div>
+              {receipt.paymentType === "dinheiro" ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Valor recebido</span>
+                    <span>R$ {formatMoney(receipt.cashGiven)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Troco</span>
+                    <span>R$ {formatMoney(receipt.change)}</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="my-3 border-t border-dashed border-slate-500" />
+            <p className="text-center">Obrigado pela preferencia.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-border-primary px-4 py-3">
+          <button type="button" onClick={onClose} className="btn-primary">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SalesStartPage({
+  standalone = false,
+  operatorName = "Operador",
+}: SalesStartPageProps) {
   const { formatMoneyBr, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } = useInputMasks();
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
@@ -79,6 +276,16 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
   const [paymentType, setPaymentType] = useState<PaymentType>("dinheiro");
   const [cpfNota, setCpfNota] = useState("");
   const [cashGiven, setCashGiven] = useState("");
+  const [lastReceipt, setLastReceipt] = useState<SaleReceipt | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<SaleReceipt | null>(null);
+  const [printPreviewEnabled, setPrintPreviewEnabled] = useState(() =>
+    getPrintPreviewEnabled(),
+  );
+
+  const pasteCashGiven = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    setCashGiven(maskMoneyBr(event.clipboardData.getData("text")));
+  };
 
   const selectedProduct = useMemo(
     () => products.find((item) => item.id === selectedProductId) ?? null,
@@ -158,6 +365,35 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedReceipt = window.localStorage.getItem(LAST_RECEIPT_STORAGE_KEY);
+      if (!storedReceipt) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLastReceipt(JSON.parse(storedReceipt) as SaleReceipt);
+    } catch {
+      window.localStorage.removeItem(LAST_RECEIPT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncPrintPreviewPreference = () => setPrintPreviewEnabled(getPrintPreviewEnabled());
+    const onCustomPreferenceChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      setPrintPreviewEnabled(typeof enabled === "boolean" ? enabled : getPrintPreviewEnabled());
+    };
+
+    window.addEventListener("focus", syncPrintPreviewPreference);
+    window.addEventListener("storage", syncPrintPreviewPreference);
+    window.addEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
+
+    return () => {
+      window.removeEventListener("focus", syncPrintPreviewPreference);
+      window.removeEventListener("storage", syncPrintPreviewPreference);
+      window.removeEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -245,6 +481,23 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
     setCart((current) => current.filter((item) => item.id !== id));
   };
 
+  const saveLastReceipt = (receipt: SaleReceipt) => {
+    setLastReceipt(receipt);
+    try {
+      window.localStorage.setItem(LAST_RECEIPT_STORAGE_KEY, JSON.stringify(receipt));
+    } catch {
+      // Mantem apenas em memoria caso o navegador bloqueie o armazenamento local.
+    }
+  };
+
+  const printLastSale = () => {
+    if (!lastReceipt) {
+      Toast.info("Nenhuma venda finalizada nesta estação.");
+      return;
+    }
+    setReceiptPreview(lastReceipt);
+  };
+
   const cancelSale = useCallback(async () => {
     if (cart.length === 0) return;
     const confirmed = await statusDialog.confirm("Cancelar venda atual?");
@@ -284,13 +537,43 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
           quantity: item.quantity,
         })),
       });
+      const receipt: SaleReceipt = {
+        saleNumber: result?.saleNumber || `PDV-${Date.now()}`,
+        issuedAt: new Date().toISOString(),
+        company: company
+          ? {
+              fantasyName: company.fantasyName,
+              corporateName: company.corporateName,
+              cnpj: company.cnpj,
+              address: company.address,
+              number: company.number,
+              neighborhood: company.neighborhood,
+              city: company.city,
+              uf: company.uf,
+              phone: company.phone,
+              sacPhone: company.sacPhone,
+            }
+          : null,
+        customerCpf: cpfNota || "-",
+        paymentType,
+        paymentLabel: getPaymentLabel(paymentType),
+        operatorName,
+        subtotal,
+        cashGiven: paymentType === "dinheiro" ? cashGivenValue : subtotal,
+        change: paymentType === "dinheiro" ? changeValue : 0,
+        items: cart.map((item) => ({
+          ...item,
+          total: item.quantity * item.unitPrice,
+        })),
+      };
+
       setCheckoutOpen(false);
       await loadProducts();
-      await statusDialog.success(
-        result?.saleNumber
-          ? `Pagamento confirmado. Venda ${result.saleNumber} registrada.`
-          : "Pagamento confirmado.",
-      );
+      saveLastReceipt(receipt);
+      if (printPreviewEnabled) {
+        setReceiptPreview(receipt);
+      }
+      Toast.success(`Pagamento confirmado. Venda ${receipt.saleNumber} registrada.`);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao registrar venda.");
       return;
@@ -457,9 +740,15 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
               <input
                 ref={qtyInputRef}
                 value={quantityInput}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                onFocus={(event) => event.target.select()}
                 onChange={(event) =>
-                  setQuantityInput(sanitizeIntegerInput(event.target.value).slice(0, 4) || "1")
+                  setQuantityInput(sanitizeIntegerInput(event.target.value).slice(0, 4))
                 }
+                onBlur={() => {
+                  if (!quantityInput || Number(quantityInput) < 1) setQuantityInput("1");
+                }}
                 className="input-field h-10 w-full text-lg font-semibold"
               />
             </label>
@@ -642,13 +931,21 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={cancelSale}
                   className="btn-cancel h-11 w-full rounded-xl"
                 >
                   ✖ CANCELAR (F8)
+                </button>
+                <button
+                  type="button"
+                  onClick={printLastSale}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
+                >
+                  <Printer size={16} />
+                  Imprimir última venda
                 </button>
                 <button
                   type="button"
@@ -660,11 +957,13 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
               </div>
 
               <footer className="space-y-0.5 border-t border-border-primary bg-bg-primary px-3 py-2 text-[11px] text-text-secondary sm:grid sm:grid-cols-3 sm:items-center sm:space-y-0 sm:text-xs">
-                <p>Usuário: July</p>
+                <p>Usuário: {operatorName}</p>
                 <p className="sm:text-center">
                   Estabelecimento: {company?.fantasyName || "Hórus PDV"}
                 </p>
-                <p className="sm:text-right">Nome caixa: PDV01</p>
+                <p className="sm:text-right">
+                  Prévia impressão: {printPreviewEnabled ? "Sim" : "Não"} • Caixa: PDV01
+                </p>
               </footer>
             </div>
           </section>
@@ -712,6 +1011,10 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                   <span className="mb-1.5 block text-sm text-text-secondary">Valor recebido</span>
                   <input
                     value={cashGiven}
+                    inputMode="numeric"
+                    pattern="[0-9,.]*"
+                    onBeforeInput={preventNonDigitBeforeInput}
+                    onPaste={pasteCashGiven}
                     onChange={(event) => setCashGiven(maskMoneyBr(event.target.value))}
                     className="input-field w-full"
                     placeholder="0,00"
@@ -744,6 +1047,14 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
           </div>
         </div>
       )}
+
+      {receiptPreview ? (
+        <ReceiptPreviewModal
+          receipt={receiptPreview}
+          formatMoney={formatMoneyBr}
+          onClose={() => setReceiptPreview(null)}
+        />
+      ) : null}
 
       {statusDialog.Dialog}
     </div>

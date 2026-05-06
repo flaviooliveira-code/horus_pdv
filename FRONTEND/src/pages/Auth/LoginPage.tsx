@@ -14,7 +14,7 @@ type LoginResult = {
 
 type LoginPageProps = {
   defaultEmail: string;
-  onLogin: (email: string, password: string) => LoginResult;
+  onLogin: (email: string, password: string, remember: boolean) => Promise<LoginResult>;
 };
 
 export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
@@ -23,10 +23,11 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
   const [password, setPassword] = useState("Admin@1234");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   // Mensagem local de retorno da tentativa de login.
   const [feedback, setFeedback] = useState<LoginResult | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validação mínima antes de delegar autenticação ao App.
     if (!email.trim() || !password.trim()) {
       setFeedback({
@@ -36,8 +37,13 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
       return;
     }
 
-    const result = onLogin(email, password);
-    setFeedback(result);
+    setIsSubmitting(true);
+    try {
+      const result = await onLogin(email, password, remember);
+      setFeedback(result);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -94,7 +100,7 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder="usuario@hpdv.com.br"
                       onKeyDown={(event) => {
-                        if (event.key === "Enter") handleSubmit();
+                        if (event.key === "Enter") void handleSubmit();
                       }}
                     />
                   </div>
@@ -116,7 +122,7 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="••••••••"
                       onKeyDown={(event) => {
-                        if (event.key === "Enter") handleSubmit();
+                        if (event.key === "Enter") void handleSubmit();
                       }}
                     />
                     <button
@@ -156,10 +162,11 @@ export default function LoginPage({ defaultEmail, onLogin }: LoginPageProps) {
                 <button
                   type="button"
                   onClick={handleSubmit}
+                  disabled={isSubmitting}
                   className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2"
                 >
                   <LogIn size={16} />
-                  Entrar
+                  {isSubmitting ? "Entrando..." : "Entrar"}
                 </button>
               </div>
             </div>
