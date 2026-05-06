@@ -1,22 +1,21 @@
+using HORUSPDV_API.Data;
+using HORUSPDV_API.Data.Entities;
 using HORUSPDV_API.Models.ModuloMercado;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HORUSPDV_API.Controllers.ModuloMercado;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ModuloMercadoController : ControllerBase
+public class ModuloMercadoController(HorusDbContext db) : ControllerBase
 {
-    private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, List<ModuloMercadoRegistroModel>> RegistrosPorModulo =
-        CreateInitialRecords();
-
     [HttpGet("{id}")]
-    public IActionResult Obter(string id)
+    public async Task<IActionResult> Obter(string id)
     {
-        var config = BuildConfig(id);
+        var config = await BuildConfigAsync(id);
         if (config is null)
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
@@ -33,9 +32,9 @@ public class ModuloMercadoController : ControllerBase
     [HttpPost("{id}/registros")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public IActionResult CriarRegistro(string id, [FromBody] ModuloMercadoRegistroRequest request)
+    public async Task<IActionResult> CriarRegistro(string id, [FromBody] ModuloMercadoRegistroRequest request)
     {
-        if (!ModuleExists(id))
+        if (!await ModuleExistsAsync(id))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
         }
@@ -43,16 +42,14 @@ public class ModuloMercadoController : ControllerBase
         try
         {
             var registro = MapRequest(id, $"mm-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request);
-            lock (SyncRoot)
-            {
-                RegistrosPorModulo[id].Insert(0, CloneRecord(registro));
-            }
+            db.ModuloMercadoRegistros.Add(registro);
+            await db.SaveChangesAsync();
 
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
                 Success = true,
                 Message = "Registro criado com sucesso.",
-                Data = BuildConfig(id)
+                Data = await BuildConfigAsync(id)
             });
         }
         catch (InvalidOperationException ex)
@@ -64,32 +61,34 @@ public class ModuloMercadoController : ControllerBase
     [HttpPut("{id}/registros/{recordId}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public IActionResult AtualizarRegistro(string id, string recordId, [FromBody] ModuloMercadoRegistroRequest request)
+    public async Task<IActionResult> AtualizarRegistro(string id, string recordId, [FromBody] ModuloMercadoRegistroRequest request)
     {
-        if (!ModuleExists(id))
+        if (!await ModuleExistsAsync(id))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
         }
 
         try
         {
-            lock (SyncRoot)
+            var registro = await db.ModuloMercadoRegistros.FirstOrDefaultAsync(item => item.ModuleId == id && item.Id == recordId);
+            if (registro is null)
             {
-                var records = RegistrosPorModulo[id];
-                var index = records.FindIndex(item => item.Id == recordId);
-                if (index < 0)
-                {
-                    return NotFound(new ApiResponse<object> { Success = false, Message = "Registro nao encontrado." });
-                }
-
-                records[index] = MapRequest(id, recordId, request);
+                return NotFound(new ApiResponse<object> { Success = false, Message = "Registro nao encontrado." });
             }
+
+            var updated = MapRequest(id, recordId, request);
+            registro.Title = updated.Title;
+            registro.Description = updated.Description;
+            registro.Status = updated.Status;
+            registro.Amount = updated.Amount;
+            registro.Meta = updated.Meta;
+            await db.SaveChangesAsync();
 
             return Ok(new ApiResponse<object>
             {
                 Success = true,
                 Message = "Registro atualizado com sucesso.",
-                Data = BuildConfig(id)
+                Data = await BuildConfigAsync(id)
             });
         }
         catch (InvalidOperationException ex)
@@ -101,47 +100,40 @@ public class ModuloMercadoController : ControllerBase
     [HttpDelete("{id}/registros/{recordId}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public IActionResult ExcluirRegistro(string id, string recordId)
+    public async Task<IActionResult> ExcluirRegistro(string id, string recordId)
     {
-        if (!ModuleExists(id))
+        if (!await ModuleExistsAsync(id))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
         }
 
-        lock (SyncRoot)
+        var registro = await db.ModuloMercadoRegistros.FirstOrDefaultAsync(item => item.ModuleId == id && item.Id == recordId);
+        if (registro is null)
         {
-            var removed = RegistrosPorModulo[id].RemoveAll(item => item.Id == recordId) > 0;
-            if (!removed)
-            {
-                return NotFound(new ApiResponse<object> { Success = false, Message = "Registro nao encontrado." });
-            }
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Registro nao encontrado." });
         }
 
+        db.ModuloMercadoRegistros.Remove(registro);
+        await db.SaveChangesAsync();
         return Ok(new ApiResponse<object>
         {
             Success = true,
             Message = "Registro removido com sucesso.",
-            Data = BuildConfig(id)
+            Data = await BuildConfigAsync(id)
         });
     }
 
-    private static object? BuildConfig(string id)
+    private async Task<object?> BuildConfigAsync(string id)
     {
-        var title = id switch
-        {
-            "fiscal" => "Fiscal NFC-e / NF-e",
-            "pagamentos" => "Pagamentos Integrados",
-            "estoque" => "Estoque e Inventário",
-            "caixa" => "Abertura e Fechamento de Caixa",
-            "compras" => "Compras e Reposição",
-            "devolucoes" => "Trocas e Devoluções",
-            "crm-fidelidade" => "CRM e Fidelidade",
-            "omnichannel" => "Omnichannel e Integrações",
-            _ => null
-        };
-
+        var title = BuildModuleTitle(id);
         if (title is null) return null;
-        var records = GetRecords(id);
+
+        var records = await db.ModuloMercadoRegistros
+            .AsNoTracking()
+            .Where(item => item.ModuleId == id)
+            .OrderBy(item => item.Id)
+            .Select(item => ToModel(item))
+            .ToListAsync();
         var pendingCount = records.Count(item => IsPending(item.Status));
         var completedCount = records.Count(item => IsCompleted(item.Status));
         var completionRate = records.Count == 0
@@ -195,7 +187,8 @@ public class ModuloMercadoController : ControllerBase
         };
     }
 
-    private static bool ModuleExists(string id) => BuildModuleTitle(id) is not null;
+    private async Task<bool> ModuleExistsAsync(string id)
+        => BuildModuleTitle(id) is not null && await db.ModulosMercado.AnyAsync(item => item.Id == id);
 
     private static string? BuildModuleTitle(string id) => id switch
     {
@@ -210,17 +203,7 @@ public class ModuloMercadoController : ControllerBase
         _ => null
     };
 
-    private static List<ModuloMercadoRegistroModel> GetRecords(string id)
-    {
-        lock (SyncRoot)
-        {
-            return RegistrosPorModulo.TryGetValue(id, out var records)
-                ? records.Select(CloneRecord).ToList()
-                : [];
-        }
-    }
-
-    private static ModuloMercadoRegistroModel MapRequest(
+    private static ModuloMercadoRegistroEntity MapRequest(
         string moduleId,
         string recordId,
         ModuloMercadoRegistroRequest request)
@@ -235,7 +218,7 @@ public class ModuloMercadoController : ControllerBase
             throw new InvalidOperationException("Status e obrigatorio.");
         }
 
-        return new ModuloMercadoRegistroModel
+        return new ModuloMercadoRegistroEntity
         {
             Id = recordId,
             ModuleId = moduleId,
@@ -257,7 +240,7 @@ public class ModuloMercadoController : ControllerBase
            || status.Contains("fech", StringComparison.OrdinalIgnoreCase)
            || status.Contains("ativo", StringComparison.OrdinalIgnoreCase);
 
-    private static ModuloMercadoRegistroModel CloneRecord(ModuloMercadoRegistroModel source) => new()
+    private static ModuloMercadoRegistroModel ToModel(ModuloMercadoRegistroEntity source) => new()
     {
         Id = source.Id,
         ModuleId = source.ModuleId,
@@ -267,59 +250,4 @@ public class ModuloMercadoController : ControllerBase
         Amount = source.Amount,
         Meta = source.Meta
     };
-
-    private static Dictionary<string, List<ModuloMercadoRegistroModel>> CreateInitialRecords()
-    {
-        var moduleIds = new[]
-        {
-            "fiscal",
-            "pagamentos",
-            "estoque",
-            "caixa",
-            "compras",
-            "devolucoes",
-            "crm-fidelidade",
-            "omnichannel"
-        };
-
-        return moduleIds.ToDictionary(
-            id => id,
-            id =>
-            {
-                var title = BuildModuleTitle(id) ?? "Modulo";
-                return new List<ModuloMercadoRegistroModel>
-                {
-                    new()
-                    {
-                        Id = $"{id}-001",
-                        ModuleId = id,
-                        Title = $"{title} - Registro 001",
-                        Description = "Registro principal do módulo.",
-                        Status = "Ativo",
-                        Amount = "R$ 184,90",
-                        Meta = "Sincronizado agora"
-                    },
-                    new()
-                    {
-                        Id = $"{id}-002",
-                        ModuleId = id,
-                        Title = $"{title} - Registro 002",
-                        Description = "Item aguardando validação operacional.",
-                        Status = "Pendente",
-                        Amount = "R$ 59,80",
-                        Meta = "Prioridade média"
-                    },
-                    new()
-                    {
-                        Id = $"{id}-003",
-                        ModuleId = id,
-                        Title = $"{title} - Registro 003",
-                        Description = "Evento de auditoria e acompanhamento.",
-                        Status = "Auditado",
-                        Amount = "R$ 1.240,00",
-                        Meta = "Responsável: Administrador"
-                    }
-                };
-            });
-    }
 }

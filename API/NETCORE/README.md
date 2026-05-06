@@ -1,31 +1,63 @@
-# API NETCORE
+# Hórus PDV API .NET
 
-## Objetivo
-Esta pasta é reservada para a implementação da API em .NET (ASP.NET Core) do projeto Hórus PDV.
+API ASP.NET Core do Hórus PDV.
 
-## Status
-Em desenvolvimento.
+## Stack
 
-## Escopo sugerido
-- Autenticação e autorização.
-- Cadastro e consulta de produtos.
-- Gestão de clientes.
-- Vendas, itens de venda e fechamento.
-- Relatórios e indicadores.
+- .NET 8
+- ASP.NET Core Web API
+- Entity Framework Core
+- SQL Server
+- Swagger
+- JWT
 
-## Estrutura recomendada
-- `src/`: código-fonte da solução.
-- `tests/`: testes automatizados.
-- `docs/`: documentação técnica e contratos.
-- `.env.example`: variáveis de ambiente de exemplo.
+## Banco Local
 
-## Como iniciar (quando a API existir)
-1. Restaurar dependências.
-2. Configurar variáveis de ambiente.
-3. Aplicar migrations (se houver banco relacional).
-4. Subir a aplicação em ambiente local.
+Suba o SQL Server via Docker:
 
-## Boas práticas
-- Seguir Clean Code e separação por camadas (Domain, Application, Infrastructure, API).
-- Versionar contratos e endpoints.
-- Garantir cobertura mínima de testes para regras críticas.
+<pre><code class="language-bash">docker run -d \
+  --name sqlserver \
+  -e ACCEPT_EULA=Y \
+  -e SA_PASSWORD='Senha@12345' \
+  -p 1433:1433 \
+  mcr.microsoft.com/mssql/server:2022-latest
+</code></pre>
+
+Connection string padrão:
+
+<pre><code class="language-json">"ConnectionStrings": {
+  "HorusPdv": "Server=localhost,1433;Database=HorusPdv;User Id=sa;Password=Senha@12345;TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True"
+}</code></pre>
+
+Ao iniciar, a API cria o banco `HorusPdv`, cria as tabelas com `EnsureCreated` e insere os dados iniciais.
+
+## Rodando
+
+<pre><code class="language-bash">dotnet restore
+dotnet build
+dotnet run --urls http://localhost:5260
+</code></pre>
+
+Swagger:
+
+<pre><code class="language-text">http://localhost:5260/swagger
+</code></pre>
+
+## Tabelas
+
+- `Usuarios`
+- `Sessoes`
+- `PasswordResetTokens`
+- `Produtos`
+- `Fornecedores`
+- `Clientes`
+- `Empresas`
+- `CaixaSessoes`
+- `Vendas`
+- `VendaItens`
+- `ModulosMercado`
+- `ModuloMercadoRegistros`
+
+## Próximo Passo Técnico
+
+Trocar `EnsureCreated` por migrations versionadas antes de produção.

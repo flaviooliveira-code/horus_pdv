@@ -1,144 +1,77 @@
+using HORUSPDV_API.Data;
+using HORUSPDV_API.Data.Entities;
 using HORUSPDV_API.Models.Clientes;
 using HORUSPDV_API.Models.Fornecedores;
 using HORUSPDV_API.Models.Produtos;
+using Microsoft.EntityFrameworkCore;
 
 namespace HORUSPDV_API.Repositories.AcessoBanco;
 
-public class HorusMockDatabase
+public class HorusMockDatabase(HorusDbContext db)
 {
-    private readonly List<ProdutoModel> _produtos =
-    [
-        new()
-        {
-            Id = "pr-001",
-            ProductName = "Café Tradicional 500g",
-            ProductCode = "CAF500",
-            ProductSupplier = "Distribuidora Alfa",
-            ProductDescription = "Café torrado e moído 500g",
-            ProductQnt = "120",
-            ProductUnitPrice = "14,90",
-            ProductSalePrice = "18,90",
-            TotalPriceOnProduct = "1.788,00"
-        },
-        new()
-        {
-            Id = "pr-002",
-            ProductName = "Óleo de Soja",
-            ProductCode = "OLE900",
-            ProductSupplier = "Atacado Vitória",
-            ProductDescription = "Óleo de soja 900ml",
-            ProductQnt = "56",
-            ProductUnitPrice = "3,29",
-            ProductSalePrice = "6,99",
-            TotalPriceOnProduct = "184,24"
-        },
-        new()
-        {
-            Id = "pr-003",
-            ProductName = "Erva Chimarrão",
-            ProductCode = "ERV500",
-            ProductSupplier = "Distribuidora Alfa",
-            ProductDescription = "Erva mate para chimarrão 500g",
-            ProductQnt = "24",
-            ProductUnitPrice = "9,80",
-            ProductSalePrice = "15,00",
-            TotalPriceOnProduct = "235,20"
-        }
-    ];
+    public async Task<List<ProdutoModel>> ListarProdutosAsync()
+        => await db.Produtos
+            .AsNoTracking()
+            .OrderBy(item => item.ProductName)
+            .Select(item => ToModel(item))
+            .ToListAsync();
 
-    private readonly List<ClienteModel> _clientes =
-    [
-        new()
-        {
-            Id = "cl-001",
-            CustomerName = "Ana Martins",
-            Document = "123.456.789-09",
-            BirthDate = "16/10/1991",
-            Age = "34",
-            Cep = "06010-000",
-            City = "Osasco",
-            State = "SP",
-            Address = "Rua Primitiva Vianco",
-            Neighborhood = "Centro",
-            Number = "100",
-            Telephone = "(11) 3681-1000",
-            Cellphone = "(11) 99888-1122",
-            Email = "ana.martins@email.com"
-        }
-    ];
+    public async Task<ProdutoModel?> ObterProdutoAsync(string id)
+        => await db.Produtos
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => ToModel(item))
+            .FirstOrDefaultAsync();
 
-    private readonly List<FornecedorModel> _fornecedores =
-    [
-        new()
-        {
-            Id = "fr-001",
-            CompanyName = "Distribuidora Alfa LTDA",
-            FantasyName = "Distribuidora Alfa",
-            Cnpj = "12.345.678/0001-95",
-            Cep = "01001-000",
-            City = "São Paulo",
-            State = "SP",
-            Address = "Praça da Sé",
-            Neighborhood = "Sé",
-            Number = "100",
-            Telephone = "(11) 3322-1100",
-            Cellphone = "(11) 98888-3344",
-            Email = "comercial@alfa.com.br"
-        },
-        new()
-        {
-            Id = "fr-002",
-            CompanyName = "Atacado Vitória LTDA",
-            FantasyName = "Atacado Vitória",
-            Cnpj = "98.765.432/0001-10",
-            Cep = "20040-020",
-            City = "Rio de Janeiro",
-            State = "RJ",
-            Address = "Rua da Quitanda",
-            Neighborhood = "Centro",
-            Number = "55",
-            Telephone = "(21) 2222-1000",
-            Cellphone = "(21) 97777-2211",
-            Email = "vendas@vitoria.com.br"
-        }
-    ];
-
-    public Task<List<ProdutoModel>> ListarProdutosAsync()
-        => Task.FromResult(_produtos.Select(CloneProduto).ToList());
-
-    public Task<ProdutoModel?> ObterProdutoAsync(string id)
-        => Task.FromResult(_produtos.FirstOrDefault(item => item.Id == id) is { } product ? CloneProduto(product) : null);
-
-    public Task<ProdutoModel> SalvarProdutoAsync(ProdutoModel product)
+    public async Task<ProdutoModel> SalvarProdutoAsync(ProdutoModel product)
     {
-        var current = _produtos.FirstOrDefault(item => item.Id == product.Id);
+        var current = await db.Produtos.FirstOrDefaultAsync(item => item.Id == product.Id);
+        var supplier = await ResolveSupplierAsync(product.ProductSupplier);
         if (current is null)
         {
-            _produtos.Insert(0, CloneProduto(product));
-            return Task.FromResult(CloneProduto(product));
+            current = new ProdutoEntity { Id = product.Id };
+            db.Produtos.Add(current);
         }
 
-        var index = _produtos.IndexOf(current);
-        _produtos[index] = CloneProduto(product);
-        return Task.FromResult(CloneProduto(product));
+        current.ProductImageUrl = product.ProductImageUrl;
+        current.ProductImageName = product.ProductImageName;
+        current.ProductName = product.ProductName;
+        current.ProductCode = product.ProductCode;
+        current.ProductSupplier = product.ProductSupplier;
+        current.SupplierId = supplier?.Id;
+        current.ProductDescription = product.ProductDescription;
+        current.ProductQnt = product.ProductQnt;
+        current.ProductUnitPrice = product.ProductUnitPrice;
+        current.ProductSalePrice = product.ProductSalePrice;
+        current.TotalPriceOnProduct = product.TotalPriceOnProduct;
+        await db.SaveChangesAsync();
+        return ToModel(current);
     }
 
-    public Task<bool> ExcluirProdutoAsync(string id)
+    public async Task<bool> ExcluirProdutoAsync(string id)
     {
-        var removed = _produtos.RemoveAll(item => item.Id == id) > 0;
-        return Task.FromResult(removed);
+        var current = await db.Produtos.FirstOrDefaultAsync(item => item.Id == id);
+        if (current is null) return false;
+        db.Produtos.Remove(current);
+        await db.SaveChangesAsync();
+        return true;
     }
 
-    public Task BaixarEstoqueAsync(IEnumerable<(string ProductCode, int Quantity)> items)
+    public async Task BaixarEstoqueAsync(IEnumerable<(string ProductCode, int Quantity)> items)
     {
         var groupedItems = items
             .GroupBy(item => item.ProductCode.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(group => new { ProductCode = group.Key, Quantity = group.Sum(item => item.Quantity) })
             .ToList();
 
+        var codes = groupedItems.Select(item => item.ProductCode).ToList();
+        var products = await db.Produtos
+            .Where(product => codes.Contains(product.ProductCode))
+            .ToListAsync();
+
         foreach (var item in groupedItems)
         {
-            var product = _produtos.FirstOrDefault(product =>
+            var product = products.FirstOrDefault(product =>
                 product.ProductCode.Equals(item.ProductCode, StringComparison.OrdinalIgnoreCase));
             if (product is null)
             {
@@ -160,69 +93,122 @@ public class HorusMockDatabase
 
         foreach (var item in groupedItems)
         {
-            var product = _produtos.First(product =>
+            var product = products.First(product =>
                 product.ProductCode.Equals(item.ProductCode, StringComparison.OrdinalIgnoreCase));
             var nextStock = ParseInt(product.ProductQnt) - item.Quantity;
             product.ProductQnt = nextStock.ToString();
             product.TotalPriceOnProduct = CalculateTotal(product.ProductUnitPrice, nextStock);
         }
 
-        return Task.CompletedTask;
+        await db.SaveChangesAsync();
     }
 
-    public Task<List<ClienteModel>> ListarClientesAsync()
-        => Task.FromResult(_clientes.Select(CloneCliente).ToList());
+    public async Task<List<ClienteModel>> ListarClientesAsync()
+        => await db.Clientes
+            .AsNoTracking()
+            .OrderBy(item => item.CustomerName)
+            .Select(item => ToModel(item))
+            .ToListAsync();
 
-    public Task<ClienteModel?> ObterClienteAsync(string id)
-        => Task.FromResult(_clientes.FirstOrDefault(item => item.Id == id) is { } customer ? CloneCliente(customer) : null);
+    public async Task<ClienteModel?> ObterClienteAsync(string id)
+        => await db.Clientes
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => ToModel(item))
+            .FirstOrDefaultAsync();
 
-    public Task<ClienteModel> SalvarClienteAsync(ClienteModel customer)
+    public async Task<ClienteModel> SalvarClienteAsync(ClienteModel customer)
     {
-        var current = _clientes.FirstOrDefault(item => item.Id == customer.Id);
+        var current = await db.Clientes.FirstOrDefaultAsync(item => item.Id == customer.Id);
         if (current is null)
         {
-            _clientes.Insert(0, CloneCliente(customer));
-            return Task.FromResult(CloneCliente(customer));
+            current = new ClienteEntity { Id = customer.Id };
+            db.Clientes.Add(current);
         }
 
-        var index = _clientes.IndexOf(current);
-        _clientes[index] = CloneCliente(customer);
-        return Task.FromResult(CloneCliente(customer));
+        current.CustomerName = customer.CustomerName;
+        current.Document = customer.Document;
+        current.BirthDate = customer.BirthDate;
+        current.Age = customer.Age;
+        current.Cep = customer.Cep;
+        current.City = customer.City;
+        current.State = customer.State;
+        current.Address = customer.Address;
+        current.Neighborhood = customer.Neighborhood;
+        current.StreetComplement = customer.StreetComplement;
+        current.Number = customer.Number;
+        current.ReferencePoint = customer.ReferencePoint;
+        current.Telephone = customer.Telephone;
+        current.Cellphone = customer.Cellphone;
+        current.Email = customer.Email;
+        await db.SaveChangesAsync();
+        return ToModel(current);
     }
 
-    public Task<bool> ExcluirClienteAsync(string id)
+    public async Task<bool> ExcluirClienteAsync(string id)
     {
-        var removed = _clientes.RemoveAll(item => item.Id == id) > 0;
-        return Task.FromResult(removed);
+        var current = await db.Clientes.FirstOrDefaultAsync(item => item.Id == id);
+        if (current is null) return false;
+        db.Clientes.Remove(current);
+        await db.SaveChangesAsync();
+        return true;
     }
 
-    public Task<List<FornecedorModel>> ListarFornecedoresAsync()
-        => Task.FromResult(_fornecedores.Select(CloneFornecedor).ToList());
+    public async Task<List<FornecedorModel>> ListarFornecedoresAsync()
+        => await db.Fornecedores
+            .AsNoTracking()
+            .OrderBy(item => item.FantasyName)
+            .Select(item => ToModel(item))
+            .ToListAsync();
 
-    public Task<FornecedorModel?> ObterFornecedorAsync(string id)
-        => Task.FromResult(_fornecedores.FirstOrDefault(item => item.Id == id) is { } supplier ? CloneFornecedor(supplier) : null);
+    public async Task<FornecedorModel?> ObterFornecedorAsync(string id)
+        => await db.Fornecedores
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => ToModel(item))
+            .FirstOrDefaultAsync();
 
-    public Task<FornecedorModel> SalvarFornecedorAsync(FornecedorModel supplier)
+    public async Task<FornecedorModel> SalvarFornecedorAsync(FornecedorModel supplier)
     {
-        var current = _fornecedores.FirstOrDefault(item => item.Id == supplier.Id);
+        var current = await db.Fornecedores.FirstOrDefaultAsync(item => item.Id == supplier.Id);
         if (current is null)
         {
-            _fornecedores.Insert(0, CloneFornecedor(supplier));
-            return Task.FromResult(CloneFornecedor(supplier));
+            current = new FornecedorEntity { Id = supplier.Id };
+            db.Fornecedores.Add(current);
         }
 
-        var index = _fornecedores.IndexOf(current);
-        _fornecedores[index] = CloneFornecedor(supplier);
-        return Task.FromResult(CloneFornecedor(supplier));
+        current.CompanyName = supplier.CompanyName;
+        current.FantasyName = supplier.FantasyName;
+        current.Cnpj = supplier.Cnpj;
+        current.Cep = supplier.Cep;
+        current.City = supplier.City;
+        current.State = supplier.State;
+        current.Address = supplier.Address;
+        current.Neighborhood = supplier.Neighborhood;
+        current.StreetComplement = supplier.StreetComplement;
+        current.Number = supplier.Number;
+        current.ReferencePoint = supplier.ReferencePoint;
+        current.Telephone = supplier.Telephone;
+        current.Cellphone = supplier.Cellphone;
+        current.Email = supplier.Email;
+        await db.SaveChangesAsync();
+        return ToModel(current);
     }
 
-    public Task<bool> ExcluirFornecedorAsync(string id)
+    public async Task<bool> ExcluirFornecedorAsync(string id)
     {
-        var removed = _fornecedores.RemoveAll(item => item.Id == id) > 0;
-        return Task.FromResult(removed);
+        var current = await db.Fornecedores.FirstOrDefaultAsync(item => item.Id == id);
+        if (current is null) return false;
+        db.Fornecedores.Remove(current);
+        await db.SaveChangesAsync();
+        return true;
     }
 
-    private static ProdutoModel CloneProduto(ProdutoModel source) => new()
+    private async Task<FornecedorEntity?> ResolveSupplierAsync(string supplierName)
+        => await db.Fornecedores.FirstOrDefaultAsync(item =>
+            item.FantasyName == supplierName || item.CompanyName == supplierName);
+
+    private static ProdutoModel ToModel(ProdutoEntity source) => new()
     {
         Id = source.Id,
         ProductImageUrl = source.ProductImageUrl,
@@ -237,25 +223,7 @@ public class HorusMockDatabase
         TotalPriceOnProduct = source.TotalPriceOnProduct
     };
 
-    private static int ParseInt(string value)
-        => int.TryParse(value, out var parsed) ? parsed : 0;
-
-    private static string CalculateTotal(string unitPrice, int quantity)
-    {
-        var normalized = unitPrice.Replace(".", "").Replace(",", ".");
-        if (!decimal.TryParse(
-                normalized,
-                System.Globalization.NumberStyles.Number,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var parsed))
-        {
-            return "0,00";
-        }
-
-        return (parsed * quantity).ToString("N2", new System.Globalization.CultureInfo("pt-BR"));
-    }
-
-    private static ClienteModel CloneCliente(ClienteModel source) => new()
+    private static ClienteModel ToModel(ClienteEntity source) => new()
     {
         Id = source.Id,
         CustomerName = source.CustomerName,
@@ -275,7 +243,7 @@ public class HorusMockDatabase
         Email = source.Email
     };
 
-    private static FornecedorModel CloneFornecedor(FornecedorModel source) => new()
+    private static FornecedorModel ToModel(FornecedorEntity source) => new()
     {
         Id = source.Id,
         CompanyName = source.CompanyName,
@@ -293,4 +261,22 @@ public class HorusMockDatabase
         Cellphone = source.Cellphone,
         Email = source.Email
     };
+
+    private static int ParseInt(string value)
+        => int.TryParse(value, out var parsed) ? parsed : 0;
+
+    private static string CalculateTotal(string unitPrice, int quantity)
+    {
+        var normalized = unitPrice.Replace(".", "").Replace(",", ".");
+        if (!decimal.TryParse(
+                normalized,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed))
+        {
+            return "0,00";
+        }
+
+        return (parsed * quantity).ToString("N2", new System.Globalization.CultureInfo("pt-BR"));
+    }
 }

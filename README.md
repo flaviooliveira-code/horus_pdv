@@ -7,7 +7,7 @@
 
 Hórus PDV é um projeto open source de frente de caixa e gestão operacional para pequenos e médios comércios.
 
-O projeto está em evolução ativa, com frontend em React, API em ASP.NET Core e módulos operacionais conectados à API em memória enquanto a camada de banco de dados definitiva ainda não foi implementada.
+O projeto está em evolução ativa, com frontend em React, API em ASP.NET Core e persistência em SQL Server para os dados operacionais principais.
 
 ## Sumário
 
@@ -27,7 +27,7 @@ O projeto está em evolução ativa, com frontend em React, API em ASP.NET Core 
 
 ## Status do Projeto
 
-Este repositório está em fase de desenvolvimento. O frontend já conversa com a API .NET, mas os dados ainda são mantidos em memória na API até a implementação do banco.
+Este repositório está em fase de desenvolvimento. O frontend já conversa com a API .NET e a API cria o banco `HorusPdv` no SQL Server local quando a aplicação sobe.
 
 | Área | Status |
 | --- | --- |
@@ -35,7 +35,7 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 | API .NET | Em desenvolvimento ativo |
 | Autenticação JWT | Implementada |
 | reCAPTCHA v3 | Implementado, opcional por configuração |
-| Banco de dados | Pendente |
+| Banco de dados | SQL Server conectado |
 | Fiscal NFC-e / NF-e | Em desenvolvimento |
 | Pagamentos integrados | Em desenvolvimento |
 | Sistema legado | Mantido como referência histórica |
@@ -58,7 +58,8 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 - Swagger
 - JWT
 - Rate limit local
-- Stores em memória para esta fase
+- Entity Framework Core
+- SQL Server
 
 ## Funcionalidades
 
@@ -107,6 +108,16 @@ npm install
 </code></pre>
 
 ### 3. Subir a API .NET
+
+O projeto espera um SQL Server local na porta `1433`. Exemplo com Docker:
+
+<pre><code class="language-bash">docker run -d \
+  --name sqlserver \
+  -e ACCEPT_EULA=Y \
+  -e SA_PASSWORD='Senha@12345' \
+  -p 1433:1433 \
+  mcr.microsoft.com/mssql/server:2022-latest
+</code></pre>
 
 Em outro terminal:
 
@@ -201,18 +212,27 @@ Essas páginas mostram estado visual de "Em desenvolvimento" até as integraçõ
 
 ## Dados e Persistência
 
-Nesta fase, a API mantém dados em memória. Isso permite validar o fluxo completo do frontend com a API sem depender ainda de banco.
+A API usa SQL Server via Entity Framework Core. No start, a aplicação executa `EnsureCreated` para criar o banco e as tabelas quando ainda não existirem, além de inserir os dados iniciais do sistema.
 
-Impacto:
+Banco padrão:
 
-- Ao reiniciar a API, dados criados em runtime podem ser perdidos.
-- Tokens de recuperação de senha são temporários e ficam em memória.
-- A próxima etapa estrutural é criar a camada de banco e migrations.
+<pre><code class="language-text">HorusPdv
+</code></pre>
+
+Tabelas principais:
+
+- `Usuarios`, `Sessoes`, `PasswordResetTokens`
+- `Produtos`, `Fornecedores`, `Clientes`
+- `Empresas`
+- `CaixaSessoes`
+- `Vendas`, `VendaItens`
+- `ModulosMercado`, `ModuloMercadoRegistros`
+
+Observação: `EnsureCreated` atende o ambiente local atual. Para produção, a próxima etapa recomendada é trocar para migrations versionadas.
 
 ## Roadmap
 
-- Implementar banco de dados.
-- Persistir autenticação, usuários, produtos, vendas e caixa.
+- Evoluir `EnsureCreated` para migrations versionadas.
 - Criar migrations e seeds.
 - Expandir testes automatizados.
 - Consolidar regras fiscais.

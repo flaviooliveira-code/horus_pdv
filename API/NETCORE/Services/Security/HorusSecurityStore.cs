@@ -1,44 +1,30 @@
+using HORUSPDV_API.Data;
+using HORUSPDV_API.Data.Entities;
 using HORUSPDV_API.Models.Requests;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 
 namespace HORUSPDV_API.Services.Security;
 
-public class HorusSecurityStore
+public class HorusSecurityStore(HorusDbContext db)
 {
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan AttemptWindow = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan PasswordResetExpiration = TimeSpan.FromMinutes(30);
-    private readonly object _syncRoot = new();
-    private readonly List<SecurityUser> _users = [];
-    private readonly List<SecuritySession> _sessions = [];
-    private readonly List<PasswordResetToken> _passwordResetTokens = [];
-    private readonly Dictionary<string, LoginAttemptBucket> _attempts = new(StringComparer.OrdinalIgnoreCase);
-
-    public HorusSecurityStore()
-    {
-        _users.Add(CreateSeedUser("usr-001", "123.456.789-01", "Flávio Oliveira", "flavio@hpdv.com.br", "(11) 98888-1111", "administrador", "ativo", "2026-02-10", "Admin@1234", false));
-        _users.Add(CreateSeedUser("usr-002", "234.567.890-12", "Maria Santos", "maria@hpdv.com.br", "(11) 97777-2222", "gerente", "ativo", "2026-02-15", "Gerente@1234", false));
-        _users.Add(CreateSeedUser("usr-003", "345.678.901-23", "João Costa", "joao@hpdv.com.br", "(11) 96666-3333", "atendente", "inativo", "2026-03-01", "Atendente@1234", true));
-    }
+    private static readonly object AttemptSyncRoot = new();
+    private static readonly Dictionary<string, LoginAttemptBucket> Attempts = new(StringComparer.OrdinalIgnoreCase);
 
     public List<SecurityUserDto> ListUsers()
-    {
-        lock (_syncRoot)
-        {
-            return _users.Select(ToDto).ToList();
-        }
-    }
+        => db.Usuarios.AsNoTracking().OrderBy(item => item.Name).Select(ToDto).ToList();
 
     public SecurityUserDto CreateUser(UsuarioRequest request)
     {
-        lock (_syncRoot)
-        {
-            var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request, true);
-            ValidateDuplicates(user, null);
-            _users.Insert(0, user);
-            return ToDto(user);
-        }
+        var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request, true);
+        ValidateDuplicates(user, null);
+        db.Usuarios.Add(user);
+        db.SaveChanges();
+        return ToDto(user);
     }
 
     public SecurityUserDto RegisterPublicUser(AuthRegisterRequest request)
@@ -53,76 +39,76 @@ public class HorusSecurityStore
             throw new InvalidOperationException("A confirmação de senha não confere.");
         }
 
-        lock (_syncRoot)
+        var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", new UsuarioRequest
         {
-            var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", new UsuarioRequest
-            {
-                Cpf = request.Cnpj,
-                Name = request.Name,
-                Email = request.Email,
-                Phone = request.Phone,
-                Role = "atendente",
-                Status = "ativo",
-                Password = request.Password
-            }, true);
-            user.MustChangePassword = false;
-            ValidateDuplicates(user, null);
-            _users.Insert(0, user);
-            return ToDto(user);
-        }
+            Cpf = request.Cnpj,
+            Name = request.Name,
+            Email = request.Email,
+            Phone = request.Phone,
+            Role = "atendente",
+            Status = "ativo",
+            Password = request.Password
+        }, true);
+        user.MustChangePassword = false;
+        ValidateDuplicates(user, null);
+        db.Usuarios.Add(user);
+        db.SaveChanges();
+        return ToDto(user);
     }
 
     public SecurityUserDto? UpdateUser(string id, UsuarioRequest request)
     {
-        lock (_syncRoot)
-        {
-            var index = _users.FindIndex(item => item.Id == id);
-            if (index < 0) return null;
+        var current = db.Usuarios.FirstOrDefault(item => item.Id == id);
+        if (current is null) return null;
 
-            var current = _users[index];
-            var updated = MapRequest(id, request, false);
-            updated.CreatedAt = current.CreatedAt;
-            updated.LastLoginAt = current.LastLoginAt;
-            updated.PasswordHash = string.IsNullOrWhiteSpace(request.Password)
-                ? current.PasswordHash
-                : PasswordHasher.Hash(request.Password);
-            updated.MustChangePassword = !string.IsNullOrWhiteSpace(request.Password) || current.MustChangePassword;
-            ValidateDuplicates(updated, id);
-            _users[index] = updated;
-            return ToDto(updated);
+        var updated = MapRequest(id, request, false);
+        ValidateDuplicates(updated, id);
+
+        current.Cpf = updated.Cpf;
+        current.Name = updated.Name;
+        current.Email = updated.Email;
+        current.Phone = updated.Phone;
+        current.Role = updated.Role;
+        current.Status = updated.Status;
+        current.PasswordHash = string.IsNullOrWhiteSpace(request.Password)
+            ? current.PasswordHash
+            : PasswordHasher.Hash(request.Password);
+        current.MustChangePassword = !string.IsNullOrWhiteSpace(request.Password) || current.MustChangePassword;
+        if (current.Status == "inativo")
+        {
+            db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.UserId == current.Id));
         }
+
+        db.SaveChanges();
+        return ToDto(current);
     }
 
     public SecurityUserDto? UpdateStatus(string id, string status)
     {
-        lock (_syncRoot)
+        var user = db.Usuarios.FirstOrDefault(item => item.Id == id);
+        if (user is null) return null;
+
+        user.Status = status == "inativo" ? "inativo" : "ativo";
+        if (user.Status == "inativo")
         {
-            var user = _users.FirstOrDefault(item => item.Id == id);
-            if (user is null) return null;
-
-            user.Status = status == "inativo" ? "inativo" : "ativo";
-            if (user.Status == "inativo")
-            {
-                _sessions.RemoveAll(item => item.UserId == user.Id);
-            }
-
-            return ToDto(user);
+            db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.UserId == user.Id));
         }
+
+        db.SaveChanges();
+        return ToDto(user);
     }
 
     public ResetPasswordResult? ResetPassword(string id)
     {
-        lock (_syncRoot)
-        {
-            var user = _users.FirstOrDefault(item => item.Id == id);
-            if (user is null) return null;
+        var user = db.Usuarios.FirstOrDefault(item => item.Id == id);
+        if (user is null) return null;
 
-            var password = $"Tmp@{Random.Shared.Next(100000, 999999)}9";
-            user.PasswordHash = PasswordHasher.Hash(password);
-            user.MustChangePassword = true;
-            _sessions.RemoveAll(item => item.UserId == user.Id);
-            return new ResetPasswordResult(ToDto(user), password);
-        }
+        var password = $"Tmp@{Random.Shared.Next(100000, 999999)}9";
+        user.PasswordHash = PasswordHasher.Hash(password);
+        user.MustChangePassword = true;
+        db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.UserId == user.Id));
+        db.SaveChanges();
+        return new ResetPasswordResult(ToDto(user), password);
     }
 
     public LoginResult Authenticate(string email, string password, string ip, string userAgent)
@@ -131,7 +117,7 @@ public class HorusSecurityStore
         var now = DateTimeOffset.UtcNow;
         var attemptKey = $"{ip}|{normalizedEmail}";
 
-        lock (_syncRoot)
+        lock (AttemptSyncRoot)
         {
             var bucket = GetAttemptBucket(attemptKey, now);
             if (bucket.LockedUntil is not null && bucket.LockedUntil > now)
@@ -139,122 +125,104 @@ public class HorusSecurityStore
                 return LoginResult.Fail("Muitas tentativas inválidas. Aguarde alguns minutos para tentar novamente.", bucket.LockedUntil);
             }
 
-            var user = _users.FirstOrDefault(item => item.Email.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase));
+            var user = db.Usuarios.FirstOrDefault(item => item.Email == normalizedEmail);
             if (user is null || user.Status != "ativo" || !PasswordHasher.Verify(password, user.PasswordHash))
             {
                 RegisterFailedAttempt(bucket, now);
                 return LoginResult.Fail("E-mail ou senha inválidos.", bucket.LockedUntil);
             }
 
-            _attempts.Remove(attemptKey);
+            Attempts.Remove(attemptKey);
             user.LastLoginAt = now.UtcDateTime.ToString("o");
             var session = CreateSession(user, ip, userAgent, now);
-            _sessions.Insert(0, session);
-
-            return LoginResult.Ok(ToDto(user), session);
+            db.Sessoes.Add(session);
+            db.SaveChanges();
+            return LoginResult.Ok(ToDto(user), ToSession(session));
         }
     }
 
     public SecurityUserDto? GetActiveUser(string id)
     {
-        lock (_syncRoot)
-        {
-            var user = _users.FirstOrDefault(item => item.Id == id && item.Status == "ativo");
-            return user is null ? null : ToDto(user);
-        }
+        var user = db.Usuarios.AsNoTracking().FirstOrDefault(item => item.Id == id && item.Status == "ativo");
+        return user is null ? null : ToDto(user);
     }
 
     public List<SecuritySessionDto> ListSessions(string currentSessionId)
-    {
-        lock (_syncRoot)
-        {
-            return _sessions.Select(item => ToSessionDto(item, item.Id == currentSessionId)).ToList();
-        }
-    }
+        => db.Sessoes.AsNoTracking()
+            .OrderByDescending(item => item.CreatedAt)
+            .Select(item => ToSessionDto(item, item.Id == currentSessionId))
+            .ToList();
 
     public bool TerminateSession(string id, string currentSessionId)
     {
-        lock (_syncRoot)
-        {
-            var session = _sessions.FirstOrDefault(item => item.Id == id);
-            if (session is null || session.Id == currentSessionId) return false;
-            _sessions.Remove(session);
-            return true;
-        }
+        var session = db.Sessoes.FirstOrDefault(item => item.Id == id);
+        if (session is null || session.Id == currentSessionId) return false;
+        db.Sessoes.Remove(session);
+        db.SaveChanges();
+        return true;
     }
 
     public void TerminateOtherSessions(string currentSessionId)
     {
-        lock (_syncRoot)
-        {
-            _sessions.RemoveAll(item => item.Id != currentSessionId);
-        }
+        db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.Id != currentSessionId));
+        db.SaveChanges();
     }
 
     public void TerminateCurrentSession(string currentSessionId)
     {
-        lock (_syncRoot)
-        {
-            _sessions.RemoveAll(item => item.Id == currentSessionId);
-        }
+        db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.Id == currentSessionId));
+        db.SaveChanges();
     }
 
     public bool ChangePassword(string userId, string currentPassword, string nextPassword)
     {
         if (nextPassword.Length < 8) throw new InvalidOperationException("A nova senha deve ter no minimo 8 caracteres.");
 
-        lock (_syncRoot)
-        {
-            var user = _users.FirstOrDefault(item => item.Id == userId && item.Status == "ativo");
-            if (user is null) return false;
-            if (!PasswordHasher.Verify(currentPassword, user.PasswordHash)) return false;
+        var user = db.Usuarios.FirstOrDefault(item => item.Id == userId && item.Status == "ativo");
+        if (user is null) return false;
+        if (!PasswordHasher.Verify(currentPassword, user.PasswordHash)) return false;
 
-            user.PasswordHash = PasswordHasher.Hash(nextPassword);
-            user.MustChangePassword = false;
-            _sessions.RemoveAll(item => item.UserId == user.Id);
-            return true;
-        }
+        user.PasswordHash = PasswordHasher.Hash(nextPassword);
+        user.MustChangePassword = false;
+        db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.UserId == user.Id));
+        db.SaveChanges();
+        return true;
     }
 
     public bool IsSessionActive(string sessionId)
-    {
-        lock (_syncRoot)
-        {
-            return _sessions.Any(item => item.Id == sessionId);
-        }
-    }
+        => db.Sessoes.AsNoTracking().Any(item => item.Id == sessionId);
 
     public PasswordResetRequestResult CreatePasswordResetToken(string cnpj, string email)
     {
         var normalizedCnpj = OnlyDigits(cnpj);
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var now = DateTimeOffset.UtcNow;
-        lock (_syncRoot)
-        {
-            _passwordResetTokens.RemoveAll(item => item.ExpiresAt <= now || item.ConsumedAt is not null);
-            var user = _users.FirstOrDefault(item =>
-                OnlyDigits(item.Cpf) == normalizedCnpj &&
-                item.Email.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase) &&
-                item.Status == "ativo");
-            if (user is null)
-            {
-                return PasswordResetRequestResult.Create();
-            }
+        db.PasswordResetTokens.RemoveRange(db.PasswordResetTokens.Where(item => item.ExpiresAt <= now || item.ConsumedAt != null));
 
-            _passwordResetTokens.RemoveAll(item => item.UserId == user.Id);
-            var token = GenerateSecureToken();
-            var expiresAt = now.Add(PasswordResetExpiration);
-            _passwordResetTokens.Add(new PasswordResetToken
-            {
-                Token = token,
-                UserId = user.Id,
-                Email = user.Email,
-                CreatedAt = now,
-                ExpiresAt = expiresAt
-            });
-            _sessions.RemoveAll(item => item.UserId == user.Id);
-            return PasswordResetRequestResult.Create(MaskEmail(user.Email), token, expiresAt);
+        var user = db.Usuarios.FirstOrDefault(item =>
+            item.Cpf.Replace(".", "").Replace("/", "").Replace("-", "") == normalizedCnpj &&
+            item.Email == normalizedEmail &&
+            item.Status == "ativo");
+        if (user is null)
+        {
+            db.SaveChanges();
+            return PasswordResetRequestResult.Create();
         }
+
+        db.PasswordResetTokens.RemoveRange(db.PasswordResetTokens.Where(item => item.UserId == user.Id));
+        var token = GenerateSecureToken();
+        var expiresAt = now.Add(PasswordResetExpiration);
+        db.PasswordResetTokens.Add(new PasswordResetTokenEntity
+        {
+            Token = token,
+            UserId = user.Id,
+            Email = user.Email,
+            CreatedAt = now,
+            ExpiresAt = expiresAt
+        });
+        db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.UserId == user.Id));
+        db.SaveChanges();
+        return PasswordResetRequestResult.Create(MaskEmail(user.Email), token, expiresAt);
     }
 
     public SecurityUserDto ResetPasswordWithToken(string token, string nextPassword, string confirmPassword)
@@ -264,37 +232,35 @@ public class HorusSecurityStore
         if (nextPassword.Length < 8) throw new InvalidOperationException("A nova senha deve ter no minimo 8 caracteres.");
 
         var now = DateTimeOffset.UtcNow;
-        lock (_syncRoot)
+        var passwordToken = db.PasswordResetTokens.FirstOrDefault(item =>
+            item.Token == token.Trim() &&
+            item.ConsumedAt == null);
+        if (passwordToken is null || passwordToken.ExpiresAt <= now)
         {
-            var passwordToken = _passwordResetTokens.FirstOrDefault(item =>
-                item.Token.Equals(token.Trim(), StringComparison.Ordinal) &&
-                item.ConsumedAt is null);
-            if (passwordToken is null || passwordToken.ExpiresAt <= now)
-            {
-                throw new InvalidOperationException("Token de redefinição inválido ou expirado.");
-            }
-
-            var user = _users.FirstOrDefault(item => item.Id == passwordToken.UserId && item.Status == "ativo");
-            if (user is null)
-            {
-                throw new InvalidOperationException("Usuário inativo ou inexistente.");
-            }
-
-            user.PasswordHash = PasswordHasher.Hash(nextPassword);
-            user.MustChangePassword = false;
-            passwordToken.ConsumedAt = now;
-            _passwordResetTokens.RemoveAll(item => item.UserId == user.Id);
-            _sessions.RemoveAll(item => item.UserId == user.Id);
-            return ToDto(user);
+            throw new InvalidOperationException("Token de redefinição inválido ou expirado.");
         }
+
+        var user = db.Usuarios.FirstOrDefault(item => item.Id == passwordToken.UserId && item.Status == "ativo");
+        if (user is null)
+        {
+            throw new InvalidOperationException("Usuário inativo ou inexistente.");
+        }
+
+        user.PasswordHash = PasswordHasher.Hash(nextPassword);
+        user.MustChangePassword = false;
+        passwordToken.ConsumedAt = now;
+        db.PasswordResetTokens.RemoveRange(db.PasswordResetTokens.Where(item => item.UserId == user.Id));
+        db.Sessoes.RemoveRange(db.Sessoes.Where(item => item.UserId == user.Id));
+        db.SaveChanges();
+        return ToDto(user);
     }
 
     private LoginAttemptBucket GetAttemptBucket(string key, DateTimeOffset now)
     {
-        if (!_attempts.TryGetValue(key, out var bucket) || now - bucket.FirstAttemptAt > AttemptWindow)
+        if (!Attempts.TryGetValue(key, out var bucket) || now - bucket.FirstAttemptAt > AttemptWindow)
         {
             bucket = new LoginAttemptBucket { FirstAttemptAt = now };
-            _attempts[key] = bucket;
+            Attempts[key] = bucket;
         }
 
         return bucket;
@@ -310,10 +276,10 @@ public class HorusSecurityStore
         }
     }
 
-    private static SecuritySession CreateSession(SecurityUser user, string ip, string userAgent, DateTimeOffset now)
+    private static SecuritySessionEntity CreateSession(SecurityUserEntity user, string ip, string userAgent, DateTimeOffset now)
     {
         var platform = userAgent.Contains("Mobile", StringComparison.OrdinalIgnoreCase) ? "mobile" : "desktop";
-        return new SecuritySession
+        return new SecuritySessionEntity
         {
             Id = $"sess-{Guid.NewGuid():N}",
             UserId = user.Id,
@@ -335,18 +301,19 @@ public class HorusSecurityStore
         return "Dispositivo web";
     }
 
-    private SecurityUser MapRequest(string id, UsuarioRequest request, bool isCreate)
+    private static SecurityUserEntity MapRequest(string id, UsuarioRequest request, bool isCreate)
     {
         var documentDigits = OnlyDigits(request.Cpf);
         if (documentDigits.Length != 11 && documentDigits.Length != 14)
         {
             throw new InvalidOperationException("CPF/CNPJ invalido.");
         }
+
         if (string.IsNullOrWhiteSpace(request.Name)) throw new InvalidOperationException("Nome e obrigatorio.");
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@')) throw new InvalidOperationException("E-mail invalido.");
         if (isCreate && request.Password.Length < 8) throw new InvalidOperationException("Senha deve ter no minimo 8 caracteres.");
 
-        return new SecurityUser
+        return new SecurityUserEntity
         {
             Id = id,
             Cpf = request.Cpf.Trim(),
@@ -362,34 +329,18 @@ public class HorusSecurityStore
         };
     }
 
-    private void ValidateDuplicates(SecurityUser user, string? currentId)
+    private void ValidateDuplicates(SecurityUserEntity user, string? currentId)
     {
-        if (_users.Any(item => item.Id != currentId && OnlyDigits(item.Cpf) == OnlyDigits(user.Cpf)))
+        if (db.Usuarios.Any(item => item.Id != currentId && item.Cpf == user.Cpf))
         {
             throw new InvalidOperationException("Ja existe usuario com este CPF.");
         }
 
-        if (_users.Any(item => item.Id != currentId && item.Email.Equals(user.Email, StringComparison.OrdinalIgnoreCase)))
+        if (db.Usuarios.Any(item => item.Id != currentId && item.Email == user.Email))
         {
             throw new InvalidOperationException("Ja existe usuario com este e-mail.");
         }
     }
-
-    private static SecurityUser CreateSeedUser(string id, string cpf, string name, string email, string phone, string role, string status, string createdAt, string password, bool mustChangePassword)
-        => new()
-        {
-            Id = id,
-            Cpf = cpf,
-            Name = name,
-            Email = email,
-            Phone = phone,
-            Role = role,
-            Status = status,
-            CreatedAt = createdAt,
-            LastLoginAt = "-",
-            PasswordHash = PasswordHasher.Hash(password),
-            MustChangePassword = mustChangePassword
-        };
 
     private static string OnlyDigits(string value) => new(value.Where(char.IsDigit).ToArray());
 
@@ -433,7 +384,7 @@ public class HorusSecurityStore
         return $"{prefix}@{parts[1]}";
     }
 
-    private static SecurityUserDto ToDto(SecurityUser source) => new()
+    private static SecurityUserDto ToDto(SecurityUserEntity source) => new()
     {
         Id = source.Id,
         Cpf = source.Cpf,
@@ -447,7 +398,19 @@ public class HorusSecurityStore
         MustChangePassword = source.MustChangePassword
     };
 
-    private static SecuritySessionDto ToSessionDto(SecuritySession source, bool current) => new()
+    private static SecuritySession ToSession(SecuritySessionEntity source) => new()
+    {
+        Id = source.Id,
+        UserId = source.UserId,
+        Device = source.Device,
+        Location = source.Location,
+        Ip = source.Ip,
+        LastActive = source.LastActive,
+        Platform = source.Platform,
+        CreatedAt = source.CreatedAt
+    };
+
+    private static SecuritySessionDto ToSessionDto(SecuritySessionEntity source, bool current) => new()
     {
         Id = source.Id,
         Device = source.Device,
@@ -509,37 +472,12 @@ public class SecuritySession
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-internal class SecurityUser
-{
-    public string Id { get; set; } = string.Empty;
-    public string Cpf { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
-    public string Role { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string CreatedAt { get; set; } = string.Empty;
-    public string LastLoginAt { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
-    public bool MustChangePassword { get; set; }
-}
-
 internal class LoginAttemptBucket
 {
     public int Count { get; set; }
     public DateTimeOffset FirstAttemptAt { get; set; }
     public DateTimeOffset LastAttemptAt { get; set; }
     public DateTimeOffset? LockedUntil { get; set; }
-}
-
-internal class PasswordResetToken
-{
-    public string Token { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset ExpiresAt { get; set; }
-    public DateTimeOffset? ConsumedAt { get; set; }
 }
 
 internal static class PasswordHasher

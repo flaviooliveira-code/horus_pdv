@@ -1,3 +1,5 @@
+using HORUSPDV_API.Data;
+using HORUSPDV_API.Data.Entities;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using Microsoft.AspNetCore.Mvc;
@@ -6,41 +8,23 @@ namespace HORUSPDV_API.Controllers.Empresa;
 
 [ApiController]
 [Route("api/[controller]")]
-public class EmpresaController : ControllerBase
+public class EmpresaController(HorusDbContext db) : ControllerBase
 {
-    private static readonly object SyncRoot = new();
-    private static EmpresaRequest Empresa = new()
-    {
-        FantasyName = "Festa & Fantasia",
-        CorporateName = "Festa & Fantasia Comercio LTDA",
-        Cnpj = "06.332.765/0001-05",
-        StateRegistration = "123.456.789.110",
-        Website = "https://www.horuspdv.com.br",
-        Email = "contato@hpdv.com.br",
-        SacPhone = "(11) 3000-1000",
-        Phone = "(11) 3681-1000",
-        Mobile = "(11) 98888-1000",
-        Cep = "06010-000",
-        Address = "Rua Primitiva Vianco",
-        Number = "100",
-        Neighborhood = "Centro",
-        City = "Osasco",
-        Uf = "SP",
-        Complement = "Sala 12"
-    };
-
     [HttpGet]
     public IActionResult Obter()
     {
-        lock (SyncRoot)
+        var empresa = db.Empresas.FirstOrDefault(item => item.Id == "empresa-principal");
+        if (empresa is null)
         {
-            return Ok(new ApiResponse<EmpresaRequest>
-            {
-                Success = true,
-                Message = "Dados da empresa obtidos com sucesso.",
-                Data = Clone(Empresa)
-            });
+            return NotFound(new ApiResponse<EmpresaRequest> { Success = false, Message = "Empresa nao encontrada." });
         }
+
+        return Ok(new ApiResponse<EmpresaRequest>
+        {
+            Success = true,
+            Message = "Dados da empresa obtidos com sucesso.",
+            Data = ToRequest(empresa)
+        });
     }
 
     [HttpPut]
@@ -56,35 +40,60 @@ public class EmpresaController : ControllerBase
             return BadRequest(new ApiResponse<EmpresaRequest> { Success = false, Message = "CNPJ invalido." });
         }
 
-        lock (SyncRoot)
+        var empresa = db.Empresas.FirstOrDefault(item => item.Id == "empresa-principal");
+        if (empresa is null)
         {
-            Empresa = Clone(request);
-            return Ok(new ApiResponse<EmpresaRequest>
-            {
-                Success = true,
-                Message = "Dados da empresa atualizados com sucesso.",
-                Data = Clone(Empresa)
-            });
+            empresa = new EmpresaEntity { Id = "empresa-principal" };
+            db.Empresas.Add(empresa);
         }
+
+        Apply(empresa, request);
+        db.SaveChanges();
+        return Ok(new ApiResponse<EmpresaRequest>
+        {
+            Success = true,
+            Message = "Dados da empresa atualizados com sucesso.",
+            Data = ToRequest(empresa)
+        });
     }
 
-    private static EmpresaRequest Clone(EmpresaRequest source) => new()
+    private static void Apply(EmpresaEntity target, EmpresaRequest source)
     {
-        FantasyName = source.FantasyName.Trim(),
-        CorporateName = source.CorporateName.Trim(),
-        Cnpj = source.Cnpj.Trim(),
-        StateRegistration = source.StateRegistration.Trim(),
-        Website = source.Website.Trim(),
-        Email = source.Email.Trim(),
-        SacPhone = source.SacPhone.Trim(),
-        Phone = source.Phone.Trim(),
-        Mobile = source.Mobile.Trim(),
-        Cep = source.Cep.Trim(),
-        Address = source.Address.Trim(),
-        Number = source.Number.Trim(),
-        Neighborhood = source.Neighborhood.Trim(),
-        City = source.City.Trim(),
-        Uf = source.Uf.Trim(),
-        Complement = source.Complement.Trim()
+        target.FantasyName = source.FantasyName.Trim();
+        target.CorporateName = source.CorporateName.Trim();
+        target.Cnpj = source.Cnpj.Trim();
+        target.StateRegistration = source.StateRegistration.Trim();
+        target.Website = source.Website.Trim();
+        target.Email = source.Email.Trim();
+        target.SacPhone = source.SacPhone.Trim();
+        target.Phone = source.Phone.Trim();
+        target.Mobile = source.Mobile.Trim();
+        target.Cep = source.Cep.Trim();
+        target.Address = source.Address.Trim();
+        target.Number = source.Number.Trim();
+        target.Neighborhood = source.Neighborhood.Trim();
+        target.City = source.City.Trim();
+        target.Uf = source.Uf.Trim();
+        target.Complement = source.Complement.Trim();
+    }
+
+    private static EmpresaRequest ToRequest(EmpresaEntity source) => new()
+    {
+        FantasyName = source.FantasyName,
+        CorporateName = source.CorporateName,
+        Cnpj = source.Cnpj,
+        StateRegistration = source.StateRegistration,
+        Website = source.Website,
+        Email = source.Email,
+        SacPhone = source.SacPhone,
+        Phone = source.Phone,
+        Mobile = source.Mobile,
+        Cep = source.Cep,
+        Address = source.Address,
+        Number = source.Number,
+        Neighborhood = source.Neighborhood,
+        City = source.City,
+        Uf = source.Uf,
+        Complement = source.Complement
     };
 }
