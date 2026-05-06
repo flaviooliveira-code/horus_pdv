@@ -8,6 +8,7 @@ import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
+import { SearchableSelectField } from "@/components/Form";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
@@ -60,7 +61,7 @@ function ProductFormDrawer({
   onSave: () => void;
   supplierOptions: string[];
 }) {
-  const { maskMoneyBr, parseMoneyBr, formatMoneyBr } = useInputMasks();
+  const { maskMoneyBr, parseMoneyBr, formatMoneyBr, sanitizeIntegerInput } = useInputMasks();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   if (!open) return null;
@@ -195,21 +196,17 @@ function ProductFormDrawer({
                   placeholder="Código"
                 />
               </label>
-              <label className="block md:col-span-2">
-                <span className="mb-1.5 block text-sm text-text-secondary">Fornecedor *</span>
-                <select
-                  value={value.productSupplier}
-                  onChange={(event) => setField("productSupplier", event.target.value)}
-                  className="select-field w-full"
-                >
-                  <option value="">Selecionar Fornecedor</option>
-                  {supplierOptions.map((supplier) => (
-                    <option key={supplier} value={supplier}>
-                      {supplier}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SearchableSelectField
+                label="Fornecedor *"
+                value={value.productSupplier}
+                options={supplierOptions}
+                onChange={(nextValue) => setField("productSupplier", nextValue)}
+                getOptionValue={(supplier) => supplier}
+                getOptionLabel={(supplier) => supplier}
+                placeholder="Pesquisar fornecedor"
+                emptyMessage="Nenhum fornecedor encontrado."
+                className="md:col-span-2"
+              />
               <label className="block md:col-span-2">
                 <span className="mb-1.5 block text-sm text-text-secondary">
                   Descrição do Produto *
@@ -234,7 +231,7 @@ function ProductFormDrawer({
                 <input
                   value={value.productQnt}
                   onChange={(event) =>
-                    setField("productQnt", event.target.value.replace(/\D/g, "").slice(0, 8))
+                    setField("productQnt", sanitizeIntegerInput(event.target.value).slice(0, 8))
                   }
                   className="input-field w-full"
                   placeholder="Quantidade"

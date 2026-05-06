@@ -20,6 +20,7 @@ import { useStatusDialog } from "@/hooks/Dialog";
 import LoadingBar from "@/components/Loading/LoadingBar";
 import PageLayout from "@/layout/PageLayout";
 import { userService } from "@/services/api/userService";
+import { onlyDigits } from "@/utils/inputMasks";
 
 const UsersFilters = lazy(() => import("@/components/Admin/UsersPage/UsersFilters"));
 const UsersTable = lazy(() => import("@/components/Admin/UsersPage/UsersTable"));
@@ -202,7 +203,7 @@ export default function UserAccountsPage() {
   };
 
   const validateForm = () => {
-    const cpfDigits = form.cpf.replace(/\D/g, "");
+    const cpfDigits = onlyDigits(form.cpf);
     if (cpfDigits.length !== 11) return "Informe um CPF válido.";
     if (!form.name.trim()) return "Informe o nome.";
     if (!form.email.trim()) return "Informe o e-mail.";
@@ -215,7 +216,7 @@ export default function UserAccountsPage() {
     );
     if (duplicateEmail) return "Já existe usuário com este e-mail.";
     const duplicateCpf = users.some(
-      (item) => item.cpf.replace(/\D/g, "") === cpfDigits && item.id !== editingUserId,
+      (item) => onlyDigits(item.cpf) === cpfDigits && item.id !== editingUserId,
     );
     if (duplicateCpf) return "Já existe usuário com este CPF.";
 

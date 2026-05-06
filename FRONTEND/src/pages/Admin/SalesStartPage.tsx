@@ -6,6 +6,7 @@
 
 import { Image as ImageIcon, Search, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SearchableSelectField } from "@/components/Form";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import { companyService, type CompanyDto } from "@/services/api/companyService";
@@ -36,6 +37,13 @@ type CartItem = {
 
 type PaymentType = "dinheiro" | "pix" | "debito" | "credito";
 
+const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string }> = [
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "pix", label: "PIX" },
+  { value: "debito", label: "Cartão Débito" },
+  { value: "credito", label: "Cartão Crédito" },
+];
+
 function formatDateTime(date: Date) {
   return {
     dateLabel: date.toLocaleDateString("pt-BR", {
@@ -52,7 +60,7 @@ function formatDateTime(date: Date) {
 }
 
 export default function SalesStartPage({ standalone = false }: SalesStartPageProps) {
-  const { formatMoneyBr, maskMoneyBr, parseMoneyBr } = useInputMasks();
+  const { formatMoneyBr, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } = useInputMasks();
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
@@ -450,7 +458,7 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                 ref={qtyInputRef}
                 value={quantityInput}
                 onChange={(event) =>
-                  setQuantityInput(event.target.value.replace(/\D/g, "").slice(0, 4) || "1")
+                  setQuantityInput(sanitizeIntegerInput(event.target.value).slice(0, 4) || "1")
                 }
                 className="input-field h-10 w-full text-lg font-semibold"
               />
@@ -688,19 +696,16 @@ export default function SalesStartPage({ standalone = false }: SalesStartPagePro
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">Forma de pagamento</span>
-                <select
-                  value={paymentType}
-                  onChange={(event) => setPaymentType(event.target.value as PaymentType)}
-                  className="select-field w-full"
-                >
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="pix">PIX</option>
-                  <option value="debito">Cartão Débito</option>
-                  <option value="credito">Cartão Crédito</option>
-                </select>
-              </label>
+              <SearchableSelectField
+                label="Forma de pagamento"
+                value={paymentType}
+                options={PAYMENT_OPTIONS}
+                onChange={(nextValue) => setPaymentType(nextValue as PaymentType)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                placeholder="Selecione a forma de pagamento"
+                emptyMessage="Forma de pagamento não encontrada."
+              />
 
               {paymentType === "dinheiro" && (
                 <label className="block">

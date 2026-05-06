@@ -21,6 +21,7 @@ import {
   isValidCpf,
   isValidEmail,
 } from "@/utils/validators";
+import { onlyDigits } from "@/utils/inputMasks";
 
 type Customer = {
   id: string;
@@ -251,7 +252,7 @@ export default function CustomerRegisterPage() {
   };
 
   const fillAddressFromCep = async () => {
-    if (form.cep.replace(/\D/g, "").length !== 8) {
+    if (onlyDigits(form.cep).length !== 8) {
       Toast.error("CEP inválido.");
       return;
     }
@@ -301,7 +302,7 @@ export default function CustomerRegisterPage() {
       return false;
     }
 
-    const documentDigits = form.document.replace(/\D/g, "");
+    const documentDigits = onlyDigits(form.document);
     const isCpf = documentDigits.length === 11;
     const isCnpj = documentDigits.length === 14;
 

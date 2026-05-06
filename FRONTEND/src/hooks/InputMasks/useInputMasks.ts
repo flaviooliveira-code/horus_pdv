@@ -5,9 +5,11 @@
 import { useMemo } from "react";
 import {
   formatMoneyBr,
+  hasCurrencyInput,
   maskCellphoneBr,
   maskCep,
   maskCnpj,
+  maskCurrencyBr,
   maskCpf,
   maskCpfOrCnpj,
   maskDateBr,
@@ -16,14 +18,19 @@ import {
   maskRg,
   maskTelephoneBr,
   maskTime,
+  onlyCnpjChars,
   onlyDigits,
+  parseCurrencyBr,
   parseMoneyBr,
+  sanitizeDecimalInput,
+  sanitizeIntegerInput,
 } from "@/utils/inputMasks";
 
 export default function useInputMasks() {
   return useMemo(
     () => ({
       onlyDigits,
+      onlyCnpjChars,
       maskCpf,
       maskCnpj,
       maskCpfOrCnpj,
@@ -34,9 +41,14 @@ export default function useInputMasks() {
       maskRg,
       maskDateBr,
       maskMoneyBr,
+      maskCurrencyBr,
       parseMoneyBr,
+      parseCurrencyBr,
       formatMoneyBr,
+      hasCurrencyInput,
       maskTime,
+      sanitizeIntegerInput,
+      sanitizeDecimalInput,
     }),
     [],
   );

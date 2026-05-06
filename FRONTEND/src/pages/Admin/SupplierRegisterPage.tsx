@@ -14,6 +14,7 @@ import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
 import { supplierService } from "@/services/api/supplierService";
 import { lookupAddressByCep } from "@/utils/cepLookup";
+import { onlyDigits } from "@/utils/inputMasks";
 import { isValidCnpj, isValidEmail } from "@/utils/validators";
 
 type Supplier = {
@@ -229,7 +230,7 @@ export default function SupplierRegisterPage() {
   };
 
   const fillAddressFromCep = async () => {
-    if (form.cep.replace(/\D/g, "").length !== 8) {
+    if (onlyDigits(form.cep).length !== 8) {
       Toast.error("CEP inválido.");
       return;
     }

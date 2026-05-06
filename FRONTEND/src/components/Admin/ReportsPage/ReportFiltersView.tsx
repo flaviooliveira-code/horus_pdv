@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, FileSpreadsheet, FileText } from "lucide-react";
-import { DatePickerField } from "@/components/Form";
+import { DatePickerField, SearchableSelectField, TimePickerField } from "@/components/Form";
 import TablePagination from "@/components/Pagination/TablePagination";
 import type { ReportFilter, ReportDefinition } from "./reportsConfig";
 import type {
@@ -56,6 +56,11 @@ function createInitialFilterValues(filters: ReportFilter[]): ReportFilterValues 
       accumulator[filter.id] = filter.id.toLowerCase().includes("start")
         ? getDaysAgoIso(30)
         : getTodayIso();
+      return accumulator;
+    }
+
+    if (filter.type === "time") {
+      accumulator[filter.id] = filter.id.toLowerCase().includes("start") ? "08:00" : "18:00";
       return accumulator;
     }
 
@@ -316,7 +321,7 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
         return accumulator;
       }
 
-      if (filter.type === "date") {
+      if (filter.type === "date" || filter.type === "time") {
         accumulator.push(`${filter.label}: ${formatTableCellValue(value)}`);
         return accumulator;
       }
@@ -418,22 +423,35 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
               );
             }
 
+            if (filter.type === "time") {
+              const value = typeof values[filter.id] === "string" ? (values[filter.id] as string) : "";
+              return (
+                <label key={filter.id} className="space-y-1">
+                  <span className="text-sm font-semibold text-text-primary">{filter.label}</span>
+                  <TimePickerField
+                    value={value}
+                    onChange={(nextValue) => handleChange(filter.id, nextValue)}
+                    className="w-full"
+                    minuteStep={15}
+                    isClearable
+                  />
+                </label>
+              );
+            }
+
             const selectedValue = typeof values[filter.id] === "string" ? (values[filter.id] as string) : "";
             return (
-              <label key={filter.id} className="space-y-1">
-                <span className="text-sm font-semibold text-text-primary">{filter.label}</span>
-                <select
-                  value={selectedValue}
-                  onChange={(event) => handleChange(filter.id, event.target.value)}
-                  className="select-field w-full"
-                >
-                  {filter.options?.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SearchableSelectField
+                key={filter.id}
+                label={filter.label}
+                value={selectedValue}
+                options={filter.options ?? []}
+                onChange={(nextValue) => handleChange(filter.id, nextValue)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                placeholder="Selecione uma opção"
+                emptyMessage="Nenhuma opção encontrada."
+              />
             );
           })}
         </div>

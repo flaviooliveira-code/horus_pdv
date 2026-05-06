@@ -3,7 +3,22 @@
  * Objetivo: renderiza filtros de busca/perfil/status da gestão de usuários.
  */
 import { RotateCcw } from "lucide-react";
+import { SearchableSelectField } from "@/components/Form";
 import type { UserRoleFilter, UserStatusFilter } from "./types";
+
+const ROLE_FILTER_OPTIONS: Array<{ value: UserRoleFilter; label: string }> = [
+  { value: "todos", label: "Todos" },
+  { value: "administrador", label: "Administrador" },
+  { value: "gerente", label: "Gerente" },
+  { value: "atendente", label: "Atendente" },
+  { value: "financeiro", label: "Financeiro" },
+];
+
+const STATUS_FILTER_OPTIONS: Array<{ value: UserStatusFilter; label: string }> = [
+  { value: "todos", label: "Todos" },
+  { value: "ativo", label: "Ativo" },
+  { value: "inativo", label: "Inativo" },
+];
 
 type UsersFiltersProps = {
   searchTerm: string;
@@ -43,33 +58,25 @@ export default function UsersFilters({
           />
         </label>
 
-        <label>
-          <span className="mb-1.5 block text-sm text-text-secondary">Perfil</span>
-          <select
-            value={roleFilter}
-            onChange={(event) => onRoleChange(event.target.value as UserRoleFilter)}
-            className="select-field w-full"
-          >
-            <option value="todos">Todos</option>
-            <option value="administrador">Administrador</option>
-            <option value="gerente">Gerente</option>
-            <option value="atendente">Atendente</option>
-            <option value="financeiro">Financeiro</option>
-          </select>
-        </label>
+        <SearchableSelectField
+          label="Perfil"
+          value={roleFilter}
+          options={ROLE_FILTER_OPTIONS}
+          onChange={(nextValue) => onRoleChange(nextValue as UserRoleFilter)}
+          getOptionValue={(option) => option.value}
+          getOptionLabel={(option) => option.label}
+          placeholder="Filtrar perfil"
+        />
 
-        <label>
-          <span className="mb-1.5 block text-sm text-text-secondary">Status</span>
-          <select
-            value={statusFilter}
-            onChange={(event) => onStatusChange(event.target.value as UserStatusFilter)}
-            className="select-field w-full"
-          >
-            <option value="todos">Todos</option>
-            <option value="ativo">Ativo</option>
-            <option value="inativo">Inativo</option>
-          </select>
-        </label>
+        <SearchableSelectField
+          label="Status"
+          value={statusFilter}
+          options={STATUS_FILTER_OPTIONS}
+          onChange={(nextValue) => onStatusChange(nextValue as UserStatusFilter)}
+          getOptionValue={(option) => option.value}
+          getOptionLabel={(option) => option.label}
+          placeholder="Filtrar status"
+        />
 
         <div className="flex items-end">
           <button

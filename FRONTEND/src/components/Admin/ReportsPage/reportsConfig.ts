@@ -16,7 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type ReportFilterType = "date" | "select" | "multiselect" | "checkbox";
+export type ReportFilterType = "date" | "time" | "select" | "multiselect" | "checkbox";
 
 export type ReportFilterOption = {
   label: string;
@@ -111,6 +111,8 @@ export const reportCatalog: ReportDefinition[] = [
     icon: Users,
     filters: [
       ...periodFilters,
+      { id: "startTime", label: "Hora inicial", type: "time" },
+      { id: "endTime", label: "Hora final", type: "time" },
       { id: "paymentMethod", label: "Forma de pagamento", type: "select", options: paymentMethodOptions },
     ],
   },

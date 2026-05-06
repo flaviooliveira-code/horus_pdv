@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
+import { SearchableSelectField } from "@/components/Form";
 import { Toast } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
@@ -41,8 +42,10 @@ const UF_OPTIONS = [
   "TO",
 ] as const;
 
+const UF_SELECT_OPTIONS = UF_OPTIONS.map((option) => ({ value: option, label: option }));
+
 export default function MyCompanyPage() {
-  const { maskCep, maskCnpj, maskPhoneBr } = useInputMasks();
+  const { maskCep, maskCnpj, maskPhoneBr, onlyDigits } = useInputMasks();
 
   const [fantasyName, setFantasyName] = useState("");
   const [corporateName, setCorporateName] = useState("");
@@ -130,7 +133,7 @@ export default function MyCompanyPage() {
       return;
     }
 
-    if (cnpj.replace(/\D/g, "").length !== 14) {
+    if (onlyDigits(cnpj).length !== 14) {
       Toast.error("CNPJ inválido.");
       return;
     }
@@ -366,20 +369,17 @@ export default function MyCompanyPage() {
             />
           </label>
 
-          <label className="block md:col-span-2">
-            <span className="mb-1.5 block text-sm text-text-secondary">UF</span>
-            <select
-              className="select-field w-full"
-              value={uf}
-              onChange={(event) => setUf(event.target.value)}
-            >
-              {UF_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableSelectField
+            label="UF"
+            value={uf}
+            options={UF_SELECT_OPTIONS}
+            onChange={(nextValue) => setUf(nextValue)}
+            getOptionValue={(option) => option.value}
+            getOptionLabel={(option) => option.label}
+            placeholder="UF"
+            emptyMessage="UF não encontrada."
+            className="md:col-span-2"
+          />
 
           <label className="block md:col-span-3">
             <span className="mb-1.5 block text-sm text-text-secondary">

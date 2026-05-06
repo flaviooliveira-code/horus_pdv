@@ -6,6 +6,7 @@
 import { CheckCircle2, CircleAlert, Clock3, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
+import { SearchableSelectField } from "@/components/Form";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import PageLayout from "@/layout/PageLayout";
@@ -123,7 +124,10 @@ export default function MarketModulePage({
 
   const formTitle = editingRecord ? "Editar registro" : config.primaryAction;
   const statusOptions = useMemo(
-    () => ["Ativo", "Pendente", "Em análise", "Concluído", "Auditado", "Cancelado"],
+    () =>
+      ["Ativo", "Pendente", "Em análise", "Concluído", "Auditado", "Cancelado"].map(
+        (status) => ({ value: status, label: status }),
+      ),
     [],
   );
 
@@ -289,18 +293,17 @@ export default function MarketModulePage({
                     <p className="mt-1 text-sm text-text-secondary">{record.description}</p>
                     <p className="mt-2 text-xs font-medium text-text-tertiary">{record.meta}</p>
                   </div>
-                  <select
+                  <SearchableSelectField
                     value={record.status}
-                    onChange={(event) => void handleStatusChange(record, event.target.value)}
-                    className={`h-9 w-fit min-w-[140px] rounded-full border px-3 text-xs font-semibold outline-none transition focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)] ${getStatusClass(record.status)}`}
-                    aria-label={`Alterar status de ${record.title}`}
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
+                    options={statusOptions}
+                    onChange={(nextValue) => void handleStatusChange(record, nextValue)}
+                    getOptionValue={(option) => option.value}
+                    getOptionLabel={(option) => option.label}
+                    placeholder="Status"
+                    emptyMessage="Status não encontrado."
+                    className="w-fit min-w-[150px]"
+                    inputClassName={`h-9 rounded-full border px-3 text-xs font-semibold ${getStatusClass(record.status)}`}
+                  />
                   <p className="text-sm font-bold text-text-primary md:text-right">
                     {record.amount || "-"}
                   </p>
@@ -414,17 +417,15 @@ export default function MarketModulePage({
 
               <label>
                 <span className="mb-1 block text-sm font-semibold text-text-primary">Status</span>
-                <select
+                <SearchableSelectField
                   value={form.status}
-                  onChange={(event) => updateField("status", event.target.value)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none transition focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)] ${getStatusClass(form.status)}`}
-                >
-                  {statusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
+                  options={statusOptions}
+                  onChange={(nextValue) => updateField("status", nextValue)}
+                  getOptionValue={(option) => option.value}
+                  getOptionLabel={(option) => option.label}
+                  placeholder="Selecione o status"
+                  inputClassName={`font-semibold ${getStatusClass(form.status)}`}
+                />
               </label>
 
               <label>

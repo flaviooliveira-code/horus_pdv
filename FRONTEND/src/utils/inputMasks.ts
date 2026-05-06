@@ -6,6 +6,34 @@ export function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
+export function onlyCnpjChars(value: string) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+export function sanitizeIntegerInput(value: string | number | null | undefined) {
+  return onlyDigits(String(value ?? ""));
+}
+
+export function sanitizeDecimalInput(
+  value: string | number | null | undefined,
+  maxDecimals = 2,
+) {
+  const normalized = String(value ?? "").replace(",", ".");
+  const cleaned = normalized.replace(/[^\d.]/g, "");
+  const hasSeparator = cleaned.includes(".");
+  const [integerRaw, ...decimalRawParts] = cleaned.split(".");
+  const integerPart = onlyDigits(integerRaw);
+
+  if (!hasSeparator || maxDecimals <= 0) return integerPart;
+
+  const decimalPart = onlyDigits(decimalRawParts.join("")).slice(0, maxDecimals);
+  if (!integerPart && !decimalPart) return "";
+  if (!decimalPart) return `${integerPart || "0"}.`;
+  return `${integerPart || "0"}.${decimalPart}`;
+}
+
 export function maskCpf(value: string) {
   const digits = onlyDigits(value).slice(0, 11);
   return digits
@@ -15,18 +43,23 @@ export function maskCpf(value: string) {
 }
 
 export function maskCnpj(value: string) {
-  const digits = onlyDigits(value).slice(0, 14);
-  return digits
-    .replace(/^(\d{2})(\d)/, "$1.$2")
-    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1/$2")
-    .replace(/(\d{4})(\d)/, "$1-$2");
+  const cnpj = onlyCnpjChars(value).slice(0, 14);
+  if (!cnpj) return "";
+  if (cnpj.length <= 2) return cnpj;
+  if (cnpj.length <= 5) return `${cnpj.slice(0, 2)}.${cnpj.slice(2)}`;
+  if (cnpj.length <= 8) return `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5)}`;
+  if (cnpj.length <= 12) {
+    return `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5, 8)}/${cnpj.slice(8)}`;
+  }
+  return `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5, 8)}/${cnpj.slice(8, 12)}-${cnpj.slice(12)}`;
 }
 
 export function maskCpfOrCnpj(value: string) {
-  const digits = onlyDigits(value);
-  if (digits.length <= 11) return maskCpf(digits);
-  return maskCnpj(digits);
+  const normalized = onlyCnpjChars(value).slice(0, 14);
+  if (normalized.length <= 11 && /^\d*$/.test(normalized)) {
+    return maskCpf(normalized);
+  }
+  return maskCnpj(normalized);
 }
 
 export function maskPhoneBr(value: string) {
@@ -95,6 +128,39 @@ export function formatMoneyBr(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+const BRL_CURRENCY_FORMATTER = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export function parseCurrencyBr(value: string | number | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const digits = onlyDigits(String(value ?? ""));
+  if (!digits) return 0;
+  return Number(digits) / 100;
+}
+
+export function hasCurrencyInput(value: string | number | null | undefined) {
+  if (typeof value === "number") return Number.isFinite(value);
+  return onlyDigits(String(value ?? "")).length > 0;
+}
+
+export function maskCurrencyBr(value: string | number | null | undefined) {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return "";
+    return BRL_CURRENCY_FORMATTER.format(value);
+  }
+
+  const parsed = parseCurrencyBr(value);
+  if (!hasCurrencyInput(value)) return "";
+  return BRL_CURRENCY_FORMATTER.format(parsed);
 }
 
 export function maskTime(value: string) {
