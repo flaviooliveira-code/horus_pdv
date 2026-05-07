@@ -131,6 +131,11 @@ export default function MarketModulePage({
   const [form, setForm] = useState<MarketModuleRecordPayload>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deletingRecordIds, setDeletingRecordIds] = useState<Set<string>>(() => new Set());
+  const [updatingStatusRecordIds, setUpdatingStatusRecordIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
 
   const formTitle = editingRecord ? "Editar registro" : config.primaryAction;
@@ -205,6 +210,7 @@ export default function MarketModulePage({
     const confirmed = await statusDialog.confirm(`Excluir o registro "${record.title}"?`);
     if (!confirmed) return;
 
+    setDeletingRecordIds((current) => new Set(current).add(record.id));
     try {
       await onDelete(record.id);
       setSelectedRecordIds((current) => {
@@ -215,6 +221,12 @@ export default function MarketModulePage({
       Toast.success("Registro excluído com sucesso.");
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Não foi possível excluir o registro.");
+    } finally {
+      setDeletingRecordIds((current) => {
+        const next = new Set(current);
+        next.delete(record.id);
+        return next;
+      });
     }
   };
 
@@ -251,6 +263,8 @@ export default function MarketModulePage({
     );
     if (!confirmed) return;
 
+    setBulkDeleting(true);
+    setDeletingRecordIds((current) => new Set([...current, ...selectedIds]));
     const removedIds: string[] = [];
     for (const recordId of selectedIds) {
       try {
@@ -260,6 +274,12 @@ export default function MarketModulePage({
         // A mensagem final consolida falhas sem interromper os demais registros.
       }
     }
+    setBulkDeleting(false);
+    setDeletingRecordIds((current) => {
+      const next = new Set(current);
+      selectedIds.forEach((recordId) => next.delete(recordId));
+      return next;
+    });
 
     if (removedIds.length > 0) {
       setSelectedRecordIds((current) => {
@@ -279,11 +299,18 @@ export default function MarketModulePage({
   };
 
   const handleStatusChange = async (record: MarketModuleRecord, nextStatus: string) => {
+    setUpdatingStatusRecordIds((current) => new Set(current).add(record.id));
     try {
       await onUpdate(record.id, { ...toPayload(record), status: nextStatus });
       Toast.success(`Status alterado para ${nextStatus}.`);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Não foi possível alterar o status.");
+    } finally {
+      setUpdatingStatusRecordIds((current) => {
+        const next = new Set(current);
+        next.delete(record.id);
+        return next;
+      });
     }
   };
 
@@ -364,15 +391,16 @@ export default function MarketModulePage({
                 />
                 Selecionar todos
               </label>
-              <button
+              <LoadingButton
                 type="button"
                 onClick={handleRefresh}
-                disabled={refreshing}
+                isLoading={refreshing}
+                loadingLabel="Atualizando"
                 className="inline-flex items-center gap-2 rounded-xl border border-border-secondary px-3 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light"
               >
-                <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
-                {refreshing ? "Atualizando" : "Atualizar"}
-              </button>
+                <RefreshCw size={15} />
+                Atualizar
+              </LoadingButton>
             </div>
           </div>
 
@@ -381,14 +409,16 @@ export default function MarketModulePage({
               <p className="text-sm font-semibold text-text-primary">
                 {selectedRecordIds.size} registro(s) selecionado(s)
               </p>
-              <button
+              <LoadingButton
                 type="button"
                 onClick={handleBulkDelete}
+                isLoading={bulkDeleting}
+                loadingLabel="Excluindo..."
                 className="btn-cancel inline-flex items-center justify-center gap-2"
               >
                 <Trash2 size={15} />
                 Excluir selecionados
-              </button>
+              </LoadingButton>
             </div>
           ) : null}
 
@@ -425,6 +455,7 @@ export default function MarketModulePage({
                     getOptionLabel={(option) => option.label}
                     placeholder="Status"
                     emptyMessage="Status não encontrado."
+                    disabled={updatingStatusRecordIds.has(record.id)}
                     className="w-fit min-w-[150px]"
                     inputClassName={`h-9 rounded-full border px-3 text-xs font-semibold ${getStatusClass(record.status)}`}
                   />
@@ -445,6 +476,8 @@ export default function MarketModulePage({
                           label: "Excluir",
                           icon: <Trash2 size={13} />,
                           danger: true,
+                          loading: deletingRecordIds.has(record.id),
+                          loadingLabel: "Excluindo...",
                           onClick: () => void handleDelete(record),
                         },
                       ]}

@@ -584,6 +584,8 @@ export default function ProductRegisterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deletingProductIds, setDeletingProductIds] = useState<Set<string>>(() => new Set());
   const [form, setForm] = useState<ProductFormData>(EMPTY_FORM);
 
   useEffect(() => {
@@ -668,6 +670,7 @@ export default function ProductRegisterPage() {
       `Deseja excluir o produto "${product.productName}"?`,
     );
     if (!confirmed) return;
+    setDeletingProductIds((current) => new Set(current).add(product.id));
     try {
       await productService.remove(product.id);
       setProducts((current) => current.filter((item) => item.id !== product.id));
@@ -679,6 +682,12 @@ export default function ProductRegisterPage() {
       statusDialog.success("Produto excluído com sucesso.");
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao excluir produto.");
+    } finally {
+      setDeletingProductIds((current) => {
+        const next = new Set(current);
+        next.delete(product.id);
+        return next;
+      });
     }
   };
 
@@ -691,12 +700,20 @@ export default function ProductRegisterPage() {
     );
     if (!confirmed) return;
 
+    setBulkDeleting(true);
+    setDeletingProductIds((current) => new Set([...current, ...selectedIds]));
     const results = await Promise.allSettled(
       selectedIds.map(async (productId) => {
         await productService.remove(productId);
         return productId;
       }),
     );
+    setBulkDeleting(false);
+    setDeletingProductIds((current) => {
+      const next = new Set(current);
+      selectedIds.forEach((productId) => next.delete(productId));
+      return next;
+    });
     const removedIds = results
       .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
       .map((result) => result.value);
@@ -858,14 +875,16 @@ export default function ProductRegisterPage() {
             <p className="text-sm font-semibold text-text-primary">
               {selectedProductIds.size} produto(s) selecionado(s)
             </p>
-            <button
+            <LoadingButton
               type="button"
               onClick={handleBulkDelete}
+              isLoading={bulkDeleting}
+              loadingLabel="Excluindo..."
               className="btn-cancel inline-flex items-center justify-center gap-2"
             >
               <Trash2 size={15} />
               Excluir selecionados
-            </button>
+            </LoadingButton>
           </div>
         ) : null}
         <div className="overflow-x-auto">
@@ -936,6 +955,8 @@ export default function ProductRegisterPage() {
                           label: "Excluir",
                           icon: <Trash2 size={13} />,
                           onClick: () => handleDelete(product),
+                          loading: deletingProductIds.has(product.id),
+                          loadingLabel: "Excluindo...",
                           danger: true,
                         },
                       ]}

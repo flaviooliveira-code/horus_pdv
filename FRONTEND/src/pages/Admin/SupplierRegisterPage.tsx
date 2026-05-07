@@ -194,6 +194,8 @@ export default function SupplierRegisterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deletingSupplierIds, setDeletingSupplierIds] = useState<Set<string>>(() => new Set());
   const [loadingCep, setLoadingCep] = useState(false);
   const [form, setForm] = useState<SupplierFormData>(EMPTY_FORM);
 
@@ -270,6 +272,7 @@ export default function SupplierRegisterPage() {
       `Deseja excluir o fornecedor "${supplier.fantasyName}"?`,
     );
     if (!confirmed) return;
+    setDeletingSupplierIds((current) => new Set(current).add(supplier.id));
     try {
       await supplierService.remove(supplier.id);
       setSuppliers((current) => current.filter((item) => item.id !== supplier.id));
@@ -281,6 +284,12 @@ export default function SupplierRegisterPage() {
       statusDialog.success("Fornecedor excluído com sucesso.");
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao excluir fornecedor.");
+    } finally {
+      setDeletingSupplierIds((current) => {
+        const next = new Set(current);
+        next.delete(supplier.id);
+        return next;
+      });
     }
   };
 
@@ -293,12 +302,20 @@ export default function SupplierRegisterPage() {
     );
     if (!confirmed) return;
 
+    setBulkDeleting(true);
+    setDeletingSupplierIds((current) => new Set([...current, ...selectedIds]));
     const results = await Promise.allSettled(
       selectedIds.map(async (supplierId) => {
         await supplierService.remove(supplierId);
         return supplierId;
       }),
     );
+    setBulkDeleting(false);
+    setDeletingSupplierIds((current) => {
+      const next = new Set(current);
+      selectedIds.forEach((supplierId) => next.delete(supplierId));
+      return next;
+    });
     const removedIds = results
       .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
       .map((result) => result.value);
@@ -457,14 +474,16 @@ export default function SupplierRegisterPage() {
             <p className="text-sm font-semibold text-text-primary">
               {selectedSupplierIds.size} fornecedor(es) selecionado(s)
             </p>
-            <button
+            <LoadingButton
               type="button"
               onClick={handleBulkDelete}
+              isLoading={bulkDeleting}
+              loadingLabel="Excluindo..."
               className="btn-cancel inline-flex items-center justify-center gap-2"
             >
               <Trash2 size={15} />
               Excluir selecionados
-            </button>
+            </LoadingButton>
           </div>
         ) : null}
         <div className="overflow-x-auto">
@@ -519,6 +538,8 @@ export default function SupplierRegisterPage() {
                           label: "Excluir",
                           icon: <Trash2 size={13} />,
                           onClick: () => handleDelete(supplier),
+                          loading: deletingSupplierIds.has(supplier.id),
+                          loadingLabel: "Excluindo...",
                           danger: true,
                         },
                       ]}

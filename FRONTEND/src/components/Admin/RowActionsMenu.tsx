@@ -4,7 +4,7 @@
  * Entradas esperadas: recebe lista de ações, rótulo do gatilho e flag opcional para abrir para cima.
  */
 
-import { MoreVertical } from "lucide-react";
+import { LoaderCircle, MoreVertical } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,8 +12,10 @@ type RowActionItem = {
   key: string;
   label: string;
   icon?: ReactNode;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
   disabled?: boolean;
+  loading?: boolean;
+  loadingLabel?: string;
   danger?: boolean;
 };
 
@@ -41,6 +43,7 @@ export default function RowActionsMenu({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const hasLoadingAction = items.some((action) => action.loading);
 
   useEffect(() => {
     // Fecha menu ao clicar fora do componente.
@@ -100,14 +103,19 @@ export default function RowActionsMenu({
         ref={triggerRef}
         type="button"
         data-tour={triggerDataTour}
+        disabled={hasLoadingAction}
         onClick={() => {
           setOpen((current) => !current);
         }}
         aria-label={triggerLabel}
         title="Ações"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border-primary text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border-primary text-text-secondary transition hover:bg-hover-light hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-70"
       >
-        <MoreVertical size={16} />
+        {hasLoadingAction ? (
+          <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+        ) : (
+          <MoreVertical size={16} />
+        )}
       </button>
 
       {open
@@ -126,10 +134,11 @@ export default function RowActionsMenu({
                 <button
                   key={action.key}
                   type="button"
-                  disabled={action.disabled}
+                  disabled={action.disabled || action.loading}
                   onClick={() => {
-                    action.onClick();
+                    if (action.disabled || action.loading) return;
                     setOpen(false);
+                    void action.onClick();
                   }}
                   className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
                     action.danger
@@ -137,8 +146,12 @@ export default function RowActionsMenu({
                       : "text-text-primary hover:bg-accent/10"
                   } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
-                  {action.icon}
-                  {action.label}
+                  {action.loading ? (
+                    <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    action.icon
+                  )}
+                  {action.loading && action.loadingLabel ? action.loadingLabel : action.label}
                 </button>
               ))}
             </div>,

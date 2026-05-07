@@ -28,6 +28,7 @@ export default function SalesHistoryPage() {
   const [salesHistory, setSalesHistory] = useState<SaleHistoryRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [printingSaleNumbers, setPrintingSaleNumbers] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     salesHistoryService.list().then(setSalesHistory).catch(() => setSalesHistory([]));
@@ -109,7 +110,12 @@ export default function SalesHistoryPage() {
                           key: "print",
                           label: "Imprimir venda",
                           icon: <FileText size={13} />,
+                          loading: printingSaleNumbers.has(sale.saleNumber),
+                          loadingLabel: "Imprimindo...",
                           onClick: async () => {
+                            setPrintingSaleNumbers((current) =>
+                              new Set(current).add(sale.saleNumber),
+                            );
                             try {
                               await salesHistoryService.print(sale.saleNumber);
                               Toast.success(
@@ -119,6 +125,12 @@ export default function SalesHistoryPage() {
                               Toast.error(
                                 error instanceof Error ? error.message : "Erro ao imprimir venda.",
                               );
+                            } finally {
+                              setPrintingSaleNumbers((current) => {
+                                const next = new Set(current);
+                                next.delete(sale.saleNumber);
+                                return next;
+                              });
                             }
                           },
                         },

@@ -61,6 +61,9 @@ export default function UserAccountsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
+  const [userActionLoadingKeys, setUserActionLoadingKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [showResetFeedback, setShowResetFeedback] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -71,6 +74,24 @@ export default function UserAccountsPage() {
 
   const statusDialog = useStatusDialog();
   const isEditMode = editingUserId !== null;
+  const getUserActionLoadingKey = (userId: string, action: "status" | "reset-password") =>
+    `${userId}:${action}`;
+  const setUserActionLoading = (
+    userId: string,
+    action: "status" | "reset-password",
+    isActionLoading: boolean,
+  ) => {
+    const key = getUserActionLoadingKey(userId, action);
+    setUserActionLoadingKeys((current) => {
+      const next = new Set(current);
+      if (isActionLoading) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (searchTerm.trim().length > 0) count += 1;
@@ -147,6 +168,7 @@ export default function UserAccountsPage() {
     );
     if (!confirmed) return;
 
+    setUserActionLoading(user.id, "reset-password", true);
     try {
       const result = await userService.resetPassword(user.id);
       if (!result) return;
@@ -154,6 +176,8 @@ export default function UserAccountsPage() {
       statusDialog.success(`Senha de ${user.name} resetada. Senha provisória: ${result.password}`);
     } catch (error) {
       statusDialog.error(error instanceof Error ? error.message : "Erro ao resetar senha.");
+    } finally {
+      setUserActionLoading(user.id, "reset-password", false);
     }
   };
 
@@ -170,6 +194,7 @@ export default function UserAccountsPage() {
     });
     if (!confirmed) return;
 
+    setUserActionLoading(user.id, "status", true);
     try {
       const updated = await userService.updateStatus(user.id, nextStatus);
       if (updated) {
@@ -178,6 +203,8 @@ export default function UserAccountsPage() {
       statusDialog.success(`Usuário ${user.name} ativado.`);
     } catch (error) {
       statusDialog.error(error instanceof Error ? error.message : "Erro ao ativar usuário.");
+    } finally {
+      setUserActionLoading(user.id, "status", false);
     }
   };
 
@@ -186,6 +213,7 @@ export default function UserAccountsPage() {
     const reasonLength = deactivationReason.trim().length;
     if (reasonLength < 10) return;
 
+    setUserActionLoading(pendingDeactivateUser.id, "status", true);
     try {
       const updated = await userService.updateStatus(pendingDeactivateUser.id, "inativo");
       if (updated) {
@@ -198,6 +226,8 @@ export default function UserAccountsPage() {
       );
     } catch (error) {
       statusDialog.error(error instanceof Error ? error.message : "Erro ao inativar usuário.");
+    } finally {
+      setUserActionLoading(pendingDeactivateUser.id, "status", false);
     }
     setPendingDeactivateUser(null);
     setDeactivationReason("");
@@ -306,6 +336,9 @@ export default function UserAccountsPage() {
                 onEdit={openEditDrawer}
                 onToggleStatus={toggleStatus}
                 onResetPassword={resetPassword}
+                isActionLoading={(user, action) =>
+                  userActionLoadingKeys.has(getUserActionLoadingKey(user.id, action))
+                }
               />
             </Suspense>
             <div className="px-4 py-4">

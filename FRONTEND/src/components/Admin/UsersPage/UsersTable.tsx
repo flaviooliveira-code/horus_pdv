@@ -4,6 +4,7 @@
  */
 import { KeyRound, Pencil, Power } from "lucide-react";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import type { AdminUser } from "./types";
 import { ROLE_LABEL, STATUS_LABEL } from "./constants";
 import { formatDateTimePtBr, statusClass } from "./utils";
@@ -13,6 +14,7 @@ type UsersTableProps = {
   onEdit: (user: AdminUser) => void;
   onToggleStatus: (user: AdminUser) => void;
   onResetPassword: (user: AdminUser) => void;
+  isActionLoading?: (user: AdminUser, action: "status" | "reset-password") => boolean;
 };
 
 export default function UsersTable({
@@ -20,6 +22,7 @@ export default function UsersTable({
   onEdit,
   onToggleStatus,
   onResetPassword,
+  isActionLoading = () => false,
 }: UsersTableProps) {
   if (items.length === 0) {
     return (
@@ -92,6 +95,8 @@ export default function UsersTable({
                       label: user.status === "ativo" ? "Inativar" : "Ativar",
                       icon: <Power size={13} />,
                       onClick: () => onToggleStatus(user),
+                      loading: isActionLoading(user, "status"),
+                      loadingLabel: user.status === "ativo" ? "Inativando..." : "Ativando...",
                       danger: user.status === "ativo",
                     },
                     {
@@ -99,6 +104,8 @@ export default function UsersTable({
                       label: "Resetar senha",
                       icon: <KeyRound size={13} />,
                       onClick: () => onResetPassword(user),
+                      loading: isActionLoading(user, "reset-password"),
+                      loadingLabel: "Resetando...",
                     },
                   ]}
                 />
@@ -146,24 +153,28 @@ export default function UsersTable({
               >
                 <Pencil size={13} />
               </button>
-              <button
+              <LoadingButton
                 type="button"
                 onClick={() => onToggleStatus(user)}
+                isLoading={isActionLoading(user, "status")}
+                loadingLabel={<span className="sr-only">Alterando status</span>}
                 className={`inline-flex h-9 w-9 items-center justify-center p-0 ${
                   user.status === "ativo" ? "btn-cancel" : "btn-success"
                 }`}
                 aria-label="Alterar status do usuário"
               >
                 <Power size={13} />
-              </button>
-              <button
+              </LoadingButton>
+              <LoadingButton
                 type="button"
                 onClick={() => onResetPassword(user)}
+                isLoading={isActionLoading(user, "reset-password")}
+                loadingLabel={<span className="sr-only">Resetando senha</span>}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border-primary p-0 text-text-primary transition hover:bg-hover-light"
                 aria-label="Resetar senha"
               >
                 <KeyRound size={13} />
-              </button>
+              </LoadingButton>
             </div>
           </article>
         ))}

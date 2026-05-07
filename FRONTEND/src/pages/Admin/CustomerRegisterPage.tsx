@@ -217,6 +217,8 @@ export default function CustomerRegisterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deletingCustomerIds, setDeletingCustomerIds] = useState<Set<string>>(() => new Set());
   const [loadingCep, setLoadingCep] = useState(false);
   const [form, setForm] = useState<CustomerFormData>(EMPTY_FORM);
 
@@ -292,6 +294,7 @@ export default function CustomerRegisterPage() {
       `Deseja excluir o cliente "${customer.customerName}"?`,
     );
     if (!confirmed) return;
+    setDeletingCustomerIds((current) => new Set(current).add(customer.id));
     try {
       await customerService.remove(customer.id);
       setCustomers((current) => current.filter((item) => item.id !== customer.id));
@@ -303,6 +306,12 @@ export default function CustomerRegisterPage() {
       statusDialog.success("Cliente excluído com sucesso.");
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao excluir cliente.");
+    } finally {
+      setDeletingCustomerIds((current) => {
+        const next = new Set(current);
+        next.delete(customer.id);
+        return next;
+      });
     }
   };
 
@@ -315,12 +324,20 @@ export default function CustomerRegisterPage() {
     );
     if (!confirmed) return;
 
+    setBulkDeleting(true);
+    setDeletingCustomerIds((current) => new Set([...current, ...selectedIds]));
     const results = await Promise.allSettled(
       selectedIds.map(async (customerId) => {
         await customerService.remove(customerId);
         return customerId;
       }),
     );
+    setBulkDeleting(false);
+    setDeletingCustomerIds((current) => {
+      const next = new Set(current);
+      selectedIds.forEach((customerId) => next.delete(customerId));
+      return next;
+    });
     const removedIds = results
       .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
       .map((result) => result.value);
@@ -485,14 +502,16 @@ export default function CustomerRegisterPage() {
             <p className="text-sm font-semibold text-text-primary">
               {selectedCustomerIds.size} cliente(s) selecionado(s)
             </p>
-            <button
+            <LoadingButton
               type="button"
               onClick={handleBulkDelete}
+              isLoading={bulkDeleting}
+              loadingLabel="Excluindo..."
               className="btn-cancel inline-flex items-center justify-center gap-2"
             >
               <Trash2 size={15} />
               Excluir selecionados
-            </button>
+            </LoadingButton>
           </div>
         ) : null}
         <div className="overflow-x-auto">
@@ -547,6 +566,8 @@ export default function CustomerRegisterPage() {
                           label: "Excluir",
                           icon: <Trash2 size={13} />,
                           onClick: () => handleDelete(customer),
+                          loading: deletingCustomerIds.has(customer.id),
+                          loadingLabel: "Excluindo...",
                           danger: true,
                         },
                       ]}
