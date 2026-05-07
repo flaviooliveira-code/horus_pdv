@@ -60,7 +60,13 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
         {
             Success = true,
             Message = "Impressao enviada para processamento.",
-            Data = new { saleNumber, printedAt = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"), items = saleRows.Count }
+            Data = new
+            {
+                saleNumber,
+                printedAt = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
+                items = saleRows.Count,
+                rows = saleRows
+            }
         });
     }
 }

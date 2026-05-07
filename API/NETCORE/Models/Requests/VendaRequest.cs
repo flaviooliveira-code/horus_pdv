@@ -6,6 +6,7 @@ public class VendaRequest
     public string CustomerCpf { get; set; } = string.Empty;
     public string PaymentType { get; set; } = string.Empty;
     public string TotalAmount { get; set; } = string.Empty;
+    public string OperatorName { get; set; } = string.Empty;
     public List<VendaItemRequest> Items { get; set; } = [];
 }
 

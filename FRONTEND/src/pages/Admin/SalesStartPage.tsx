@@ -4,7 +4,7 @@
  * Entradas esperadas: recebe flag opcional de modo standalone para ajustar comportamento da aba PDV.
  */
 
-import { Image as ImageIcon, Printer, ReceiptText, Search, Trash2, X } from "lucide-react";
+import { Image as ImageIcon, Printer, Search, Trash2, X } from "lucide-react";
 import {
   type ClipboardEvent,
   type FormEvent,
@@ -21,6 +21,10 @@ import {
   cashRegisterService,
   type CashRegisterStatusDto,
 } from "@/services/api/cashRegisterService";
+import ReceiptPreviewModal, {
+  type PaymentType,
+  type SaleReceipt,
+} from "@/components/Admin/ReceiptPreviewModal";
 import { companyService, type CompanyDto } from "@/services/api/companyService";
 import { productService } from "@/services/api/productService";
 import { salesHistoryService } from "@/services/api/salesHistoryService";
@@ -47,38 +51,6 @@ type CartItem = {
   name: string;
   quantity: number;
   unitPrice: number;
-};
-
-type PaymentType = "dinheiro" | "pix" | "debito" | "credito";
-
-type ReceiptItem = CartItem & {
-  total: number;
-};
-
-type SaleReceipt = {
-  saleNumber: string;
-  issuedAt: string;
-  company: Pick<
-    CompanyDto,
-    | "fantasyName"
-    | "corporateName"
-    | "cnpj"
-    | "address"
-    | "number"
-    | "neighborhood"
-    | "city"
-    | "uf"
-    | "phone"
-    | "sacPhone"
-  > | null;
-  customerCpf: string;
-  paymentType: PaymentType;
-  paymentLabel: string;
-  operatorName: string;
-  subtotal: number;
-  cashGiven: number;
-  change: number;
-  items: ReceiptItem[];
 };
 
 const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string }> = [
@@ -116,153 +88,12 @@ function getPaymentLabel(paymentType: PaymentType) {
   return PAYMENT_OPTIONS.find((option) => option.value === paymentType)?.label ?? paymentType;
 }
 
-function formatReceiptDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
 function formatCashElapsed(minutes?: number) {
   if (!minutes || minutes < 1) return "menos de 1 min";
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   if (hours === 0) return `${remainingMinutes} min`;
   return `${hours}h ${String(remainingMinutes).padStart(2, "0")}min`;
-}
-
-function ReceiptPreviewModal({
-  receipt,
-  formatMoney,
-  onClose,
-}: {
-  receipt: SaleReceipt;
-  formatMoney: (value: number) => string;
-  onClose: () => void;
-}) {
-  const companyName =
-    receipt.company?.fantasyName || receipt.company?.corporateName || "Hórus PDV";
-  const companyAddress = [
-    receipt.company?.address,
-    receipt.company?.number,
-    receipt.company?.neighborhood,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const companyCity = [receipt.company?.city, receipt.company?.uf].filter(Boolean).join(" - ");
-
-  return (
-    <div className="fixed inset-0 z-layer-dialog flex items-end bg-black/50 px-3 backdrop-blur-sm md:items-center md:justify-center">
-      <div className="w-full max-w-xl rounded-t-2xl border border-border-primary bg-bg-light shadow-2xl md:rounded-2xl">
-        <div className="flex items-center justify-between border-b border-border-primary px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <ReceiptText size={18} />
-            </span>
-            <div>
-              <h2 className="text-base font-semibold text-text-primary">Prévia de impressão</h2>
-              <p className="text-xs text-text-secondary">Cupom da venda {receipt.saleNumber}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary text-text-secondary hover:bg-hover-light"
-            aria-label="Fechar prévia de impressão"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="max-h-[72vh] overflow-y-auto bg-bg-primary p-4">
-          <div className="mx-auto w-full max-w-[360px] border border-border-secondary bg-white px-5 py-4 font-mono text-[12px] leading-tight text-slate-950 shadow-sm">
-            <div className="text-center">
-              <p className="text-sm font-bold uppercase">{companyName}</p>
-              <p>{receipt.company?.corporateName || companyName}</p>
-              <p>CNPJ: {receipt.company?.cnpj || "-"}</p>
-              {companyAddress ? <p>{companyAddress}</p> : null}
-              {companyCity ? <p>{companyCity}</p> : null}
-              <p>Telefone: {receipt.company?.phone || receipt.company?.sacPhone || "-"}</p>
-            </div>
-
-            <div className="my-3 border-t border-dashed border-slate-500" />
-
-            <div className="space-y-1">
-              <p>CUPOM NAO FISCAL</p>
-              <p>Venda: {receipt.saleNumber}</p>
-              <p>Emissao: {formatReceiptDate(receipt.issuedAt)}</p>
-              <p>Operador: {receipt.operatorName}</p>
-              <p>CPF/CNPJ consumidor: {receipt.customerCpf || "-"}</p>
-            </div>
-
-            <div className="my-3 border-t border-dashed border-slate-500" />
-
-            <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1 font-bold">
-              <span>#</span>
-              <span>ITEM</span>
-              <span className="text-right">QTD</span>
-              <span className="text-right">TOTAL</span>
-            </div>
-            <div className="mt-1 space-y-2">
-              {receipt.items.map((item, index) => (
-                <div key={`${item.id}-${index}`}>
-                  <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1">
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <span className="truncate">{item.name}</span>
-                    <span className="text-right">{item.quantity}</span>
-                    <span className="text-right">{formatMoney(item.total)}</span>
-                  </div>
-                  <p className="pl-7 text-[11px]">
-                    {item.code} - UN {formatMoney(item.unitPrice)}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="my-3 border-t border-dashed border-slate-500" />
-
-            <div className="space-y-1">
-              <div className="flex justify-between font-bold">
-                <span>TOTAL</span>
-                <span>R$ {formatMoney(receipt.subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Pagamento</span>
-                <span>{receipt.paymentLabel}</span>
-              </div>
-              {receipt.paymentType === "dinheiro" ? (
-                <>
-                  <div className="flex justify-between">
-                    <span>Valor recebido</span>
-                    <span>R$ {formatMoney(receipt.cashGiven)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Troco</span>
-                    <span>R$ {formatMoney(receipt.change)}</span>
-                  </div>
-                </>
-              ) : null}
-            </div>
-
-            <div className="my-3 border-t border-dashed border-slate-500" />
-            <p className="text-center">Obrigado pela preferencia.</p>
-          </div>
-        </div>
-
-        <div className="flex justify-end border-t border-border-primary px-4 py-3">
-          <button type="button" onClick={onClose} className="btn-primary">
-            Fechar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function SalesStartPage({
@@ -580,6 +411,7 @@ export default function SalesStartPage({
         customerCpf: cpfNota || "-",
         paymentType,
         totalAmount: formatMoneyBr(subtotal),
+        operatorName,
         items: cart.map((item) => ({
           productCode: item.code,
           productName: item.name,

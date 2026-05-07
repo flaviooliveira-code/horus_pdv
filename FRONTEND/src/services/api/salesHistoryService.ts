@@ -7,9 +7,14 @@ export type SaleHistoryDto = {
   saleNumber: string;
   customerName: string;
   customerCpf: string;
+  paymentType: string;
+  totalAmount: string;
+  operatorName: string;
   productCode: string;
   productName: string;
   quantity: number;
+  unitPrice: string;
+  itemTotal: string;
   saleDate: string;
 };
 
@@ -18,6 +23,7 @@ export type RegisterSalePayload = {
   customerCpf: string;
   paymentType: string;
   totalAmount: string;
+  operatorName: string;
   items: Array<{
     productCode: string;
     productName: string;
@@ -38,8 +44,14 @@ export const salesHistoryService = {
     return response.data;
   },
   async print(saleNumber: string) {
-    await apiRequest<object>(`${HISTORICO_VENDAS_API_URL}/${saleNumber}/imprimir`, {
+    const response = await apiRequest<{
+      saleNumber: string;
+      printedAt: string;
+      items: number;
+      rows: SaleHistoryDto[];
+    }>(`${HISTORICO_VENDAS_API_URL}/${saleNumber}/imprimir`, {
       method: "POST",
     });
+    return response.data;
   },
 };

@@ -226,10 +226,20 @@ BEGIN
         SaleNumber NVARCHAR(30) NOT NULL,
         CustomerName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_CustomerName DEFAULT N'Consumidor',
         CustomerCpf NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_CustomerCpf DEFAULT N'-',
+        PaymentType NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_PaymentType DEFAULT N'-',
+        TotalAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_TotalAmount DEFAULT N'0,00',
+        OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_OperatorName DEFAULT N'Operador',
         SaleDate DATETIMEOFFSET NOT NULL CONSTRAINT DF_Vendas_SaleDate DEFAULT SYSDATETIMEOFFSET(),
         CONSTRAINT UQ_Vendas_SaleNumber UNIQUE (SaleNumber)
     );
 END;
+
+IF COL_LENGTH(N'Vendas', N'PaymentType') IS NULL
+    ALTER TABLE Vendas ADD PaymentType NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_PaymentType DEFAULT N'-';
+IF COL_LENGTH(N'Vendas', N'TotalAmount') IS NULL
+    ALTER TABLE Vendas ADD TotalAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_TotalAmount DEFAULT N'0,00';
+IF COL_LENGTH(N'Vendas', N'OperatorName') IS NULL
+    ALTER TABLE Vendas ADD OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_OperatorName DEFAULT N'Operador';
 
 IF OBJECT_ID(N'VendaItens', N'U') IS NULL
 BEGIN
@@ -240,10 +250,41 @@ BEGIN
         ProductCode NVARCHAR(80) NOT NULL,
         ProductName NVARCHAR(180) NOT NULL,
         Quantity INT NOT NULL,
+        UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00',
+        ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00',
         CONSTRAINT FK_VendaItens_Vendas FOREIGN KEY (VendaId) REFERENCES Vendas (Id) ON DELETE CASCADE
     );
     CREATE INDEX IX_VendaItens_VendaId ON VendaItens (VendaId);
 END;
+
+IF COL_LENGTH(N'VendaItens', N'UnitPrice') IS NULL
+    ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
+IF COL_LENGTH(N'VendaItens', N'ItemTotal') IS NULL
+    ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
+
+UPDATE i
+   SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
+  FROM VendaItens i
+  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+ WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
+    OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
+
+UPDATE i
+   SET ItemTotal = FORMAT(
+        TRY_CONVERT(
+            DECIMAL(18, 2),
+            REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.')
+        ) * i.Quantity,
+        N'N2',
+        N'pt-BR'
+   )
+  FROM VendaItens i
+ WHERE (NULLIF(LTRIM(RTRIM(i.ItemTotal)), '') IS NULL
+    OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.ItemTotal)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00'))
+   AND TRY_CONVERT(
+        DECIMAL(18, 2),
+        REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.')
+   ) IS NOT NULL;
 
 IF OBJECT_ID(N'ModulosMercado', N'U') IS NULL
 BEGIN
