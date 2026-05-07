@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, FileSpreadsheet, FileText } from "lucide-react";
 import { DatePickerField, SearchableSelectField, TimePickerField } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import TablePagination from "@/components/Pagination/TablePagination";
 import type { ReportFilter, ReportDefinition } from "./reportsConfig";
 import type {
@@ -457,9 +458,9 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <button type="submit" className="btn-success" disabled={isLoading}>
-            {isLoading ? "Gerando..." : "Gerar relatório"}
-          </button>
+          <LoadingButton type="submit" className="btn-success" isLoading={isLoading} loadingLabel="Gerando...">
+            Gerar relatório
+          </LoadingButton>
           <button type="button" className="btn-outline-secondary" onClick={handleReset}>
             Limpar filtros
           </button>

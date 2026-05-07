@@ -60,6 +60,7 @@ export default function UserAccountsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
   const [showResetFeedback, setShowResetFeedback] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -235,6 +236,7 @@ export default function UserAccountsPage() {
       return;
     }
 
+    setIsSavingUser(true);
     try {
       if (isEditMode && editingUserId) {
         const updated = await userService.update(editingUserId, form);
@@ -250,6 +252,8 @@ export default function UserAccountsPage() {
     } catch (error) {
       statusDialog.error(error instanceof Error ? error.message : "Erro ao salvar usuário.");
       return;
+    } finally {
+      setIsSavingUser(false);
     }
 
     setDrawerOpen(false);
@@ -325,6 +329,7 @@ export default function UserAccountsPage() {
           onChange={setForm}
           onClose={() => setDrawerOpen(false)}
           onSave={saveUser}
+          isSaving={isSavingUser}
         />
       </Suspense>
 

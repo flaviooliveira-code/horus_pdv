@@ -9,6 +9,7 @@ import { type ClipboardEvent, type FormEvent, useEffect, useMemo, useRef, useSta
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { SearchableSelectField } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import TablePagination from "@/components/Pagination/TablePagination";
 import AddressContactFields from "@/components/Register/AddressContactFields";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
@@ -79,6 +80,7 @@ function ProductFormDrawer({
   open,
   isEditMode,
   value,
+  isSaving,
   onClose,
   onChange,
   onSave,
@@ -88,6 +90,7 @@ function ProductFormDrawer({
   open: boolean;
   isEditMode: boolean;
   value: ProductFormData;
+  isSaving: boolean;
   onClose: () => void;
   onChange: (next: ProductFormData) => void;
   onSave: () => void;
@@ -451,9 +454,15 @@ function ProductFormDrawer({
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="button" onClick={onSave} className="btn-primary">
+            <LoadingButton
+              type="button"
+              onClick={onSave}
+              isLoading={isSaving}
+              loadingLabel="Salvando..."
+              className="btn-primary"
+            >
               {isEditMode ? "Salvar produto" : "Criar produto"}
-            </button>
+            </LoadingButton>
           </div>
         </div>
       </aside>
@@ -548,9 +557,14 @@ function ProductFormDrawer({
               >
                 Cancelar
               </button>
-              <button type="submit" disabled={savingSupplier} className="btn-primary">
-                {savingSupplier ? "Salvando..." : "Salvar fornecedor"}
-              </button>
+              <LoadingButton
+                type="submit"
+                isLoading={savingSupplier}
+                loadingLabel="Salvando..."
+                className="btn-primary"
+              >
+                Salvar fornecedor
+              </LoadingButton>
             </div>
           </form>
         </div>
@@ -569,6 +583,7 @@ export default function ProductRegisterPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ProductFormData>(EMPTY_FORM);
 
   useEffect(() => {
@@ -778,6 +793,7 @@ export default function ProductRegisterPage() {
   const handleSave = async () => {
     if (!validateForm()) return;
 
+    setSaving(true);
     try {
       if (editingId) {
         const updated = await productService.update(editingId, form);
@@ -795,6 +811,8 @@ export default function ProductRegisterPage() {
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao salvar produto.");
       return;
+    } finally {
+      setSaving(false);
     }
 
     setDrawerOpen(false);
@@ -947,6 +965,7 @@ export default function ProductRegisterPage() {
         open={drawerOpen}
         isEditMode={editingId !== null}
         value={form}
+        isSaving={saving}
         onClose={() => setDrawerOpen(false)}
         onChange={setForm}
         onSave={handleSave}

@@ -2,6 +2,7 @@ import { Banknote, Clock3, LockKeyhole, RefreshCw, ShieldCheck, UnlockKeyhole } 
 import { type ClipboardEvent, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import LoadingBar from "@/components/Loading/LoadingBar";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import TablePagination from "@/components/Pagination/TablePagination";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
@@ -275,15 +276,16 @@ export default function CashRegisterPage() {
                 />
               </label>
 
-              <button
+              <LoadingButton
                 type="button"
                 onClick={closeCashRegister}
+                isLoading={saving}
+                loadingLabel="Fechando..."
                 className="btn-primary inline-flex w-full items-center justify-center gap-2 sm:w-auto"
-                disabled={saving}
               >
                 <LockKeyhole size={16} />
                 Fechar caixa
-              </button>
+              </LoadingButton>
             </div>
           ) : (
             <div className="space-y-4">
@@ -301,15 +303,16 @@ export default function CashRegisterPage() {
                 />
               </label>
 
-              <button
+              <LoadingButton
                 type="button"
                 onClick={openCashRegister}
+                isLoading={saving}
+                loadingLabel="Abrindo..."
                 className="btn-success inline-flex w-full items-center justify-center gap-2 sm:w-auto"
-                disabled={saving}
               >
                 <UnlockKeyhole size={16} />
                 Abrir caixa
-              </button>
+              </LoadingButton>
             </div>
           )}
         </div>

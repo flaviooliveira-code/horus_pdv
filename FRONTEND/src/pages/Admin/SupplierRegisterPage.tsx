@@ -8,6 +8,7 @@ import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import TablePagination from "@/components/Pagination/TablePagination";
 import AddressContactFields from "@/components/Register/AddressContactFields";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
@@ -59,6 +60,7 @@ function SupplierFormDrawer({
   open,
   isEditMode,
   value,
+  isSaving,
   loadingCep,
   onClose,
   onChange,
@@ -68,6 +70,7 @@ function SupplierFormDrawer({
   open: boolean;
   isEditMode: boolean;
   value: SupplierFormData;
+  isSaving: boolean;
   loadingCep: boolean;
   onClose: () => void;
   onChange: (next: SupplierFormData) => void;
@@ -165,9 +168,15 @@ function SupplierFormDrawer({
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="button" onClick={onSave} className="btn-primary">
+            <LoadingButton
+              type="button"
+              onClick={onSave}
+              isLoading={isSaving}
+              loadingLabel="Salvando..."
+              className="btn-primary"
+            >
               {isEditMode ? "Salvar fornecedor" : "Criar fornecedor"}
-            </button>
+            </LoadingButton>
           </div>
         </div>
       </aside>
@@ -184,6 +193,7 @@ export default function SupplierRegisterPage() {
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [form, setForm] = useState<SupplierFormData>(EMPTY_FORM);
 
@@ -382,6 +392,7 @@ export default function SupplierRegisterPage() {
   const handleSave = async () => {
     if (!validateForm()) return;
 
+    setSaving(true);
     try {
       if (editingId) {
         const updated = await supplierService.update(editingId, form);
@@ -399,6 +410,8 @@ export default function SupplierRegisterPage() {
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao salvar fornecedor.");
       return;
+    } finally {
+      setSaving(false);
     }
 
     setDrawerOpen(false);
@@ -535,6 +548,7 @@ export default function SupplierRegisterPage() {
         open={drawerOpen}
         isEditMode={editingId !== null}
         value={form}
+        isSaving={saving}
         loadingCep={loadingCep}
         onClose={() => setDrawerOpen(false)}
         onChange={setForm}

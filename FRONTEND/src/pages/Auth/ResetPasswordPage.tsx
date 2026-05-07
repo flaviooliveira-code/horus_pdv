@@ -1,5 +1,6 @@
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import useRecaptchaV3 from "@/hooks/Security/useRecaptchaV3";
 import AuthLayout from "./AuthLayout";
 import { FeedbackMessage, PasswordField } from "./AuthFields";
@@ -108,15 +109,16 @@ export default function ResetPasswordPage({
         onEnter={handleSubmit}
       />
 
-      <button
+      <LoadingButton
         type="button"
         onClick={handleSubmit}
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingLabel="Salvando..."
         className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2"
       >
         <KeyRound size={16} />
-        {isSubmitting ? "Salvando..." : "Redefinir senha"}
-      </button>
+        Redefinir senha
+      </LoadingButton>
 
       <FeedbackMessage result={feedback} />
     </AuthLayout>

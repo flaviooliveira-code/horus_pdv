@@ -1,5 +1,6 @@
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import useRecaptchaV3 from "@/hooks/Security/useRecaptchaV3";
 import { isValidCnpj, isValidEmail } from "@/utils/validators";
 import AuthLayout from "./AuthLayout";
@@ -63,15 +64,16 @@ export default function ForgotPasswordPage({
       <CnpjField value={cnpj} onChange={setCnpj} onEnter={handleSubmit} />
       <EmailField value={email} onChange={setEmail} onEnter={handleSubmit} />
 
-      <button
+      <LoadingButton
         type="button"
         onClick={handleSubmit}
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingLabel="Enviando..."
         className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2"
       >
         <KeyRound size={16} />
-        {isSubmitting ? "Enviando..." : "Enviar e-mail"}
-      </button>
+        Enviar e-mail
+      </LoadingButton>
 
       <FeedbackMessage result={feedback} />
     </AuthLayout>

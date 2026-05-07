@@ -1,5 +1,6 @@
 import { Building2, Phone, User, UserPlus } from "lucide-react";
 import { useState } from "react";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import useRecaptchaV3 from "@/hooks/Security/useRecaptchaV3";
 import { maskCnpj, maskPhoneBr } from "@/utils/inputMasks";
 import { isValidCnpj, isValidEmail } from "@/utils/validators";
@@ -167,15 +168,16 @@ export default function RegisterPage({
         onEnter={handleSubmit}
       />
 
-      <button
+      <LoadingButton
         type="button"
         onClick={handleSubmit}
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingLabel="Criando..."
         className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2"
       >
         <UserPlus size={16} />
-        {isSubmitting ? "Criando..." : "Criar cadastro"}
-      </button>
+        Criar cadastro
+      </LoadingButton>
 
       <FeedbackMessage result={feedback} />
     </AuthLayout>

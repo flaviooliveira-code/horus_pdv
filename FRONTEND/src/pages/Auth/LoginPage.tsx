@@ -3,6 +3,7 @@ import { useState } from "react";
 import useRecaptchaV3 from "@/hooks/Security/useRecaptchaV3";
 import AuthLayout from "./AuthLayout";
 import { EmailField, FeedbackMessage, PasswordField } from "./AuthFields";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import type { AuthActionResult } from "./types";
 
 type LoginPageProps = {
@@ -91,15 +92,16 @@ export default function LoginPage({
         </button>
       </div>
 
-      <button
+      <LoadingButton
         type="button"
         onClick={handleLogin}
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingLabel="Entrando..."
         className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2"
       >
         <LogIn size={16} />
-        {isSubmitting ? "Entrando..." : "Entrar"}
-      </button>
+        Entrar
+      </LoadingButton>
 
       <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-text-secondary">
         <span>Não tem uma conta?</span>

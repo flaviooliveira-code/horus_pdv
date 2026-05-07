@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import { SearchableSelectField, YesNoSegmentedControl } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import { Toast } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
@@ -469,9 +470,15 @@ export default function MyCompanyPage() {
           </label>
 
           <div className="flex justify-end md:col-span-12">
-            <button type="button" onClick={saveCompany} disabled={saving} className="btn-primary">
-              {saving ? "Salvando..." : "Salvar dados da empresa"}
-            </button>
+            <LoadingButton
+              type="button"
+              onClick={saveCompany}
+              isLoading={saving}
+              loadingLabel="Salvando..."
+              className="btn-primary"
+            >
+              Salvar dados da empresa
+            </LoadingButton>
           </div>
         </form>
       </section>
@@ -608,9 +615,15 @@ export default function MyCompanyPage() {
           </label>
 
           <div className="flex justify-end md:col-span-12">
-            <button type="button" onClick={saveCompany} disabled={saving} className="btn-primary">
-              {saving ? "Salvando..." : "Salvar configuração de e-mail"}
-            </button>
+            <LoadingButton
+              type="button"
+              onClick={saveCompany}
+              isLoading={saving}
+              loadingLabel="Salvando..."
+              className="btn-primary"
+            >
+              Salvar configuração de e-mail
+            </LoadingButton>
           </div>
         </form>
       </section>

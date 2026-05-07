@@ -6,6 +6,7 @@ import { ShieldCheck, UserPlus, X } from "lucide-react";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { SearchableSelectField } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import type { UserRole, UserStatus } from "./types";
 
@@ -36,6 +37,7 @@ type UserFormDrawerProps = {
   open: boolean;
   isEditMode: boolean;
   form: UserFormState;
+  isSaving: boolean;
   onClose: () => void;
   onSave: () => void;
   onChange: (next: UserFormState) => void;
@@ -45,6 +47,7 @@ export default function UserFormDrawer({
   open,
   isEditMode,
   form,
+  isSaving,
   onClose,
   onSave,
   onChange,
@@ -215,14 +218,16 @@ export default function UserFormDrawer({
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button
+            <LoadingButton
               type="button"
               onClick={onSave}
+              isLoading={isSaving}
+              loadingLabel="Salvando..."
               className="btn-primary inline-flex items-center justify-center gap-1.5"
             >
               <UserPlus size={15} />
               {isEditMode ? "Salvar usuário" : "Criar usuário"}
-            </button>
+            </LoadingButton>
           </div>
         </div>
       </aside>

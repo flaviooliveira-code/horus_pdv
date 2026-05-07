@@ -7,6 +7,7 @@ import { CheckCircle2, CircleAlert, Clock3, Pencil, Plus, RefreshCw, Trash2, X }
 import { type ClipboardEvent, type FormEvent, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import { SearchableSelectField } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
@@ -583,9 +584,14 @@ export default function MarketModulePage({
               >
                 Cancelar
               </button>
-              <button type="submit" disabled={saving} className="btn-primary px-4 py-2">
-                {saving ? "Salvando..." : "Salvar"}
-              </button>
+              <LoadingButton
+                type="submit"
+                isLoading={saving}
+                loadingLabel="Salvando..."
+                className="btn-primary px-4 py-2"
+              >
+                Salvar
+              </LoadingButton>
             </div>
           </form>
         </div>

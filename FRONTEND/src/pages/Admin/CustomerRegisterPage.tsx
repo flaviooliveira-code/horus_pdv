@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { DatePickerField } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import TablePagination from "@/components/Pagination/TablePagination";
 import AddressContactFields from "@/components/Register/AddressContactFields";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
@@ -67,6 +68,7 @@ function CustomerFormDrawer({
   open,
   isEditMode,
   value,
+  isSaving,
   loadingCep,
   onClose,
   onChange,
@@ -76,6 +78,7 @@ function CustomerFormDrawer({
   open: boolean;
   isEditMode: boolean;
   value: CustomerFormData;
+  isSaving: boolean;
   loadingCep: boolean;
   onClose: () => void;
   onChange: (next: CustomerFormData) => void;
@@ -188,9 +191,15 @@ function CustomerFormDrawer({
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="button" onClick={onSave} className="btn-primary">
+            <LoadingButton
+              type="button"
+              onClick={onSave}
+              isLoading={isSaving}
+              loadingLabel="Salvando..."
+              className="btn-primary"
+            >
               {isEditMode ? "Salvar cliente" : "Criar cliente"}
-            </button>
+            </LoadingButton>
           </div>
         </div>
       </aside>
@@ -207,6 +216,7 @@ export default function CustomerRegisterPage() {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [form, setForm] = useState<CustomerFormData>(EMPTY_FORM);
 
@@ -410,6 +420,7 @@ export default function CustomerRegisterPage() {
   const handleSave = async () => {
     if (!validateForm()) return;
 
+    setSaving(true);
     try {
       if (editingId) {
         const updated = await customerService.update(editingId, form);
@@ -427,6 +438,8 @@ export default function CustomerRegisterPage() {
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao salvar cliente.");
       return;
+    } finally {
+      setSaving(false);
     }
 
     setDrawerOpen(false);
@@ -563,6 +576,7 @@ export default function CustomerRegisterPage() {
         open={drawerOpen}
         isEditMode={editingId !== null}
         value={form}
+        isSaving={saving}
         loadingCep={loadingCep}
         onClose={() => setDrawerOpen(false)}
         onChange={setForm}
