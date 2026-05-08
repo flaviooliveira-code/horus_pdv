@@ -9,6 +9,8 @@ Hórus PDV é um projeto open source de frente de caixa e gestão operacional pa
 
 O projeto está em evolução ativa, com frontend em React, API em ASP.NET Core e persistência em SQL Server para os dados operacionais principais.
 
+Site do projeto: https://flaviooliveira-code.github.io/horus_pdv/
+
 ## Sumário
 
 - [Status do Projeto](#status-do-projeto)

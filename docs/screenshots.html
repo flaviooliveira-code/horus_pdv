@@ -71,7 +71,8 @@
       }
 
       nav button,
-      .controls button {
+      .controls button,
+      .controls a {
         border: 1px solid var(--border);
         background: var(--panel);
         color: var(--text);
@@ -123,17 +124,23 @@
       }
 
       .controls {
+        align-items: center;
         display: flex;
         gap: 8px;
       }
 
-      .controls button {
+      .controls button,
+      .controls a {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
         min-height: 38px;
         border-radius: 10px;
         padding: 7px 12px;
       }
 
-      .controls button:hover {
+      .controls button:hover,
+      .controls a:hover {
         transform: translateY(-1px);
         border-color: var(--accent);
         color: var(--accent-strong);
@@ -189,7 +196,10 @@
   <body>
     <header>
       <h1>Hórus PDV - Galeria em Slides</h1>
-      <span class="counter" id="counter">1 / 1</span>
+      <div class="controls">
+        <a href="index.html">Início</a>
+        <span class="counter" id="counter">1 / 1</span>
+      </div>
     </header>
 
     <main>

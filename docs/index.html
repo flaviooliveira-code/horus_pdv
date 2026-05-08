@@ -2,14 +2,788 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="0; url=screenshots.html" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hórus PDV - Screenshots</title>
+    <meta
+      name="description"
+      content="Hórus PDV é um sistema open source para frente de caixa, estoque, clientes, vendas, relatórios e gestão operacional."
+    />
+    <title>Hórus PDV - Frente de caixa open source</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f8fc;
+        --surface: #ffffff;
+        --surface-soft: #eef5fb;
+        --ink: #122033;
+        --muted: #52657d;
+        --line: #d8e4f1;
+        --brand: #075f91;
+        --brand-strong: #084b74;
+        --accent: #13a38b;
+        --warning: #e09d22;
+        --shadow: 0 24px 70px rgba(18, 32, 51, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(90deg, rgba(7, 95, 145, 0.05) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(7, 95, 145, 0.05) 1px, transparent 1px),
+          var(--bg);
+        background-size: 42px 42px;
+        color: var(--ink);
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.55;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        min-height: 100dvh;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100dvh;
+        padding: 28px 22px;
+        border-right: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.86);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 28px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: var(--brand);
+        color: #ffffff;
+        box-shadow: 0 14px 28px rgba(7, 95, 145, 0.22);
+      }
+
+      .mark svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .side-label {
+        margin: 28px 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .side-nav {
+        display: grid;
+        gap: 4px;
+      }
+
+      .side-nav a {
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 750;
+        padding: 9px 10px;
+      }
+
+      .side-nav a:hover,
+      .side-nav a:focus-visible {
+        background: var(--surface-soft);
+        color: var(--brand-strong);
+        outline: none;
+      }
+
+      .sidebar-actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 28px;
+      }
+
+      .main {
+        min-width: 0;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 16px 28px;
+        border-bottom: 1px solid rgba(216, 228, 241, 0.76);
+        background: rgba(245, 248, 252, 0.82);
+        backdrop-filter: blur(16px);
+      }
+
+      .btn {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 850;
+        padding: 9px 14px;
+        transition:
+          transform 0.18s ease,
+          border-color 0.18s ease,
+          box-shadow 0.18s ease;
+      }
+
+      .btn:hover,
+      .btn:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(7, 95, 145, 0.45);
+        box-shadow: 0 10px 24px rgba(18, 32, 51, 0.1);
+        outline: none;
+      }
+
+      .btn-primary {
+        border-color: var(--brand);
+        background: var(--brand);
+        color: #ffffff;
+      }
+
+      .btn-accent {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(340px, 1.08fr);
+        align-items: center;
+        gap: clamp(28px, 5vw, 72px);
+        min-height: calc(100dvh - 75px);
+        padding: clamp(40px, 6vw, 86px);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        color: var(--brand-strong);
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 34px;
+        height: 3px;
+        border-radius: 99px;
+        background: var(--accent);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin-bottom: 18px;
+        font-size: clamp(44px, 6vw, 84px);
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+
+      .lead {
+        max-width: 680px;
+        color: var(--muted);
+        font-size: clamp(18px, 1.6vw, 23px);
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .hero-shot {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .hero-shot::before {
+        content: "";
+        display: block;
+        height: 38px;
+        border-bottom: 1px solid var(--line);
+        background:
+          radial-gradient(circle at 20px 19px, #e85d5d 0 5px, transparent 6px),
+          radial-gradient(circle at 42px 19px, #e0a72f 0 5px, transparent 6px),
+          radial-gradient(circle at 64px 19px, #2fbf75 0 5px, transparent 6px),
+          #ffffff;
+      }
+
+      .hero-shot img {
+        aspect-ratio: 16 / 10;
+        width: 100%;
+        object-fit: cover;
+        object-position: left top;
+      }
+
+      .section {
+        padding: clamp(44px, 6vw, 78px) clamp(28px, 6vw, 86px);
+        border-top: 1px solid var(--line);
+      }
+
+      .section-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 26px;
+      }
+
+      .section h2 {
+        max-width: 780px;
+        margin-bottom: 0;
+        font-size: clamp(31px, 4vw, 54px);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      .section-copy {
+        max-width: 620px;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric,
+      .feature,
+      .module,
+      .step {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.84);
+        box-shadow: 0 12px 32px rgba(18, 32, 51, 0.06);
+      }
+
+      .metric {
+        padding: 20px;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--brand-strong);
+        font-size: 34px;
+        line-height: 1;
+      }
+
+      .metric span {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 750;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .feature {
+        display: grid;
+        gap: 12px;
+        padding: 22px;
+      }
+
+      .icon {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+        background: var(--surface-soft);
+        color: var(--brand-strong);
+      }
+
+      .icon svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .feature h3,
+      .module h3,
+      .step h3 {
+        margin-bottom: 6px;
+        font-size: 20px;
+      }
+
+      .feature p,
+      .module p,
+      .step p {
+        margin-bottom: 0;
+        color: var(--muted);
+      }
+
+      .modules {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .module {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr);
+        min-height: 150px;
+        overflow: hidden;
+      }
+
+      .module img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: left top;
+      }
+
+      .module div {
+        padding: 20px;
+      }
+
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .step {
+        padding: 22px;
+      }
+
+      .step code,
+      pre {
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      pre {
+        overflow-x: auto;
+        margin: 14px 0 0;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #0f1d2e;
+        color: #ecf7ff;
+        padding: 16px;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .cta {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 22px;
+        border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line));
+        border-radius: 26px;
+        background:
+          linear-gradient(135deg, rgba(7, 95, 145, 0.12), rgba(19, 163, 139, 0.12)),
+          var(--surface);
+        padding: clamp(26px, 4vw, 42px);
+      }
+
+      .cta h2 {
+        font-size: clamp(30px, 3.4vw, 48px);
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        padding: 28px clamp(28px, 6vw, 86px);
+      }
+
+      @media (max-width: 1120px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: relative;
+          height: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .side-nav {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .hero,
+        .metric-grid,
+        .feature-grid,
+        .modules,
+        .steps,
+        .cta {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .topbar {
+          justify-content: stretch;
+          flex-direction: column;
+          padding: 12px;
+        }
+
+        .btn {
+          width: 100%;
+        }
+
+        .side-nav {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .hero,
+        .section {
+          padding: 34px 18px;
+        }
+
+        h1 {
+          font-size: 43px;
+        }
+
+        .section-header {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .module {
+          grid-template-columns: 1fr;
+        }
+
+        .module img {
+          aspect-ratio: 16 / 9;
+        }
+      }
+    </style>
   </head>
   <body>
-    <p>
-      Redirecionando para a galeria do Hórus PDV.
-      <a href="screenshots.html">Abrir galeria</a>
-    </p>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <a class="brand" href="#inicio" aria-label="Hórus PDV">
+          <span class="mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 3.4 19 6v5.1c0 4.5-2.8 8.4-7 9.8-4.2-1.4-7-5.3-7-9.8V6l7-2.6Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+              />
+              <path d="m8.8 12 2.1 2.1 4.4-4.7" stroke="currentColor" stroke-width="1.8" />
+            </svg>
+          </span>
+          Hórus PDV
+        </a>
+
+        <div class="side-label">Introdução</div>
+        <nav class="side-nav">
+          <a href="#inicio">Visão geral</a>
+          <a href="#recursos">Recursos</a>
+          <a href="#modulos">Módulos</a>
+          <a href="#instalacao">Instalação</a>
+          <a href="#screenshots">Screenshots</a>
+          <a href="#status">Status</a>
+        </nav>
+
+        <div class="side-label">Projeto</div>
+        <div class="sidebar-actions">
+          <a class="btn btn-primary" href="screenshots.html">Abrir galeria</a>
+          <a class="btn" href="https://github.com/flaviooliveira-code/horus_pdv">Ver no GitHub</a>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <a class="btn" href="#instalacao">Quick start</a>
+          <a class="btn btn-accent" href="screenshots.html">Ver telas</a>
+        </div>
+
+        <section class="hero" id="inicio">
+          <div>
+            <span class="eyebrow">Open source para operação de balcão</span>
+            <h1>Frente de caixa e gestão comercial em um fluxo único.</h1>
+            <p class="lead">
+              Hórus PDV conecta vendas, estoque, caixa, clientes, fornecedores, usuários e relatórios
+              em uma experiência web rápida para pequenos e médios comércios.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="screenshots.html">Explorar screenshots</a>
+              <a class="btn" href="#recursos">Conhecer recursos</a>
+            </div>
+          </div>
+
+          <a class="hero-shot" href="screenshots.html" aria-label="Abrir galeria de telas">
+            <img src="images/dashboard.png" alt="Dashboard do Hórus PDV com indicadores operacionais" />
+          </a>
+        </section>
+
+        <section class="section" id="status">
+          <div class="metric-grid" aria-label="Status do projeto">
+            <div class="metric">
+              <strong>React</strong>
+              <span>Frontend com Vite, TypeScript e Tailwind CSS</span>
+            </div>
+            <div class="metric">
+              <strong>.NET 8</strong>
+              <span>API ASP.NET Core com JWT e SQL Server</span>
+            </div>
+            <div class="metric">
+              <strong>E2E</strong>
+              <span>Smoke test com Playwright para fluxo completo</span>
+            </div>
+            <div class="metric">
+              <strong>MVP</strong>
+              <span>Base funcional para evolução fiscal e pagamentos</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="recursos">
+          <div class="section-header">
+            <h2>Operação completa sem espalhar o trabalho em várias ferramentas.</h2>
+            <p class="section-copy">
+              O sistema foi estruturado para reduzir fricção no balcão: venda rápida, conferência de
+              caixa, cadastro assistido e gestão dos dados que alimentam o PDV.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 7h14v13H5zM8 7V5h8v2M8 11h8M8 15h5" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+              </span>
+              <div>
+                <h3>Venda com baixa de estoque</h3>
+                <p>Produtos vêm da API, entram no carrinho e baixam estoque ao confirmar a venda.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4 7h16M6 7v12h12V7M9 11h6M9 15h4" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+              </span>
+              <div>
+                <h3>Caixa com regra operacional</h3>
+                <p>A venda só inicia com caixa aberto e sessões vencidas são tratadas no fluxo.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h14M12 5v14M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+              </span>
+              <div>
+                <h3>Cadastros conectados</h3>
+                <p>Clientes, fornecedores, produtos, empresa e usuários persistem no SQL Server.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 19V5m0 14h15M9 16V9m4 7V7m4 9v-4" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+              </span>
+              <div>
+                <h3>Relatórios e histórico</h3>
+                <p>Histórico de vendas com valores, recibo e reimpressão da última venda.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3 20 7v5c0 4.8-3.2 7.5-8 9-4.8-1.5-8-4.2-8-9V7l8-4Z" stroke="currentColor" stroke-width="1.8" />
+                  <path d="M9 12.2 11.1 14 15.4 9.5" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+              </span>
+              <div>
+                <h3>Segurança aplicada</h3>
+                <p>Login com JWT, recuperação de senha, reCAPTCHA opcional e limite de tentativas.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4 5h16v10H4zM8 19h8M10 15v4M14 15v4" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+              </span>
+              <div>
+                <h3>Experiência de produto</h3>
+                <p>Temas light/dark, tour guiado, componentes reutilizáveis e layout responsivo.</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="modulos">
+          <div class="section-header">
+            <h2>Módulos preparados para a rotina de loja.</h2>
+            <p class="section-copy">
+              As telas principais já estão conectadas com API e banco. Fiscal e pagamento integrado
+              aparecem como módulos em desenvolvimento.
+            </p>
+          </div>
+
+          <div class="modules">
+            <a class="module" href="screenshots.html">
+              <img src="images/frente-caixa.png" alt="Tela de frente de caixa" />
+              <div>
+                <h3>Frente de Caixa</h3>
+                <p>Carrinho, pagamentos, impressão prévia e baixa de estoque.</p>
+              </div>
+            </a>
+            <a class="module" href="screenshots.html">
+              <img src="images/produtos.png" alt="Tela de produtos" />
+              <div>
+                <h3>Produtos e Fornecedores</h3>
+                <p>Cadastro, edição, exclusão e criação rápida de fornecedor.</p>
+              </div>
+            </a>
+            <a class="module" href="screenshots.html">
+              <img src="images/abertura-fechamento.png" alt="Tela de abertura e fechamento" />
+              <div>
+                <h3>Caixa</h3>
+                <p>Abertura, fechamento e validação antes de iniciar venda.</p>
+              </div>
+            </a>
+            <a class="module" href="screenshots.html">
+              <img src="images/minha-empresa.png" alt="Tela Minha Empresa" />
+              <div>
+                <h3>Minha Empresa</h3>
+                <p>Dados comerciais, endereço e configuração de e-mail por empresa.</p>
+              </div>
+            </a>
+            <a class="module" href="screenshots.html">
+              <img src="images/crm-fidelidade.png" alt="Tela de CRM e fidelidade" />
+              <div>
+                <h3>Gestão Avançada</h3>
+                <p>Estoque, compras, trocas, CRM, fidelidade e omnichannel.</p>
+              </div>
+            </a>
+            <a class="module" href="screenshots.html">
+              <img src="images/relatorios.png" alt="Tela de relatórios" />
+              <div>
+                <h3>Relatórios</h3>
+                <p>Indicadores operacionais para acompanhar vendas e movimentações.</p>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <section class="section" id="instalacao">
+          <div class="section-header">
+            <h2>Suba o ambiente local com SQL Server, API e frontend.</h2>
+            <p class="section-copy">
+              O projeto usa SQL Server em Docker, API ASP.NET Core e frontend React com Vite.
+            </p>
+          </div>
+
+          <div class="steps">
+            <article class="step">
+              <h3>1. Banco</h3>
+              <p>Inicie o SQL Server local.</p>
+              <pre><code>docker start sqlserver2025</code></pre>
+            </article>
+            <article class="step">
+              <h3>2. API</h3>
+              <p>Execute a API .NET.</p>
+              <pre><code>cd API/NETCORE
+dotnet run</code></pre>
+            </article>
+            <article class="step">
+              <h3>3. Frontend</h3>
+              <p>Abra a interface web.</p>
+              <pre><code>cd FRONTEND
+npm install
+npm run dev</code></pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="screenshots">
+          <div class="cta">
+            <div>
+              <span class="eyebrow">Galeria navegável</span>
+              <h2>Veja o sistema rodando tela por tela.</h2>
+              <p class="section-copy">
+                A galeria mostra login, dashboard, frente de caixa, histórico, cadastros, gestão
+                avançada, empresa, configurações e módulos em desenvolvimento.
+              </p>
+            </div>
+            <a class="btn btn-primary" href="screenshots.html">Abrir slides</a>
+          </div>
+        </section>
+
+        <footer>
+          Hórus PDV - Projeto open source mantido por
+          <a href="https://github.com/flaviooliveira-code">flaviooliveira-code</a>.
+        </footer>
+      </main>
+    </div>
   </body>
 </html>
