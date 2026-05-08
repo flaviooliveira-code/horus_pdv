@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/SettingsPage/PrintSettingsCard.tsx
- * Objetivo: renderiza preferencias de impressao da frente de caixa.
- */
+ * Objetivo: renderiza preferências de impressão da frente de caixa.
+  * Entradas esperadas: recebe preferência atual de prévia de impressão e callback de alteração.
+*/
 import { Printer } from "lucide-react";
 import { YesNoSegmentedControl } from "@/components/Form";
 

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/domain/tour/tourSteps.ts
+ * Objetivo: define os passos do tour guiado por página do sistema.
+ * Entradas esperadas: exporta configuração estática consumida pelo componente de tour.
+ */
 import type { PageKey } from "@/components/AppSidebar/AppSidebar";
 
 export type TourPageKey = PageKey;

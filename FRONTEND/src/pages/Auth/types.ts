@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/types.ts
+ * Objetivo: centraliza tipos compartilhados pelas telas de autenticação.
+ * Entradas esperadas: exporta contratos TypeScript usados por componentes e páginas públicas.
+ */
 export type AuthResultData = {
   resetToken?: string;
   maskedEmail?: string;

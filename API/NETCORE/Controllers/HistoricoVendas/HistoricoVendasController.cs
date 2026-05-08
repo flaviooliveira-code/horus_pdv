@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/HistoricoVendas/HistoricoVendasController.cs
+ * Objetivo: expõe endpoints HTTP de histórico de vendas e recibos e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
@@ -53,7 +58,7 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
         var saleRows = await historicoVendasAB.ListarAsync(saleNumber);
         if (saleRows.Count == 0)
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Venda nao encontrada." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Venda não encontrada." });
         }
 
         return Ok(new ApiResponse<object>

@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/utils/pdvPreferences.ts
- * Objetivo: centraliza preferencias locais da frente de caixa.
- */
+ * Objetivo: centraliza preferências locais da frente de caixa.
+  * Entradas esperadas: recebe preferências locais do PDV e centraliza leitura/gravação no navegador.
+*/
 export const PRINT_PREVIEW_ENABLED_STORAGE_KEY = "horus-pdv-print-preview-enabled";
 
 export function getPrintPreviewEnabled() {

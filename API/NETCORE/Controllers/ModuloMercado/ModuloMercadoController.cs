@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/ModuloMercado/ModuloMercadoController.cs
+ * Objetivo: expõe endpoints HTTP de módulos de gestão avançada do mercado e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.ModuloMercado;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
@@ -17,7 +22,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
         var config = await BuildConfigAsync(id);
         if (config is null)
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
         }
 
         return Ok(new ApiResponse<object>
@@ -35,7 +40,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     {
         if (!await ModuleExistsAsync(id))
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
         }
 
         try
@@ -62,7 +67,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     {
         if (!await ModuleExistsAsync(id))
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
         }
 
         try
@@ -70,7 +75,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
             var updated = await moduloMercadoAB.AtualizarRegistroAsync(MapRequest(id, recordId, request));
             if (!updated)
             {
-                return NotFound(new ApiResponse<object> { Success = false, Message = "Registro nao encontrado." });
+                return NotFound(new ApiResponse<object> { Success = false, Message = "Registro não encontrado." });
             }
 
             return Ok(new ApiResponse<object>
@@ -93,12 +98,12 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     {
         if (!await ModuleExistsAsync(id))
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Modulo nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
         }
 
         if (!await moduloMercadoAB.ExcluirRegistroAsync(id, recordId))
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Registro nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Registro não encontrado." });
         }
 
         return Ok(new ApiResponse<object>

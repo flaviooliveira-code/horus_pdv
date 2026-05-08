@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/CaixaAB.cs
+ * Objetivo: concentra comandos SQL e persistência de abertura, fechamento e status de caixa.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Repositories.DataAccess;
 using Microsoft.Data.SqlClient;
 

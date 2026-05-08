@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/AppSidebar/AppSidebar.tsx
- * Objetivo: renderiza menu lateral no padrao do legado com suporte a desktop colapsado e drawer mobile.
- */
+ * Objetivo: renderiza menu lateral no padrão do legado com suporte a desktop colapsado e drawer mobile.
+  * Entradas esperadas: recebe página ativa, usuário, estado responsivo e callbacks de navegação/logout.
+*/
 import {
   Building2,
   BadgeDollarSign,

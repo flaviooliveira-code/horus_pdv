@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/salesHistoryService.ts
+ * Objetivo: encapsula chamadas HTTP de histórico de vendas, registro de venda e recibos.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 
 const HISTORICO_VENDAS_API_URL =

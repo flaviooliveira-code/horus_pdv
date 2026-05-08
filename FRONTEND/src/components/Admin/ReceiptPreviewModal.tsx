@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/ReceiptPreviewModal.tsx
- * Objetivo: exibir e imprimir uma previa de cupom nao fiscal reutilizavel no PDV.
- */
+ * Objetivo: exibir e imprimir uma prévia de cupom não fiscal reutilizável no PDV.
+  * Entradas esperadas: recebe dados da venda, itens, empresa e callbacks para fechar/imprimir o recibo.
+*/
 import { Printer, ReceiptText, X } from "lucide-react";
 
 export type PaymentType = "dinheiro" | "pix" | "debito" | "credito" | string;
@@ -200,7 +201,7 @@ export default function ReceiptPreviewModal({
             type="button"
             onClick={onClose}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary text-text-secondary hover:bg-hover-light"
-            aria-label="Fechar previa de impressao"
+            aria-label="Fechar prévia de impressão"
           >
             <X size={16} />
           </button>

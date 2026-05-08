@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/supplierService.ts
+ * Objetivo: encapsula chamadas HTTP de cadastro e manutenção de fornecedores.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 
 const FORNECEDOR_API_URL =

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/EmpresaAB.cs
+ * Objetivo: concentra comandos SQL e persistência de dados cadastrais e configurações da empresa.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Services.Security;
 using Microsoft.Data.SqlClient;

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/components/Admin/UnderDevelopmentPage.tsx
+ * Objetivo: renderiza estado padronizado para módulos ainda em desenvolvimento.
+ * Entradas esperadas: recebe título, descrição e detalhes visuais do módulo indisponível.
+ */
 import { Clock3, Construction, ShieldAlert } from "lucide-react";
 import PageHeader from "@/components/Admin/PageHeader";
 import PageLayout from "@/layout/PageLayout";

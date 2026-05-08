@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Requests/VendaRequest.cs
+ * Objetivo: define contrato de entrada para operações de registro de vendas e itens do carrinho.
+ * Entradas esperadas: recebe dados serializados do frontend nas ações da API.
+ */
 namespace HORUSPDV_API.Models.Requests;
 
 public class VendaRequest

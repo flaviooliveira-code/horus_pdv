@@ -1,7 +1,7 @@
 /**
  * Arquivo: src/components/Admin/PageHeader.tsx
- * Objetivo: renderiza titulo, descricao e acao principal das paginas administrativas.
- * Entradas esperadas: titulo, descricao e opcional de acao no topo da tela.
+ * Objetivo: renderiza título, descrição e ação principal das páginas administrativas.
+ * Entradas esperadas: título, descrição e opcional de ação no topo da tela.
  */
 import type { ReactNode } from "react";
 import { CircleHelp } from "lucide-react";

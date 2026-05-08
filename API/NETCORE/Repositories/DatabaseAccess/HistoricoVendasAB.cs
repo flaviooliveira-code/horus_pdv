@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/HistoricoVendasAB.cs
+ * Objetivo: concentra comandos SQL e persistência de histórico de vendas e recibos.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
 using Microsoft.Data.SqlClient;
@@ -48,6 +53,7 @@ public class HistoricoVendasAB(Connection connection)
             var paymentType = string.IsNullOrWhiteSpace(request.PaymentType) ? "-" : request.PaymentType.Trim();
             var totalAmount = string.IsNullOrWhiteSpace(request.TotalAmount) ? "0,00" : request.TotalAmount.Trim();
             var operatorName = string.IsNullOrWhiteSpace(request.OperatorName) ? "Operador" : request.OperatorName.Trim();
+            // A venda e a baixa de estoque compartilham a mesma transação para evitar histórico sem estoque atualizado.
             var saleItems = await BaixarEstoqueAsync(db, transaction, request.Items);
 
             await using (var saleCommand = new SqlCommand(
@@ -164,7 +170,7 @@ public class HistoricoVendasAB(Connection connection)
             await using var reader = await select.ExecuteReaderAsync();
             if (!await reader.ReadAsync())
             {
-                throw new InvalidOperationException($"Produto {item.ProductCode} nao encontrado.");
+                throw new InvalidOperationException($"Produto {item.ProductCode} não encontrado.");
             }
 
             var productId = ReadString(reader, "Id");
@@ -178,7 +184,7 @@ public class HistoricoVendasAB(Connection connection)
             if (currentStock < item.Quantity)
             {
                 throw new InvalidOperationException(
-                    $"Estoque insuficiente para {item.ProductName}. Disponivel: {currentStock}.");
+                    $"Estoque insuficiente para {item.ProductName}. Disponível: {currentStock}.");
             }
 
             var nextStock = currentStock - item.Quantity;

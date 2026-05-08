@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/customerService.ts
+ * Objetivo: encapsula chamadas HTTP de cadastro e manutenção de clientes.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 
 const CLIENTE_API_URL =

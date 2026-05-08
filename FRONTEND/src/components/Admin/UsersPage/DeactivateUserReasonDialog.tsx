@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/DeactivateUserReasonDialog.tsx
  * Objetivo: exige justificativa mínima antes de confirmar a inativação de usuário.
- */
+  * Entradas esperadas: recebe estado de abertura, callback de confirmação e nome do usuário afetado.
+*/
 import { FileText, Power, X } from "lucide-react";
 
 type DeactivateUserReasonDialogProps = {

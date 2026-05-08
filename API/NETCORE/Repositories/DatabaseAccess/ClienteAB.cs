@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/ClienteAB.cs
+ * Objetivo: concentra comandos SQL e persistência de cadastro e manutenção de clientes.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Repositories.DataAccess;
 using Microsoft.Data.SqlClient;
 

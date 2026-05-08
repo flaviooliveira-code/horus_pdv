@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/index.ts
  * Objetivo: barril de exportações da feature de usuários administrativos.
- */
+  * Entradas esperadas: não recebe props; reexporta componentes, tipos e utilitários da feature.
+*/
 export { default as UsersFilters } from "./UsersFilters";
 export { default as UsersTable } from "./UsersTable";
 export { default as UserFormDrawer } from "./UserFormDrawer";

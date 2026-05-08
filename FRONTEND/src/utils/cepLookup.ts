@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/utils/cepLookup.ts
  * Objetivo: consulta endereço por CEP com fallback entre múltiplos provedores.
- */
+  * Entradas esperadas: recebe CEP normalizado e retorna endereço encontrado nos provedores disponíveis.
+*/
 const DEFAULT_TIMEOUT_MS = 5000;
 
 const trimTrailingSlash = (url = "") => url.replace(/\/+$/, "");

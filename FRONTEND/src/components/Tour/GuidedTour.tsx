@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/components/Tour/GuidedTour.tsx
+ * Objetivo: controla o tour guiado sobre elementos da interface com foco, destaque e navegação entre passos.
+ * Entradas esperadas: recebe passos, estado de abertura e callbacks para avançar, voltar ou finalizar o tour.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { TOUR_STEPS_BY_PAGE, type TourPageKey, type TourStep } from "@/domain/tour/tourSteps";

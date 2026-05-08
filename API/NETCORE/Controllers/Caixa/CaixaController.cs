@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Caixa/CaixaController.cs
+ * Objetivo: expõe endpoints HTTP de abertura, fechamento e status de caixa e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Services.Caixa;
@@ -24,7 +29,7 @@ public class CaixaController(HorusCaixaService caixaService) : ControllerBase
     {
         if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
         {
-            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
         }
 
         try
@@ -47,7 +52,7 @@ public class CaixaController(HorusCaixaService caixaService) : ControllerBase
     {
         if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
         {
-            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
         }
 
         try

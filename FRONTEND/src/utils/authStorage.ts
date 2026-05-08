@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/utils/authStorage.ts
  * Objetivo: centralizar token JWT e usuario autenticado do Hórus PDV no navegador.
- */
+  * Entradas esperadas: recebe token e dados do usuário autenticado para persistência local segura no navegador.
+*/
 export const AUTH_TOKEN_STORAGE_KEY = "horuspdv.auth.token";
 export const AUTH_USER_STORAGE_KEY = "horuspdv.auth.user";
 export const AUTH_REMEMBER_STORAGE_KEY = "horuspdv.auth.remember";

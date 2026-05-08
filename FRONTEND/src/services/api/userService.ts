@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/userService.ts
+ * Objetivo: encapsula chamadas HTTP de contas de usuários e permissões.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import type { AdminUser } from "@/components/Admin/UsersPage";
 import type { UserFormState, UserStatus } from "@/components/Admin/UsersPage";
 import { apiRequest } from "./apiClient";

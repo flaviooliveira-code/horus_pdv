@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Admin/CashRegisterPage.tsx
+ * Objetivo: gerencia abertura, fechamento, histórico e bloqueios operacionais do caixa.
+ * Entradas esperadas: não recebe props; carrega status via API e executa ações do operador autenticado.
+ */
 import { Banknote, Clock3, LockKeyhole, RefreshCw, ShieldCheck, UnlockKeyhole } from "lucide-react";
 import { type ClipboardEvent, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";

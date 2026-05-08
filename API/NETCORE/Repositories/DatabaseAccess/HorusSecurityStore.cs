@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/HorusSecurityStore.cs
+ * Objetivo: concentra comandos SQL de usuários, sessões, tentativas de login e tokens de recuperação.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories;
 using HORUSPDV_API.Services.Security;
@@ -553,7 +558,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
 
         if (Convert.ToInt32(command.ExecuteScalar()) > 0)
         {
-            throw new InvalidOperationException("Ja existe usuario com este CPF ou e-mail.");
+            throw new InvalidOperationException("Já existe usuário com este CPF ou e-mail.");
         }
     }
 

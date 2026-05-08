@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Home/HomeController.cs
+ * Objetivo: expõe endpoints HTTP de indicadores e atalhos da página inicial e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 

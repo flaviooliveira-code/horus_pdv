@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/types.ts
  * Objetivo: centraliza tipos da tela de usuários administrativos.
- */
+  * Entradas esperadas: não recebe props; exporta contratos TypeScript da feature de usuários.
+*/
 export type UserRole = "administrador" | "gerente" | "atendente" | "financeiro";
 export type UserStatus = "ativo" | "inativo";
 

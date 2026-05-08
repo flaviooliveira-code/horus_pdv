@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Fornecedores/FornecedorService.cs
+ * Objetivo: centraliza regras de negócio de cadastro e manutenção de fornecedores antes do acesso ao banco ou resposta HTTP.
+ * Entradas esperadas: recebe requisições já validadas pelos controladores e aplica consistência operacional do domínio.
+ */
 using HORUSPDV_API.Models.Fornecedores;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
@@ -41,7 +46,7 @@ public class FornecedorService(FornecedorAB fornecedoresAB, ProdutoAB produtosAB
                 item.ProductSupplier.Equals(supplier.FantasyName, StringComparison.OrdinalIgnoreCase) ||
                 item.ProductSupplier.Equals(supplier.CompanyName, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException("Fornecedor possui produtos vinculados e nao pode ser excluido.");
+            throw new InvalidOperationException("Fornecedor possui produtos vinculados e não pode ser excluído.");
         }
 
         return await fornecedoresAB.ExcluirAsync(id);
@@ -86,7 +91,7 @@ public class FornecedorService(FornecedorAB fornecedoresAB, ProdutoAB produtosAB
         var cnpj = OnlyDigits(request.Cnpj);
         if (suppliers.Any(item => item.Id != currentId && OnlyDigits(item.Cnpj) == cnpj))
         {
-            throw new InvalidOperationException("Ja existe fornecedor com este CNPJ.");
+            throw new InvalidOperationException("Já existe fornecedor com este CNPJ.");
         }
     }
 

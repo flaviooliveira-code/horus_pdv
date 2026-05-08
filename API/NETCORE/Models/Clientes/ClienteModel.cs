@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Clientes/ClienteModel.cs
+ * Objetivo: representa dados de cadastro e manutenção de clientes trafegados entre banco, serviços e API.
+ * Entradas esperadas: recebe valores persistidos ou calculados para serialização nas respostas.
+ */
 namespace HORUSPDV_API.Models.Clientes;
 
 public class ClienteModel

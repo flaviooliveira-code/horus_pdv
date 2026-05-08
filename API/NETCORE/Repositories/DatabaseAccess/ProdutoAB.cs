@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/ProdutoAB.cs
+ * Objetivo: concentra comandos SQL e persistência de cadastro, estoque e manutenção de produtos.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Repositories.DataAccess;
 using Microsoft.Data.SqlClient;
 
@@ -100,6 +105,7 @@ public class ProdutoAB(Connection connection)
 
         try
         {
+            // Agrupa itens repetidos antes do bloqueio pessimista para baixar estoque uma única vez por produto.
             foreach (var item in groupedItems)
             {
                 if (item.Quantity <= 0)
@@ -119,7 +125,7 @@ public class ProdutoAB(Connection connection)
                 await using var reader = await select.ExecuteReaderAsync();
                 if (!await reader.ReadAsync())
                 {
-                    throw new InvalidOperationException($"Produto {item.ProductCode} nao encontrado.");
+                    throw new InvalidOperationException($"Produto {item.ProductCode} não encontrado.");
                 }
 
                 var productId = ReadString(reader, "Id");
@@ -131,7 +137,7 @@ public class ProdutoAB(Connection connection)
                 if (currentStock < item.Quantity)
                 {
                     throw new InvalidOperationException(
-                        $"Estoque insuficiente para {productName}. Disponivel: {currentStock}.");
+                        $"Estoque insuficiente para {productName}. Disponível: {currentStock}.");
                 }
 
                 var nextStock = currentStock - item.Quantity;

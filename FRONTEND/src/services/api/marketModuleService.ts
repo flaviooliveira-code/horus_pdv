@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/marketModuleService.ts
+ * Objetivo: encapsula chamadas HTTP dos módulos de gestão avançada.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import type { MarketModuleConfig, MarketModuleRecordPayload } from "@/components/Admin/MarketModulePage";
 import { apiRequest } from "./apiClient";
 

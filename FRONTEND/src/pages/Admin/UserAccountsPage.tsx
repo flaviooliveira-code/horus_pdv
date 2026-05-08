@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/pages/Admin/UsersPage.tsx
  * Objetivo: orquestra estado, filtros, paginação e ações da gestão de usuários.
- */
+  * Entradas esperadas: não recebe props; integra API, filtros, paginação, seleção e diálogos da tela.
+*/
 /* eslint-disable react-hooks/set-state-in-effect */
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";

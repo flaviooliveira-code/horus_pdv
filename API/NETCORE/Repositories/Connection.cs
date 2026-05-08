@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/Connection.cs
+ * Objetivo: centraliza a criação de conexões SQL Server usadas pelos repositórios da API.
+ * Entradas esperadas: espera configuração de connection string válida para abrir conexões com o banco.
+ */
 using Microsoft.Data.SqlClient;
 
 namespace HORUSPDV_API.Repositories;

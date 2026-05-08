@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Email/HorusEmailService.cs
+ * Objetivo: centraliza montagem e envio de e-mails transacionais da API.
+ * Entradas esperadas: recebe destinatário, contexto da empresa e dados do fluxo para envio por SMTP.
+ */
 using System.Net;
 using System.Net.Mail;
 using HORUSPDV_API.Repositories.DataAccess;
@@ -48,7 +53,7 @@ public class HorusEmailService(
     {
         if (!await IsEnabledAsync())
         {
-            logger.LogInformation("Envio de e-mail desabilitado. E-mail de cadastro nao enviado para {Email}.", toEmail);
+            logger.LogInformation("Envio de e-mail desabilitado. E-mail de cadastro não enviado para {Email}.", toEmail);
             return;
         }
 

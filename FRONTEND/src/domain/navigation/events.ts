@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/domain/navigation/events.ts
+ * Objetivo: centraliza eventos customizados de navegação disparados entre módulos desacoplados.
+ * Entradas esperadas: Expõe helpers sem props; consumidores informam a página destino quando necessário.
+ */
 import type { PageKey } from "@/components/AppSidebar/AppSidebar";
 
 export const APP_NAVIGATE_EVENT = "horuspdv:navigate-page";

@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/utils/inputMasks.ts
  * Objetivo: centraliza máscaras e normalizadores de entrada textual.
- */
+  * Entradas esperadas: recebe valores textuais brutos e retorna versões normalizadas/formatadas para inputs.
+*/
 export function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }

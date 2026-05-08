@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/UserFormDrawer.tsx
  * Objetivo: renderiza drawer de criação/edição de usuário no padrão do sistema.
- */
+  * Entradas esperadas: recebe usuário em edição, opções de perfil/status e callbacks de salvar/fechar.
+*/
 import { ShieldCheck, UserPlus, X } from "lucide-react";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";

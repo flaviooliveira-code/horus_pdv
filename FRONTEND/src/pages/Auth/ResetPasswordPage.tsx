@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/ResetPasswordPage.tsx
+ * Objetivo: renderiza definição de nova senha a partir do token de recuperação.
+ * Entradas esperadas: recebe callback para retorno ao login; lê o token da URL e envia a nova senha para a API.
+ */
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import LoadingButton from "@/components/Loading/LoadingButton";

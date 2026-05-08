@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/UsersTable.tsx
  * Objetivo: renderiza tabela/lista mobile da gestão de usuários.
- */
+  * Entradas esperadas: recebe usuários paginados, seleção atual e callbacks de ações por linha.
+*/
 import { KeyRound, Pencil, Power } from "lucide-react";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import LoadingButton from "@/components/Loading/LoadingButton";

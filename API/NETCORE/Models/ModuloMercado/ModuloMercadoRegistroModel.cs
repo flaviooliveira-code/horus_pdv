@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/ModuloMercado/ModuloMercadoRegistroModel.cs
+ * Objetivo: representa dados de módulos de gestão avançada do mercado trafegados entre banco, serviços e API.
+ * Entradas esperadas: recebe valores persistidos ou calculados para serialização nas respostas.
+ */
 namespace HORUSPDV_API.Models.ModuloMercado;
 
 public class ModuloMercadoRegistroModel

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DataAccess/ModuloMercadoRegistroAD.cs
+ * Objetivo: representa estrutura de dados de módulos de gestão avançada do mercado retornada pelo acesso ao banco.
+ * Entradas esperadas: recebe valores lidos do SQL Server e alimenta serviços/repositórios superiores.
+ */
 namespace HORUSPDV_API.Repositories.DataAccess;
 
 public class ModuloMercadoRegistroAD

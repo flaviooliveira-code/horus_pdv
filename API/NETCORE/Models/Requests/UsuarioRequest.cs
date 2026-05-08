@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Requests/UsuarioRequest.cs
+ * Objetivo: define contrato de entrada para operações de contas de usuários e permissões.
+ * Entradas esperadas: recebe dados serializados do frontend nas ações da API.
+ */
 namespace HORUSPDV_API.Models.Requests;
 
 public class UsuarioRequest

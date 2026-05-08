@@ -1,7 +1,7 @@
 /**
  * Arquivo: src/pages/Admin/MyCompanyPage.tsx
- * Objetivo: centraliza configuracoes cadastrais e de contato da empresa.
- * Entradas esperadas: nao recebe props; renderiza formulario de dados institucionais.
+ * Objetivo: centraliza configurações cadastrais e de contato da empresa.
+ * Entradas esperadas: não recebe props; renderiza formulário de dados institucionais.
  */
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";

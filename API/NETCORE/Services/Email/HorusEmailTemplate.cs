@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Email/HorusEmailTemplate.cs
+ * Objetivo: monta templates HTML dos e-mails transacionais do Hórus PDV.
+ * Entradas esperadas: recebe dados transacionais e retorna HTML pronto para envio de e-mail.
+ */
 using System.Net;
 using System.Text;
 

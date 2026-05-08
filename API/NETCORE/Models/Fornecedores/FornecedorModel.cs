@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Fornecedores/FornecedorModel.cs
+ * Objetivo: representa dados de cadastro e manutenção de fornecedores trafegados entre banco, serviços e API.
+ * Entradas esperadas: recebe valores persistidos ou calculados para serialização nas respostas.
+ */
 namespace HORUSPDV_API.Models.Fornecedores;
 
 public class FornecedorModel

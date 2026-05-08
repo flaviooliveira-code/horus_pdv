@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/authService.ts
+ * Objetivo: encapsula chamadas HTTP de autenticação, cadastro e recuperação de senha.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 import type { AuthenticatedUser } from "@/utils/authStorage";
 

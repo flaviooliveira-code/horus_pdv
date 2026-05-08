@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Middlewares/HorusSecurityHeadersMiddleware.cs
+ * Objetivo: adiciona cabeçalhos HTTP de segurança nas respostas da API.
+ * Entradas esperadas: recebe HttpContext do pipeline ASP.NET Core e decide se a requisição segue para o próximo middleware.
+ */
 namespace HORUSPDV_API.Middlewares;
 
 public class HorusSecurityHeadersMiddleware(RequestDelegate next)

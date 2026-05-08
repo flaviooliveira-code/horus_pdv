@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/HorusDatabaseInitializer.cs
+ * Objetivo: executa a inicialização controlada do banco a partir dos scripts SQL do projeto.
+ * Entradas esperadas: espera provedor de serviços configurado e SQL Server disponível no ambiente.
+ */
 using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 
@@ -24,7 +29,7 @@ public static class HorusDatabaseInitializer
 
         if (!File.Exists(scriptPath))
         {
-            logger.LogWarning("Script SQL nao encontrado em DataBase/Resumo.sql. Inicializacao do banco ignorada.");
+            logger.LogWarning("Script SQL não encontrado em DataBase/Resumo.sql. Inicialização do banco ignorada.");
             return;
         }
 

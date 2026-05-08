@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/hooks/Security/useRecaptchaV3.ts
  * Objetivo: carregar o script oficial do Google reCAPTCHA v3 e executar ações protegidas.
- */
+  * Entradas esperadas: recebe chave pública e action; retorna função para executar reCAPTCHA quando habilitado.
+*/
 import { useCallback } from "react";
 
 declare global {

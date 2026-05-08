@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Security/HorusSecretProtector.cs
+ * Objetivo: protege e recupera segredos sensíveis armazenados para configuração SMTP.
+ * Entradas esperadas: recebe segredo em texto puro ou protegido para criptografia/descriptografia local.
+ */
 using System.Security.Cryptography;
 using System.Text;
 

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Middlewares/HorusRequestTelemetryMiddleware.cs
+ * Objetivo: registra telemetria básica das requisições para auditoria operacional.
+ * Entradas esperadas: recebe HttpContext do pipeline ASP.NET Core e decide se a requisição segue para o próximo middleware.
+ */
 using HORUSPDV_API.Services.Security;
 
 namespace HORUSPDV_API.Middlewares;

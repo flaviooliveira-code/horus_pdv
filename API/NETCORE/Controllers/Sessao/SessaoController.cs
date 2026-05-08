@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Sessao/SessaoController.cs
+ * Objetivo: expõe endpoints HTTP de sessões autenticadas e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
 using HORUSPDV_API.Services.Security;
@@ -30,13 +35,13 @@ public class SessaoController(HorusSecurityStore securityStore) : ControllerBase
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
-                Message = "A sessao atual nao pode ser encerrada por esta acao."
+                Message = "A sessão atual não pode ser encerrada por esta ação."
             });
         }
 
         if (!securityStore.TerminateSession(id, currentSessionId))
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
         }
 
         return Ok(new ApiResponse<object>

@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/hooks/useInputMasks.ts
  * Objetivo: expõe máscaras de input de forma centralizada para componentes.
- */
+  * Entradas esperadas: não recebe props; retorna funções de máscara e normalização para formulários.
+*/
 import { useMemo } from "react";
 import {
   formatMoneyBr,

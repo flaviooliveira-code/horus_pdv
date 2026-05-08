@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/components/Admin/MarketModuleRoutePage.tsx
+ * Objetivo: resolve a página de gestão avançada conforme a chave do módulo selecionado.
+ * Entradas esperadas: recebe a chave do módulo e repassa a configuração correta para o componente base.
+ */
 import { useCallback, useEffect, useState } from "react";
 import LoadingBar from "@/components/Loading/LoadingBar";
 import { marketModuleService } from "@/services/api/marketModuleService";

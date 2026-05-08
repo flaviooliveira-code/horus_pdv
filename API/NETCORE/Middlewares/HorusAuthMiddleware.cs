@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Middlewares/HorusAuthMiddleware.cs
+ * Objetivo: intercepta requisições HTTP para aplicar regra transversal de autenticação, cadastro, recuperação de senha e sessões.
+ * Entradas esperadas: recebe HttpContext do pipeline ASP.NET Core e decide se a requisição segue para o próximo middleware.
+ */
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
 using HORUSPDV_API.Services.Security;

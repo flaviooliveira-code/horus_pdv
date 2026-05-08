@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Requests/ClienteRequest.cs
+ * Objetivo: define contrato de entrada para operações de cadastro e manutenção de clientes.
+ * Entradas esperadas: recebe dados serializados do frontend nas ações da API.
+ */
 namespace HORUSPDV_API.Models.Requests;
 
 public class ClienteRequest

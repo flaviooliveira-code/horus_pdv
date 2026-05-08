@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Fornecedores/FornecedorController.cs
+ * Objetivo: expõe endpoints HTTP de cadastro e manutenção de fornecedores e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Fornecedores;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
@@ -52,7 +57,7 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
             var updated = await fornecedorService.AtualizarAsync(id, request);
             if (updated is null)
             {
-                return NotFound(new ApiResponse<FornecedorModel> { Success = false, Message = "Fornecedor nao encontrado." });
+                return NotFound(new ApiResponse<FornecedorModel> { Success = false, Message = "Fornecedor não encontrado." });
             }
 
             return Ok(new ApiResponse<FornecedorModel>
@@ -77,7 +82,7 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
             var removed = await fornecedorService.ExcluirAsync(id);
             if (!removed)
             {
-                return NotFound(new ApiResponse<object> { Success = false, Message = "Fornecedor nao encontrado." });
+                return NotFound(new ApiResponse<object> { Success = false, Message = "Fornecedor não encontrado." });
             }
 
             return Ok(new ApiResponse<object> { Success = true, Message = "Fornecedor removido com sucesso." });

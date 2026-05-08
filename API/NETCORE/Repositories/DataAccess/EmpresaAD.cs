@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DataAccess/EmpresaAD.cs
+ * Objetivo: representa estrutura de dados de dados cadastrais e configurações da empresa retornada pelo acesso ao banco.
+ * Entradas esperadas: recebe valores lidos do SQL Server e alimenta serviços/repositórios superiores.
+ */
 namespace HORUSPDV_API.Repositories.DataAccess;
 
 public class EmpresaAD

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Clientes/ClienteController.cs
+ * Objetivo: expõe endpoints HTTP de cadastro e manutenção de clientes e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Clientes;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
@@ -52,7 +57,7 @@ public class ClienteController(IClienteService clienteService) : ControllerBase
             var updated = await clienteService.AtualizarAsync(id, request);
             if (updated is null)
             {
-                return NotFound(new ApiResponse<ClienteModel> { Success = false, Message = "Cliente nao encontrado." });
+                return NotFound(new ApiResponse<ClienteModel> { Success = false, Message = "Cliente não encontrado." });
             }
 
             return Ok(new ApiResponse<ClienteModel>
@@ -75,7 +80,7 @@ public class ClienteController(IClienteService clienteService) : ControllerBase
         var removed = await clienteService.ExcluirAsync(id);
         if (!removed)
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Cliente nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Cliente não encontrado." });
         }
 
         return Ok(new ApiResponse<object> { Success = true, Message = "Cliente removido com sucesso." });

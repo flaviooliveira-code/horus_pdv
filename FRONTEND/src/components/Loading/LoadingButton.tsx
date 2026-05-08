@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Loading/LoadingButton.tsx
  * Objetivo: padronizar feedback de carregamento em ações assíncronas acionadas por botão.
- */
+  * Entradas esperadas: recebe props nativas de botão, estado de carregamento e conteúdo visual.
+*/
 import { LoaderCircle } from "lucide-react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 

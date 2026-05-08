@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/services/api/apiClient.ts
  * Objetivo: centralizar chamadas HTTP para a API .NET do Hórus PDV.
- */
+  * Entradas esperadas: recebe caminho, método e payload opcional para executar requisições autenticadas.
+*/
 import { clearAuthSession, getAuthToken } from "@/utils/authStorage";
 
 export type ApiResponse<T> = {

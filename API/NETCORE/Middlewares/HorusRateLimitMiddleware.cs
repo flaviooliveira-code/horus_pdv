@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Middlewares/HorusRateLimitMiddleware.cs
+ * Objetivo: aplica limite de requisições por IP para reduzir abuso nos endpoints da API.
+ * Entradas esperadas: recebe HttpContext do pipeline ASP.NET Core e decide se a requisição segue para o próximo middleware.
+ */
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Services.Security;
 using System.Collections.Concurrent;

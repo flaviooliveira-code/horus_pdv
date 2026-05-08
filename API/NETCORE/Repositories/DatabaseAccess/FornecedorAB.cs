@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DatabaseAccess/FornecedorAB.cs
+ * Objetivo: concentra comandos SQL e persistência de cadastro e manutenção de fornecedores.
+ * Entradas esperadas: recebe conexão configurada, parâmetros normalizados e executa leitura/escrita no SQL Server.
+ */
 using HORUSPDV_API.Repositories.DataAccess;
 using Microsoft.Data.SqlClient;
 

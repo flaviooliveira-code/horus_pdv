@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/homeService.ts
+ * Objetivo: encapsula chamadas HTTP dos indicadores e atalhos da página inicial.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 
 const HOME_API_URL = import.meta.env.VITE_HOME_API_URL ?? "http://localhost:5260/api/Home";

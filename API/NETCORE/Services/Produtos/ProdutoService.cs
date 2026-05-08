@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Produtos/ProdutoService.cs
+ * Objetivo: centraliza regras de negócio de cadastro, estoque e manutenção de produtos antes do acesso ao banco ou resposta HTTP.
+ * Entradas esperadas: recebe requisições já validadas pelos controladores e aplica consistência operacional do domínio.
+ */
 using HORUSPDV_API.Models.Produtos;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
@@ -75,7 +80,7 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
                 item.Id != currentId &&
                 item.ProductCode.Equals(productCode, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException("Ja existe produto com este codigo.");
+            throw new InvalidOperationException("Já existe produto com este código.");
         }
 
         var suppliers = await fornecedoresAB.ListarAsync();
@@ -84,7 +89,7 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
                 item.FantasyName.Equals(supplierName, StringComparison.OrdinalIgnoreCase) ||
                 item.CompanyName.Equals(supplierName, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException("Fornecedor informado nao esta cadastrado.");
+            throw new InvalidOperationException("Fornecedor informado não está cadastrado.");
         }
     }
 

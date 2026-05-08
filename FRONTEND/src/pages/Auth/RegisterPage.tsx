@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/RegisterPage.tsx
+ * Objetivo: renderiza cadastro público da empresa e usuário administrador inicial.
+ * Entradas esperadas: recebe callbacks de navegação; envia dados validados, máscaras e reCAPTCHA para a API.
+ */
 import { Building2, Phone, User, UserPlus } from "lucide-react";
 import { useState } from "react";
 import LoadingButton from "@/components/Loading/LoadingButton";

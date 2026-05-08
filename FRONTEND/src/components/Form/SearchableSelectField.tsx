@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Form/SearchableSelectField.tsx
  * Objetivo: padronizar seleção pesquisável para listas de entidades do sistema.
- */
+  * Entradas esperadas: recebe lista de opções, valor atual, callbacks de seleção e configuração de criação rápida.
+*/
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Plus, Search } from "lucide-react";
 

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Security/HorusSecurityOptions.cs
+ * Objetivo: define opções de segurança, JWT, reCAPTCHA e proteção de credenciais.
+ * Entradas esperadas: recebe valores de configuração de segurança vindos do appsettings ou variáveis de ambiente.
+ */
 namespace HORUSPDV_API.Services.Security;
 
 public class HorusSecurityOptions(IConfiguration configuration, IWebHostEnvironment environment)

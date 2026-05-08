@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/components/Form/TimePickerField.tsx
+ * Objetivo: fornece campo de horário com seleção controlada e formato estável para formulários.
+ * Entradas esperadas: recebe valor atual, callback de alteração e estados opcionais de placeholder/desabilitado.
+ */
 import { ChevronDown, ChevronUp, Clock3 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 

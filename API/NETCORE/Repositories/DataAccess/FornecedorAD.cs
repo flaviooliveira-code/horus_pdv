@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DataAccess/FornecedorAD.cs
+ * Objetivo: representa estrutura de dados de cadastro e manutenção de fornecedores retornada pelo acesso ao banco.
+ * Entradas esperadas: recebe valores lidos do SQL Server e alimenta serviços/repositórios superiores.
+ */
 namespace HORUSPDV_API.Repositories.DataAccess;
 
 public class FornecedorAD

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Caixa/HorusCaixaService.cs
+ * Objetivo: centraliza regras de negócio de abertura, fechamento e status de caixa antes do acesso ao banco ou resposta HTTP.
+ * Entradas esperadas: recebe requisições já validadas pelos controladores e aplica consistência operacional do domínio.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Repositories.DatabaseAccess;
@@ -21,11 +26,11 @@ public class HorusCaixaService(CaixaAB caixaAB)
             var status = BuildStatus(now);
             if (status.CanSell)
             {
-                throw new InvalidOperationException("Ja existe um caixa aberto para venda.");
+                throw new InvalidOperationException("Já existe um caixa aberto para venda.");
             }
 
             throw new InvalidOperationException(
-                "Existe um caixa aberto fora do periodo permitido. Feche o caixa atual antes de abrir um novo.");
+                "Existe um caixa aberto fora do período permitido. Feche o caixa atual antes de abrir um novo.");
         }
 
         caixaAB.AbrirAsync(
@@ -45,7 +50,7 @@ public class HorusCaixaService(CaixaAB caixaAB)
         var openSession = caixaAB.ObterSessaoAbertaAsync().GetAwaiter().GetResult();
         if (openSession is null)
         {
-            throw new InvalidOperationException("Nao existe caixa aberto para fechamento.");
+            throw new InvalidOperationException("Não existe caixa aberto para fechamento.");
         }
 
         caixaAB.FecharAsync(
@@ -82,6 +87,7 @@ public class HorusCaixaService(CaixaAB caixaAB)
             var openedToday = openSession.OpenedAt.Date == now.Date;
             var withinPeriod = now - openSession.OpenedAt <= MaxOpenPeriod;
 
+            // Regra de negócio do PDV: venda só é permitida com caixa aberto no dia atual e por até 24 horas.
             if (openedToday && withinPeriod)
             {
                 canSell = true;

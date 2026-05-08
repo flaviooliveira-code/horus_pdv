@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Usuario/UsuarioController.cs
+ * Objetivo: expõe endpoints HTTP de contas de usuários e permissões e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
@@ -46,7 +51,7 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
             var user = securityStore.UpdateUser(id, request);
             if (user is null)
             {
-                return NotFound(new ApiResponse<object> { Success = false, Message = "Usuario nao encontrado." });
+                return NotFound(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
             }
 
             return Ok(new ApiResponse<object>
@@ -68,7 +73,7 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
         var user = securityStore.UpdateStatus(id, request.Status);
         if (user is null)
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Usuario nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
         }
 
         return Ok(new ApiResponse<object>
@@ -85,7 +90,7 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
         var result = securityStore.ResetPassword(id);
         if (result is null)
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Usuario nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
         }
 
         return Ok(new ApiResponse<object>

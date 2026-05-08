@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Form/YesNoSegmentedControl.tsx
- * Objetivo: renderiza controle binario Sim/Nao padronizado para preferencias.
- */
+ * Objetivo: renderiza controle binário Sim/Não padronizado para preferências.
+  * Entradas esperadas: recebe valor booleano, callback de alteração e textos opcionais para Sim/Não.
+*/
 
 type YesNoSegmentedControlProps = {
   value: boolean;

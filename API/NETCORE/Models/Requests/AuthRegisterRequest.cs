@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Requests/AuthRegisterRequest.cs
+ * Objetivo: define contrato de entrada para operações de autenticação, cadastro, recuperação de senha e sessões.
+ * Entradas esperadas: recebe dados serializados do frontend nas ações da API.
+ */
 namespace HORUSPDV_API.Models.Requests;
 
 public class AuthRegisterRequest

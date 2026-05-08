@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Empresa/EmpresaController.cs
+ * Objetivo: expõe endpoints HTTP de dados cadastrais e configurações da empresa e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DataAccess;
@@ -16,7 +21,7 @@ public class EmpresaController(EmpresaAB empresaAB) : ControllerBase
         var empresa = await empresaAB.ObterPrincipalAsync();
         if (empresa is null)
         {
-            return NotFound(new ApiResponse<EmpresaRequest> { Success = false, Message = "Empresa nao encontrada." });
+            return NotFound(new ApiResponse<EmpresaRequest> { Success = false, Message = "Empresa não encontrada." });
         }
 
         return Ok(new ApiResponse<EmpresaRequest>

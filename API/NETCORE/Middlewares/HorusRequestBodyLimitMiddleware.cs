@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Middlewares/HorusRequestBodyLimitMiddleware.cs
+ * Objetivo: limita o tamanho do corpo das requisições antes de processar endpoints sensíveis.
+ * Entradas esperadas: recebe HttpContext do pipeline ASP.NET Core e decide se a requisição segue para o próximo middleware.
+ */
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Services.Security;
 

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Repositories/DataAccess/CaixaSessionAD.cs
+ * Objetivo: representa estrutura de dados de abertura, fechamento e status de caixa retornada pelo acesso ao banco.
+ * Entradas esperadas: recebe valores lidos do SQL Server e alimenta serviços/repositórios superiores.
+ */
 namespace HORUSPDV_API.Repositories.DataAccess;
 
 public class CaixaSessionAD

@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Email/HorusEmailOptions.cs
+ * Objetivo: define opções de envio de e-mail usadas pelos fluxos de cadastro e recuperação de senha.
+ * Entradas esperadas: recebe valores de configuração SMTP vindos do banco, appsettings ou variáveis de ambiente.
+ */
 namespace HORUSPDV_API.Services.Email;
 
 public class HorusEmailOptions

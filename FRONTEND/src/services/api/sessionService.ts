@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/sessionService.ts
+ * Objetivo: encapsula chamadas HTTP de sessões autenticadas e encerramento de acessos.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import type { ActiveSession } from "@/components/SettingsPage";
 import { apiRequest } from "./apiClient";
 

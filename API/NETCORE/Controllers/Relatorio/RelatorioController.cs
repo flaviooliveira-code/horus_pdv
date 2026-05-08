@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Relatorio/RelatorioController.cs
+ * Objetivo: expõe endpoints HTTP de relatórios operacionais e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,7 +17,7 @@ public class RelatorioController : ControllerBase
         => Ok(new ApiResponse<object>
         {
             Success = true,
-            Message = "Relatorio gerado com sucesso.",
+            Message = "Relatório gerado com sucesso.",
             Data = new
             {
                 columns = new[]

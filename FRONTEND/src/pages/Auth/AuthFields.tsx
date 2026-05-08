@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/AuthFields.tsx
+ * Objetivo: concentra campos e controles reutilizados nas telas públicas de autenticação.
+ * Entradas esperadas: recebe estado de formulário, callbacks e flags de carregamento/validação.
+ */
 import { Building2, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { maskCnpj } from "@/utils/inputMasks";
 

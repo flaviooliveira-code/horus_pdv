@@ -5,11 +5,6 @@
  */
 
 /* eslint-disable react-refresh/only-export-components */
-/**
- * Arquivo: src/hooks/Dialog/useToast.tsx
- * Objetivo: disponibiliza API global e hook para exibição de toasts.
- * Entradas esperadas: tipo, mensagem e duração opcional por toast.
- */
 import { useEffect, useMemo, useState } from "react";
 import { CircleCheck, CircleX, Info, LoaderCircle, X } from "lucide-react";
 
@@ -54,7 +49,7 @@ const addToast = (type: ToastType, message: string, duration?: number) => {
   notify();
 
   if (type !== "loading") {
-    // Toats comuns expiram automaticamente.
+    // Toasts comuns expiram automaticamente.
     window.setTimeout(() => removeToast(id), duration ?? 3000);
   }
 

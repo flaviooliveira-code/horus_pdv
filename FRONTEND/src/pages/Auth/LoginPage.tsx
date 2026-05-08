@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/LoginPage.tsx
+ * Objetivo: renderiza autenticação do usuário e inicialização da sessão no frontend.
+ * Entradas esperadas: recebe callbacks de sucesso e navegação para cadastro/recuperação.
+ */
 import { LogIn } from "lucide-react";
 import { useState } from "react";
 import useRecaptchaV3 from "@/hooks/Security/useRecaptchaV3";

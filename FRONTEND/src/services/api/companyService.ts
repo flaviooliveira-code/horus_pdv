@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/companyService.ts
+ * Objetivo: encapsula chamadas HTTP de dados da empresa e configuração de e-mail.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 
 const EMPRESA_API_URL =

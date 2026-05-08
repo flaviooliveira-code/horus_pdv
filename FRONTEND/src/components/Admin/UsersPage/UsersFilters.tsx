@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/UsersFilters.tsx
  * Objetivo: renderiza filtros de busca/perfil/status da gestão de usuários.
- */
+  * Entradas esperadas: recebe filtros atuais, opções de perfil/status e callbacks de alteração.
+*/
 import { RotateCcw } from "lucide-react";
 import { SearchableSelectField } from "@/components/Form";
 import type { UserRoleFilter, UserStatusFilter } from "./types";

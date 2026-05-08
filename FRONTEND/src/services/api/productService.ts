@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/productService.ts
+ * Objetivo: encapsula chamadas HTTP de cadastro, estoque e manutenção de produtos.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import { apiRequest } from "./apiClient";
 
 const PRODUTO_API_URL =

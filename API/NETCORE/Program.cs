@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Program.cs
+ * Objetivo: configura serviços, middlewares, CORS, autenticação e inicialização da API do Hórus PDV.
+ * Entradas esperadas: espera configurações de ambiente/appsettings e registra o pipeline HTTP da aplicação.
+ */
 using HORUSPDV_API.Middlewares;
 using HORUSPDV_API.Repositories;
 using HORUSPDV_API.Repositories.DatabaseAccess;

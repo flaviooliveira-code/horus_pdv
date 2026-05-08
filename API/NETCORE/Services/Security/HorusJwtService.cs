@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Security/HorusJwtService.cs
+ * Objetivo: emite e valida tokens JWT vinculados à sessão autenticada do usuário.
+ * Entradas esperadas: recebe usuário, sessão e IP para emitir tokens e validar sessões autenticadas.
+ */
 using HORUSPDV_API.Repositories.DatabaseAccess;
 using System.Security.Cryptography;
 using System.Text;

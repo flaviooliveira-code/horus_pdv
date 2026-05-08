@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Clientes/ClienteService.cs
+ * Objetivo: centraliza regras de negócio de cadastro e manutenção de clientes antes do acesso ao banco ou resposta HTTP.
+ * Entradas esperadas: recebe requisições já validadas pelos controladores e aplica consistência operacional do domínio.
+ */
 using HORUSPDV_API.Models.Clientes;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
@@ -69,7 +74,7 @@ public class ClienteService(ClienteAB clientesAB) : IClienteService
         var document = OnlyDigits(request.Document);
         if (customers.Any(item => item.Id != currentId && OnlyDigits(item.Document) == document))
         {
-            throw new InvalidOperationException("Ja existe cliente com este documento.");
+            throw new InvalidOperationException("Já existe cliente com este documento.");
         }
     }
 

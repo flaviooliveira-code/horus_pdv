@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Services/Security/HorusRecaptchaService.cs
+ * Objetivo: valida tokens do Google reCAPTCHA antes de ações públicas sensíveis.
+ * Entradas esperadas: recebe token, ação esperada e IP do cliente para validar risco no Google reCAPTCHA.
+ */
 using System.Text.Json;
 
 namespace HORUSPDV_API.Services.Security;
@@ -19,7 +24,7 @@ public class HorusRecaptchaService(HttpClient httpClient, HorusSecurityOptions s
         {
             return RecaptchaValidationResult.Fail(
                 StatusCodes.Status500InternalServerError,
-                "Validação de segurança indisponível. Configure Recaptcha:SecretKey no backend.");
+                "Validação de segurança indisponível. Configure Recaptcha:SecretKey na API.");
         }
 
         if (string.IsNullOrWhiteSpace(token))

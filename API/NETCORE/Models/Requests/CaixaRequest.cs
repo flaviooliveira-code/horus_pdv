@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Requests/CaixaRequest.cs
+ * Objetivo: define contrato de entrada para operações de abertura, fechamento e status de caixa.
+ * Entradas esperadas: recebe dados serializados do frontend nas ações da API.
+ */
 namespace HORUSPDV_API.Models.Requests;
 
 public class AbrirCaixaRequest

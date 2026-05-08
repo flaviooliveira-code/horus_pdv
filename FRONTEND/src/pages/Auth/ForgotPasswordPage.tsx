@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/ForgotPasswordPage.tsx
+ * Objetivo: renderiza fluxo de solicitação de recuperação de senha por CNPJ e e-mail.
+ * Entradas esperadas: recebe callbacks de navegação; envia token de reCAPTCHA e dados para a API.
+ */
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import LoadingButton from "@/components/Loading/LoadingButton";

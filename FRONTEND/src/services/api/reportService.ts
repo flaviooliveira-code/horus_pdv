@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/services/api/reportService.ts
+ * Objetivo: encapsula chamadas HTTP de geração de relatórios operacionais.
+ * Entradas esperadas: recebe payloads já validados pelas telas e retorna respostas tipadas da API.
+ */
 import type { ReportFilterValues, ReportResultColumn, ReportResultRow } from "@/components/Admin/ReportsPage/reportResultTypes";
 import { apiRequest } from "./apiClient";
 

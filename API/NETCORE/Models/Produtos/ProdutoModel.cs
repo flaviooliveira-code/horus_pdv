@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Produtos/ProdutoModel.cs
+ * Objetivo: representa dados de cadastro, estoque e manutenção de produtos trafegados entre banco, serviços e API.
+ * Entradas esperadas: recebe valores persistidos ou calculados para serialização nas respostas.
+ */
 namespace HORUSPDV_API.Models.Produtos;
 
 public class ProdutoModel

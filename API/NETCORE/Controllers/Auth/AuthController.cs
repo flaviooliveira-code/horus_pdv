@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Auth/AuthController.cs
+ * Objetivo: expõe endpoints HTTP de autenticação, cadastro, recuperação de senha e sessões e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
@@ -126,7 +131,7 @@ public class AuthController(
             catch (Exception ex)
             {
                 securityStore.ConsumePasswordResetToken(resetRequest.ResetToken, ip, userAgent);
-                logger.LogWarning(ex, "Nao foi possivel enviar e-mail de recuperacao para {Email}.", request.Email);
+                logger.LogWarning(ex, "Não foi possível enviar e-mail de recuperação para {Email}.", request.Email);
                 return StatusCode(StatusCodes.Status502BadGateway, new ApiResponse<object>
                 {
                     Success = false,
@@ -219,7 +224,7 @@ public class AuthController(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Nao foi possivel enviar e-mail de cadastro para {Email}.", request.Email);
+                logger.LogWarning(ex, "Não foi possível enviar e-mail de cadastro para {Email}.", request.Email);
             }
 
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
@@ -240,7 +245,7 @@ public class AuthController(
     {
         if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
         {
-            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
         }
 
         var user = securityStore.GetActiveUser(currentUser.Id);
@@ -277,7 +282,7 @@ public class AuthController(
     {
         if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
         {
-            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessao nao encontrada." });
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
         }
 
         try

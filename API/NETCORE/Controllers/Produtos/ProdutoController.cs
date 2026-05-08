@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Controllers/Produtos/ProdutoController.cs
+ * Objetivo: expõe endpoints HTTP de cadastro, estoque e manutenção de produtos e padroniza respostas para o frontend.
+ * Entradas esperadas: recebe requisições REST, valida dados básicos e delega regras para serviços/repositórios.
+ */
 using HORUSPDV_API.Models.Produtos;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
@@ -54,7 +59,7 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
             var updated = await produtoService.AtualizarAsync(id, request);
             if (updated is null)
             {
-                return NotFound(new ApiResponse<ProdutoModel> { Success = false, Message = "Produto nao encontrado." });
+                return NotFound(new ApiResponse<ProdutoModel> { Success = false, Message = "Produto não encontrado." });
             }
 
             return Ok(new ApiResponse<ProdutoModel>
@@ -78,7 +83,7 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
         var removed = await produtoService.ExcluirAsync(id);
         if (!removed)
         {
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Produto nao encontrado." });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Produto não encontrado." });
         }
 
         return Ok(new ApiResponse<object> { Success = true, Message = "Produto removido com sucesso." });

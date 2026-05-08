@@ -1,3 +1,8 @@
+/**
+ * Arquivo: API/NETCORE/Models/Requests/ProdutoRequest.cs
+ * Objetivo: define contrato de entrada para operações de cadastro, estoque e manutenção de produtos.
+ * Entradas esperadas: recebe dados serializados do frontend nas ações da API.
+ */
 namespace HORUSPDV_API.Models.Requests;
 
 public class ProdutoRequest

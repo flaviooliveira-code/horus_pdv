@@ -1,7 +1,8 @@
 /**
  * Arquivo: src/components/Admin/UsersPage/utils.ts
  * Objetivo: utilitários para normalização e ids da tela de usuários.
- */
+  * Entradas esperadas: recebe strings e entidades da feature para normalização e composição de identificadores.
+*/
 import type { AdminUser } from "./types";
 
 export function statusClass(status: AdminUser["status"]) {

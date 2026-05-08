@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Auth/AuthLayout.tsx
+ * Objetivo: padroniza o layout visual das telas públicas de login, cadastro e recuperação de senha.
+ * Entradas esperadas: recebe conteúdo filho e textos de apoio exibidos no painel institucional.
+ */
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 

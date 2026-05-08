@@ -1,3 +1,8 @@
+/**
+ * Arquivo: src/pages/Admin/FiscalPage.tsx
+ * Objetivo: apresenta o módulo fiscal NFC-e/NF-e no estado de desenvolvimento.
+ * Entradas esperadas: não recebe props; exibe conteúdo informativo e status do roadmap.
+ */
 import UnderDevelopmentPage from "@/components/Admin/UnderDevelopmentPage";
 
 export default function FiscalPage() {
