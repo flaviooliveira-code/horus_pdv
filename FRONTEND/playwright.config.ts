@@ -4,7 +4,7 @@ const appUrl = process.env.SMOKE_APP_URL ?? "http://127.0.0.1:5173";
 
 export default defineConfig({
   testDir: "./tests/smoke",
-  timeout: 120_000,
+  timeout: 180_000,
   expect: {
     timeout: 10_000,
   },

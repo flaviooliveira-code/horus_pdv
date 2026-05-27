@@ -182,6 +182,7 @@ export default function EditProfilePage({
                 Nome
               </label>
               <input
+                aria-label="Nome"
                 value={profileName}
                 onChange={(event) => setProfileName(event.target.value)}
                 className="input-field w-full"
@@ -192,6 +193,7 @@ export default function EditProfilePage({
                 Email
               </label>
               <input
+                aria-label="Email"
                 type="email"
                 value={profileEmail}
                 onChange={(event) => setProfileEmail(event.target.value)}
@@ -203,6 +205,7 @@ export default function EditProfilePage({
                 Telefone
               </label>
               <input
+                aria-label="Telefone"
                 value={profilePhone}
                 onChange={(event) => setProfilePhone(event.target.value)}
                 className="input-field w-full"

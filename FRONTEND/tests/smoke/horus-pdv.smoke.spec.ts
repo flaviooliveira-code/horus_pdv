@@ -22,6 +22,7 @@ type LoginData = {
   token: string;
   user: {
     id: string;
+    companyId: string;
     cpf: string;
     name: string;
     email: string;
@@ -125,15 +126,18 @@ test("smoke completo: cadastro, login, navegacao e operacoes conectadas", async 
   authToken = await loginThroughUi(page);
 
   await expect(page.getByText(smoke.companyName).first()).toBeVisible();
-  await api(request, authToken, "/Auth/me");
+  await validateAuthenticatedCompanyScope(request);
   await validateGuidedTour(page);
 
   await logoutAndLoginAgain(page);
   const loginData = await loginApi(request);
   authToken = loginData.token;
+  expect(loginData.user.companyId).toBeTruthy();
+  expect(loginData.user.companyId).not.toBe("empresa-principal");
   await hydrateBrowserSession(page, loginData);
 
   await validateAllPagesRender(page);
+  await validateProfileUpdateThroughUi(page, request);
   await validateAdvancedModulesThroughUi(page);
   await validateCrudAndOperations(request);
   logSavedDataHint();
@@ -282,6 +286,41 @@ async function validateAdvancedModulesThroughUi(page: Page) {
       await expect(editedRow).toBeHidden();
     }
   }
+}
+
+async function validateProfileUpdateThroughUi(page: Page, request: APIRequestContext) {
+  const updatedName = `${RUN_ID} Perfil Editado`;
+  const updatedEmail = `${RUN_ID.toLowerCase()}_perfil@hpdv.test`;
+  const updatedPhone = "(11) 96666-3333";
+
+  await openAppPage(page, "editar-perfil", "Perfil do usuário");
+  await page.getByLabel(/^Nome$/i).fill(updatedName);
+  await page.getByLabel(/^Email$/i).fill(updatedEmail);
+  await page.getByLabel(/^Telefone$/i).fill(updatedPhone);
+  await page.getByRole("button", { name: "Salvar perfil", exact: true }).click();
+  await expect(page.getByText("Perfil atualizado com sucesso.")).toBeVisible();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
+
+  const storedUser = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("horuspdv.auth.user");
+    return raw ? JSON.parse(raw) : null;
+  });
+  expect(storedUser?.name).toBe(updatedName);
+  expect(storedUser?.email).toBe(updatedEmail);
+  expect(storedUser?.phone).toBe(updatedPhone);
+  expect(storedUser?.companyId).toBeTruthy();
+
+  const me = await api<LoginData["user"]>(request, authToken, "/Auth/me");
+  expect(me.name).toBe(updatedName);
+  expect(me.email).toBe(updatedEmail);
+  expect(me.phone).toBe(updatedPhone);
+  expect(me.companyId).toBe(storedUser.companyId);
+}
+
+async function validateAuthenticatedCompanyScope(request: APIRequestContext) {
+  const me = await api<LoginData["user"]>(request, authToken, "/Auth/me");
+  expect(me.companyId).toBeTruthy();
+  expect(me.companyId).not.toBe("empresa-principal");
 }
 
 async function openAppPage(page: Page, key: string, title: string) {
