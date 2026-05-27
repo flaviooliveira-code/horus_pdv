@@ -12,32 +12,32 @@ namespace HORUSPDV_API.Services.Clientes;
 
 public class ClienteService(ClienteAB clientesAB) : IClienteService
 {
-    public async Task<List<ClienteModel>> ListarAsync()
-        => (await clientesAB.ListarAsync()).Select(ToModel).ToList();
+    public async Task<List<ClienteModel>> ListarAsync(string companyId)
+        => (await clientesAB.ListarAsync(companyId)).Select(ToModel).ToList();
 
-    public async Task<ClienteModel> CriarAsync(ClienteRequest request)
+    public async Task<ClienteModel> CriarAsync(string companyId, ClienteRequest request)
     {
         Validate(request);
-        await ValidateDuplicatesAsync(request, null);
+        await ValidateDuplicatesAsync(companyId, request, null);
         var customer = MapRequest($"cl-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request);
-        return ToModel(await clientesAB.SalvarAsync(customer));
+        return ToModel(await clientesAB.SalvarAsync(companyId, customer));
     }
 
-    public async Task<ClienteModel?> AtualizarAsync(string id, ClienteRequest request)
+    public async Task<ClienteModel?> AtualizarAsync(string companyId, string id, ClienteRequest request)
     {
         Validate(request);
-        var current = await clientesAB.ObterAsync(id);
+        var current = await clientesAB.ObterAsync(companyId, id);
         if (current is null)
         {
             return null;
         }
 
-        await ValidateDuplicatesAsync(request, id);
-        return ToModel(await clientesAB.SalvarAsync(MapRequest(id, request)));
+        await ValidateDuplicatesAsync(companyId, request, id);
+        return ToModel(await clientesAB.SalvarAsync(companyId, MapRequest(id, request)));
     }
 
-    public Task<bool> ExcluirAsync(string id)
-        => clientesAB.ExcluirAsync(id);
+    public Task<bool> ExcluirAsync(string companyId, string id)
+        => clientesAB.ExcluirAsync(companyId, id);
 
     private static void Validate(ClienteRequest request)
     {
@@ -68,9 +68,9 @@ public class ClienteService(ClienteAB clientesAB) : IClienteService
         }
     }
 
-    private async Task ValidateDuplicatesAsync(ClienteRequest request, string? currentId)
+    private async Task ValidateDuplicatesAsync(string companyId, ClienteRequest request, string? currentId)
     {
-        var customers = await clientesAB.ListarAsync();
+        var customers = await clientesAB.ListarAsync(companyId);
         var document = OnlyDigits(request.Document);
         if (customers.Any(item => item.Id != currentId && OnlyDigits(item.Document) == document))
         {

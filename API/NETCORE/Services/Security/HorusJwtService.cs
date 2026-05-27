@@ -29,6 +29,7 @@ public class HorusJwtService(HorusSecurityOptions securityOptions)
             ["aud"] = securityOptions.JwtAudience,
             ["sub"] = user.Id,
             ["id"] = user.Id,
+            ["companyId"] = user.CompanyId,
             ["name"] = user.Name,
             ["email"] = user.Email,
             ["role"] = user.Role,
@@ -76,6 +77,7 @@ public class HorusJwtService(HorusSecurityOptions securityOptions)
         {
             Id = userId,
             SessionId = sessionId,
+            CompanyId = root.TryGetProperty("companyId", out var companyElement) ? companyElement.GetString() ?? "empresa-principal" : "empresa-principal",
             Name = root.TryGetProperty("name", out var nameElement) ? nameElement.GetString() ?? "" : "",
             Email = root.TryGetProperty("email", out var emailElement) ? emailElement.GetString() ?? "" : "",
             Role = root.TryGetProperty("role", out var roleElement) ? roleElement.GetString() ?? "" : ""
@@ -110,6 +112,7 @@ public class HorusJwtService(HorusSecurityOptions securityOptions)
 public class AuthenticatedUser
 {
     public string Id { get; set; } = string.Empty;
+    public string CompanyId { get; set; } = "empresa-principal";
     public string SessionId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;

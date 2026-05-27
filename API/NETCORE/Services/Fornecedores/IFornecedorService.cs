@@ -10,8 +10,8 @@ namespace HORUSPDV_API.Services.Fornecedores;
 
 public interface IFornecedorService
 {
-    Task<List<FornecedorModel>> ListarAsync();
-    Task<FornecedorModel> CriarAsync(FornecedorRequest request);
-    Task<FornecedorModel?> AtualizarAsync(string id, FornecedorRequest request);
-    Task<bool> ExcluirAsync(string id);
+    Task<List<FornecedorModel>> ListarAsync(string companyId);
+    Task<FornecedorModel> CriarAsync(string companyId, FornecedorRequest request);
+    Task<FornecedorModel?> AtualizarAsync(string companyId, string id, FornecedorRequest request);
+    Task<bool> ExcluirAsync(string companyId, string id);
 }

@@ -14,6 +14,7 @@ BEGIN
     CREATE TABLE Fornecedores
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Fornecedores PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Fornecedores_CompanyId DEFAULT N'empresa-principal',
         CompanyName NVARCHAR(180) NOT NULL CONSTRAINT DF_Fornecedores_CompanyName DEFAULT N'',
         FantasyName NVARCHAR(180) NOT NULL CONSTRAINT DF_Fornecedores_FantasyName DEFAULT N'',
         Cnpj NVARCHAR(30) NOT NULL CONSTRAINT DF_Fornecedores_Cnpj DEFAULT N'',
@@ -28,8 +29,13 @@ BEGIN
         Telephone NVARCHAR(30) NOT NULL CONSTRAINT DF_Fornecedores_Telephone DEFAULT N'',
         Cellphone NVARCHAR(30) NOT NULL CONSTRAINT DF_Fornecedores_Cellphone DEFAULT N'',
         Email NVARCHAR(180) NOT NULL CONSTRAINT DF_Fornecedores_Email DEFAULT N'',
-        CONSTRAINT UQ_Fornecedores_Cnpj UNIQUE (Cnpj)
+        CONSTRAINT UQ_Fornecedores_Company_Cnpj UNIQUE (CompanyId, Cnpj)
     );
+END;
+
+IF COL_LENGTH(N'Fornecedores', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE Fornecedores ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Fornecedores_CompanyId DEFAULT N'empresa-principal';
 END;
 
 IF OBJECT_ID(N'Produtos', N'U') IS NULL
@@ -37,6 +43,7 @@ BEGIN
     CREATE TABLE Produtos
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Produtos PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Produtos_CompanyId DEFAULT N'empresa-principal',
         ProductImageUrl NVARCHAR(500) NOT NULL CONSTRAINT DF_Produtos_ProductImageUrl DEFAULT N'',
         ProductImageName NVARCHAR(180) NOT NULL CONSTRAINT DF_Produtos_ProductImageName DEFAULT N'',
         ProductName NVARCHAR(180) NOT NULL CONSTRAINT DF_Produtos_ProductName DEFAULT N'',
@@ -48,9 +55,14 @@ BEGIN
         ProductUnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ProductUnitPrice DEFAULT N'0,00',
         ProductSalePrice NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ProductSalePrice DEFAULT N'0,00',
         TotalPriceOnProduct NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_TotalPriceOnProduct DEFAULT N'0,00',
-        CONSTRAINT UQ_Produtos_ProductCode UNIQUE (ProductCode),
+        CONSTRAINT UQ_Produtos_Company_ProductCode UNIQUE (CompanyId, ProductCode),
         CONSTRAINT FK_Produtos_Fornecedores FOREIGN KEY (SupplierId) REFERENCES Fornecedores (Id) ON DELETE SET NULL
     );
+END;
+
+IF COL_LENGTH(N'Produtos', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Produtos_CompanyId DEFAULT N'empresa-principal';
 END;
 
 IF OBJECT_ID(N'Clientes', N'U') IS NULL
@@ -58,6 +70,7 @@ BEGIN
     CREATE TABLE Clientes
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Clientes PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Clientes_CompanyId DEFAULT N'empresa-principal',
         CustomerName NVARCHAR(180) NOT NULL CONSTRAINT DF_Clientes_CustomerName DEFAULT N'',
         Document NVARCHAR(30) NOT NULL CONSTRAINT DF_Clientes_Document DEFAULT N'',
         BirthDate NVARCHAR(20) NOT NULL CONSTRAINT DF_Clientes_BirthDate DEFAULT N'',
@@ -73,8 +86,13 @@ BEGIN
         Telephone NVARCHAR(30) NOT NULL CONSTRAINT DF_Clientes_Telephone DEFAULT N'',
         Cellphone NVARCHAR(30) NOT NULL CONSTRAINT DF_Clientes_Cellphone DEFAULT N'',
         Email NVARCHAR(180) NOT NULL CONSTRAINT DF_Clientes_Email DEFAULT N'',
-        CONSTRAINT UQ_Clientes_Document UNIQUE (Document)
+        CONSTRAINT UQ_Clientes_Company_Document UNIQUE (CompanyId, Document)
     );
+END;
+
+IF COL_LENGTH(N'Clientes', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE Clientes ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Clientes_CompanyId DEFAULT N'empresa-principal';
 END;
 
 IF OBJECT_ID(N'Empresas', N'U') IS NULL
@@ -133,6 +151,7 @@ BEGIN
     CREATE TABLE Usuarios
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Usuarios PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Usuarios_CompanyId DEFAULT N'empresa-principal',
         Cpf NVARCHAR(30) NOT NULL,
         Name NVARCHAR(180) NOT NULL,
         Email NVARCHAR(180) NOT NULL,
@@ -146,6 +165,11 @@ BEGIN
         CONSTRAINT UQ_Usuarios_Cpf UNIQUE (Cpf),
         CONSTRAINT UQ_Usuarios_Email UNIQUE (Email)
     );
+END;
+
+IF COL_LENGTH(N'Usuarios', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE Usuarios ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Usuarios_CompanyId DEFAULT N'empresa-principal';
 END;
 
 IF OBJECT_ID(N'Sessoes', N'U') IS NULL
@@ -204,6 +228,7 @@ BEGIN
     CREATE TABLE CaixaSessoes
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaSessoes PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaSessoes_CompanyId DEFAULT N'empresa-principal',
         OpenedAt DATETIMEOFFSET NOT NULL,
         ClosedAt DATETIMEOFFSET NULL,
         OpeningAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_OpeningAmount DEFAULT N'0,00',
@@ -218,11 +243,17 @@ BEGIN
     CREATE INDEX IX_CaixaSessoes_ClosedAt ON CaixaSessoes (ClosedAt);
 END;
 
+IF COL_LENGTH(N'CaixaSessoes', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaSessoes_CompanyId DEFAULT N'empresa-principal';
+END;
+
 IF OBJECT_ID(N'Vendas', N'U') IS NULL
 BEGIN
     CREATE TABLE Vendas
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Vendas PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Vendas_CompanyId DEFAULT N'empresa-principal',
         SaleNumber NVARCHAR(30) NOT NULL,
         CustomerName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_CustomerName DEFAULT N'Consumidor',
         CustomerCpf NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_CustomerCpf DEFAULT N'-',
@@ -232,6 +263,11 @@ BEGIN
         SaleDate DATETIMEOFFSET NOT NULL CONSTRAINT DF_Vendas_SaleDate DEFAULT SYSDATETIMEOFFSET(),
         CONSTRAINT UQ_Vendas_SaleNumber UNIQUE (SaleNumber)
     );
+END;
+
+IF COL_LENGTH(N'Vendas', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE Vendas ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Vendas_CompanyId DEFAULT N'empresa-principal';
 END;
 
 IF COL_LENGTH(N'Vendas', N'PaymentType') IS NULL
@@ -302,6 +338,7 @@ BEGIN
     CREATE TABLE ModuloMercadoRegistros
     (
         Id NVARCHAR(100) NOT NULL CONSTRAINT PK_ModuloMercadoRegistros PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_ModuloMercadoRegistros_CompanyId DEFAULT N'empresa-principal',
         ModuleId NVARCHAR(80) NOT NULL,
         Title NVARCHAR(180) NOT NULL,
         Description NVARCHAR(500) NOT NULL CONSTRAINT DF_ModuloMercadoRegistros_Description DEFAULT N'',
@@ -313,10 +350,16 @@ BEGIN
     CREATE INDEX IX_ModuloMercadoRegistros_ModuleId ON ModuloMercadoRegistros (ModuleId);
 END;
 
+IF COL_LENGTH(N'ModuloMercadoRegistros', N'CompanyId') IS NULL
+BEGIN
+    ALTER TABLE ModuloMercadoRegistros ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_ModuloMercadoRegistros_CompanyId DEFAULT N'empresa-principal';
+END;
+
 IF EXISTS (SELECT 1 FROM Usuarios WHERE Id = N'usr-001')
 BEGIN
     UPDATE Usuarios
        SET Cpf = N'06.332.765/0001-05',
+           CompanyId = N'empresa-principal',
            Name = N'Flávio Oliveira',
            Email = N'flavio@hpdv.com.br',
            Phone = N'(11) 98888-1111',
@@ -324,14 +367,14 @@ BEGIN
            Status = N'ativo',
            CreatedAt = N'2026-02-10',
            LastLoginAt = N'-',
-           PasswordHash = N'100000.kop8te8YGY/xSBBtEPR1yA==.iff4Jd546alYO+CLav8GVyX+p0cquoJK6fEpl6upHZc=',
+           PasswordHash = N'100000.aG9ydXNwZHZzZWVkMTIzNA==.2rLHDQjZmUF6Oolm44OWtYqIU7b1sXCtUV1XOx1JcWc=',
            MustChangePassword = 0
      WHERE Id = N'usr-001';
 END
 ELSE
 BEGIN
-    INSERT INTO Usuarios (Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword)
-    VALUES (N'usr-001', N'06.332.765/0001-05', N'Flávio Oliveira', N'flavio@hpdv.com.br', N'(11) 98888-1111', N'administrador', N'ativo', N'2026-02-10', N'-', N'100000.kop8te8YGY/xSBBtEPR1yA==.iff4Jd546alYO+CLav8GVyX+p0cquoJK6fEpl6upHZc=', 0);
+    INSERT INTO Usuarios (Id, CompanyId, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword)
+    VALUES (N'usr-001', N'empresa-principal', N'06.332.765/0001-05', N'Flávio Oliveira', N'flavio@hpdv.com.br', N'(11) 98888-1111', N'administrador', N'ativo', N'2026-02-10', N'-', N'100000.aG9ydXNwZHZzZWVkMTIzNA==.2rLHDQjZmUF6Oolm44OWtYqIU7b1sXCtUV1XOx1JcWc=', 0);
 END;
 
 IF EXISTS (SELECT 1 FROM Empresas WHERE Id = N'empresa-principal')

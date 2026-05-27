@@ -7,6 +7,7 @@ using HORUSPDV_API.Models.Produtos;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Services.Produtos;
+using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HORUSPDV_API.Controllers.Produtos;
@@ -19,7 +20,9 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<List<ProdutoModel>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Listar()
     {
-        var data = await produtoService.ListarAsync();
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<List<ProdutoModel>> { Success = false, Message = "Sessão não encontrada." });
+        var data = await produtoService.ListarAsync(currentUser.CompanyId);
         return Ok(new ApiResponse<List<ProdutoModel>>
         {
             Success = true,
@@ -33,9 +36,11 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Criar([FromBody] ProdutoRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<ProdutoModel> { Success = false, Message = "Sessão não encontrada." });
         try
         {
-            var created = await produtoService.CriarAsync(request);
+            var created = await produtoService.CriarAsync(currentUser.CompanyId, request);
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<ProdutoModel>
             {
                 Success = true,
@@ -54,9 +59,11 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Atualizar(string id, [FromBody] ProdutoRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<ProdutoModel> { Success = false, Message = "Sessão não encontrada." });
         try
         {
-            var updated = await produtoService.AtualizarAsync(id, request);
+            var updated = await produtoService.AtualizarAsync(currentUser.CompanyId, id, request);
             if (updated is null)
             {
                 return NotFound(new ApiResponse<ProdutoModel> { Success = false, Message = "Produto não encontrado." });
@@ -80,7 +87,9 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Excluir(string id)
     {
-        var removed = await produtoService.ExcluirAsync(id);
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        var removed = await produtoService.ExcluirAsync(currentUser.CompanyId, id);
         if (!removed)
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Produto não encontrado." });
@@ -88,4 +97,7 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
 
         return Ok(new ApiResponse<object> { Success = true, Message = "Produto removido com sucesso." });
     }
+
+    private AuthenticatedUser? GetCurrentUser()
+        => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

@@ -11,7 +11,7 @@ namespace HORUSPDV_API.Repositories.DatabaseAccess;
 
 public class HistoricoVendasAB(Connection connection)
 {
-    public async Task<List<VendaHistoricoAD>> ListarAsync(string? saleNumber = null)
+    public async Task<List<VendaHistoricoAD>> ListarAsync(string companyId, string? saleNumber = null)
     {
         const string sql = """
             SELECT v.SaleNumber, v.CustomerName, v.CustomerCpf, v.PaymentType,
@@ -19,13 +19,15 @@ public class HistoricoVendasAB(Connection connection)
                    i.ProductCode, i.ProductName, i.Quantity, i.UnitPrice, i.ItemTotal
             FROM VendaItens i
             INNER JOIN Vendas v ON v.Id = i.VendaId
-            WHERE (@SaleNumber IS NULL OR v.SaleNumber = @SaleNumber)
+            WHERE v.CompanyId = @CompanyId
+              AND (@SaleNumber IS NULL OR v.SaleNumber = @SaleNumber)
             ORDER BY v.SaleDate DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await EnsurePrintColumnsAsync(db);
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@SaleNumber", string.IsNullOrWhiteSpace(saleNumber) ? DBNull.Value : saleNumber);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<VendaHistoricoAD>();
@@ -37,7 +39,7 @@ public class HistoricoVendasAB(Connection connection)
         return rows;
     }
 
-    public async Task<VendaRegistroResultadoAD> RegistrarAsync(VendaRequest request)
+    public async Task<VendaRegistroResultadoAD> RegistrarAsync(string companyId, VendaRequest request)
     {
         await using var db = await connection.OpenConnectionAsync();
         await EnsurePrintColumnsAsync(db);
@@ -54,19 +56,20 @@ public class HistoricoVendasAB(Connection connection)
             var totalAmount = string.IsNullOrWhiteSpace(request.TotalAmount) ? "0,00" : request.TotalAmount.Trim();
             var operatorName = string.IsNullOrWhiteSpace(request.OperatorName) ? "Operador" : request.OperatorName.Trim();
             // A venda e a baixa de estoque compartilham a mesma transação para evitar histórico sem estoque atualizado.
-            var saleItems = await BaixarEstoqueAsync(db, transaction, request.Items);
+            var saleItems = await BaixarEstoqueAsync(db, transaction, companyId, request.Items);
 
             await using (var saleCommand = new SqlCommand(
                              """
                              INSERT INTO Vendas
-                                 (Id, SaleNumber, CustomerName, CustomerCpf, PaymentType, TotalAmount, OperatorName, SaleDate)
+                                 (Id, CompanyId, SaleNumber, CustomerName, CustomerCpf, PaymentType, TotalAmount, OperatorName, SaleDate)
                              VALUES
-                                 (@Id, @SaleNumber, @CustomerName, @CustomerCpf, @PaymentType, @TotalAmount, @OperatorName, @SaleDate);
+                                 (@Id, @CompanyId, @SaleNumber, @CustomerName, @CustomerCpf, @PaymentType, @TotalAmount, @OperatorName, @SaleDate);
                              """,
                              db,
                              transaction))
             {
                 saleCommand.Parameters.AddWithValue("@Id", saleId);
+                saleCommand.Parameters.AddWithValue("@CompanyId", companyId);
                 saleCommand.Parameters.AddWithValue("@SaleNumber", saleNumber);
                 saleCommand.Parameters.AddWithValue("@CustomerName", customerName);
                 saleCommand.Parameters.AddWithValue("@CustomerCpf", customerCpf);
@@ -139,6 +142,7 @@ public class HistoricoVendasAB(Connection connection)
     private static async Task<List<VendaItemRecord>> BaixarEstoqueAsync(
         SqlConnection db,
         SqlTransaction transaction,
+        string companyId,
         IEnumerable<VendaItemRequest> items)
     {
         var groupedItems = items
@@ -162,11 +166,12 @@ public class HistoricoVendasAB(Connection connection)
                 """
                 SELECT Id, ProductName, ProductQnt, ProductUnitPrice, ProductSalePrice
                 FROM Produtos WITH (UPDLOCK, ROWLOCK)
-                WHERE ProductCode = @ProductCode;
+                WHERE CompanyId = @CompanyId AND ProductCode = @ProductCode;
                 """,
                 db,
                 transaction);
             select.Parameters.AddWithValue("@ProductCode", item.ProductCode);
+            select.Parameters.AddWithValue("@CompanyId", companyId);
             await using var reader = await select.ExecuteReaderAsync();
             if (!await reader.ReadAsync())
             {

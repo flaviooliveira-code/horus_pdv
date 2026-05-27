@@ -14,16 +14,16 @@ public class HorusCaixaService(CaixaAB caixaAB)
 {
     private static readonly TimeSpan MaxOpenPeriod = TimeSpan.FromHours(24);
 
-    public CaixaStatusDto GetStatus(DateTimeOffset? reference = null)
-        => BuildStatus(reference ?? DateTimeOffset.Now);
+    public CaixaStatusDto GetStatus(string companyId, DateTimeOffset? reference = null)
+        => BuildStatus(companyId, reference ?? DateTimeOffset.Now);
 
     public CaixaStatusDto Abrir(AbrirCaixaRequest request, AuthenticatedUser currentUser)
     {
         var now = DateTimeOffset.Now;
-        var openSession = caixaAB.ObterSessaoAbertaAsync().GetAwaiter().GetResult();
+        var openSession = caixaAB.ObterSessaoAbertaAsync(currentUser.CompanyId).GetAwaiter().GetResult();
         if (openSession is not null)
         {
-            var status = BuildStatus(now);
+            var status = BuildStatus(currentUser.CompanyId, now);
             if (status.CanSell)
             {
                 throw new InvalidOperationException("Já existe um caixa aberto para venda.");
@@ -35,19 +35,20 @@ public class HorusCaixaService(CaixaAB caixaAB)
 
         caixaAB.AbrirAsync(
                 $"cx-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                currentUser.CompanyId,
                 now,
                 NormalizeMoney(request.OpeningAmount),
                 currentUser.Id,
                 currentUser.Name)
             .GetAwaiter()
             .GetResult();
-        return BuildStatus(now);
+        return BuildStatus(currentUser.CompanyId, now);
     }
 
     public CaixaStatusDto Fechar(FecharCaixaRequest request, AuthenticatedUser currentUser)
     {
         var now = DateTimeOffset.Now;
-        var openSession = caixaAB.ObterSessaoAbertaAsync().GetAwaiter().GetResult();
+        var openSession = caixaAB.ObterSessaoAbertaAsync(currentUser.CompanyId).GetAwaiter().GetResult();
         if (openSession is null)
         {
             throw new InvalidOperationException("Não existe caixa aberto para fechamento.");
@@ -55,6 +56,7 @@ public class HorusCaixaService(CaixaAB caixaAB)
 
         caixaAB.FecharAsync(
                 openSession.Id,
+                currentUser.CompanyId,
                 now,
                 NormalizeMoney(request.ClosingAmount),
                 currentUser.Id,
@@ -62,20 +64,20 @@ public class HorusCaixaService(CaixaAB caixaAB)
                 request.Note.Trim())
             .GetAwaiter()
             .GetResult();
-        return BuildStatus(now);
+        return BuildStatus(currentUser.CompanyId, now);
     }
 
-    public void EnsureVendaPermitida()
+    public void EnsureVendaPermitida(string companyId)
     {
-        var status = BuildStatus(DateTimeOffset.Now);
+        var status = BuildStatus(companyId, DateTimeOffset.Now);
         if (status.CanSell) return;
 
         throw new InvalidOperationException(status.BlockReason);
     }
 
-    private CaixaStatusDto BuildStatus(DateTimeOffset now)
+    private CaixaStatusDto BuildStatus(string companyId, DateTimeOffset now)
     {
-        var sessions = caixaAB.ListarSessoesAsync().GetAwaiter().GetResult();
+        var sessions = caixaAB.ListarSessoesAsync(companyId).GetAwaiter().GetResult();
         var openSession = sessions.FirstOrDefault(item => item.ClosedAt is null);
         var lastSession = openSession ?? sessions.FirstOrDefault();
         var canSell = false;

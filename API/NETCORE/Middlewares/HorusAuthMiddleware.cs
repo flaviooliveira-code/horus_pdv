@@ -40,6 +40,18 @@ public class HorusAuthMiddleware(RequestDelegate next)
         }
 
         context.Items["CurrentUser"] = authenticatedUser;
+        var rolePolicy = context.GetEndpoint()?.Metadata.GetMetadata<HorusAuthorizeRolesAttribute>();
+        if (rolePolicy is not null && rolePolicy.Roles.Count > 0 && !rolePolicy.Roles.Contains(authenticatedUser.Role))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuário sem permissão para esta ação."
+            });
+            return;
+        }
+
         await next(context);
     }
 

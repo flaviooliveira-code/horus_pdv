@@ -66,6 +66,7 @@ type CurrentUser = {
   id: string;
   name: string;
   email: string;
+  phone: string;
   permission: string;
   avatarUrl: string | null;
 };
@@ -92,6 +93,7 @@ function toCurrentUser(user: AuthenticatedUser): CurrentUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    phone: user.phone,
     permission: formatRole(user.role),
     avatarUrl:
       typeof window !== "undefined"
@@ -161,6 +163,7 @@ export default function App() {
       id: storedUser?.id || "",
       name: storedUser?.name || "",
       email: storedUser?.email || "",
+      phone: storedUser?.phone || "",
       permission: formatRole(storedUser?.role || ""),
       avatarUrl:
         typeof window !== "undefined"
@@ -298,6 +301,25 @@ export default function App() {
         success: false,
         message:
           error instanceof Error ? error.message : "Erro ao atualizar senha.",
+      };
+    }
+  };
+
+  const handleUpdateProfile = async (name: string, email: string, phone: string) => {
+    try {
+      const user = await authService.updateMe({ name: name.trim(), email: email.trim(), phone: phone.trim() });
+      if (!user) {
+        return { success: false, message: "A API não retornou o perfil atualizado." };
+      }
+
+      const token = getAuthToken();
+      if (token) setAuthSession(token, user);
+      setCurrentUser(toCurrentUser(user));
+      return { success: true, message: "Perfil atualizado com sucesso." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro ao atualizar perfil.",
       };
     }
   };
@@ -692,11 +714,13 @@ export default function App() {
             <EditProfilePage
               userName={currentUser.name}
               userEmail={currentUser.email}
+              userPhone={currentUser.phone}
               userRole={currentUser.permission}
               userAvatarUrl={currentUser.avatarUrl}
               onUploadAvatar={handleUploadAvatar}
               onRemoveAvatar={handleRemoveAvatar}
               onChangePassword={handleChangePassword}
+              onUpdateProfile={handleUpdateProfile}
             />
           ) : activePage === "configuracoes" ? (
             <SettingsPage

@@ -17,12 +17,19 @@ public class CaixaController(HorusCaixaService caixaService) : ControllerBase
 {
     [HttpGet("status")]
     public IActionResult Status()
-        => Ok(new ApiResponse<object>
+    {
+        if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        return Ok(new ApiResponse<object>
         {
             Success = true,
             Message = "Status do caixa obtido com sucesso.",
-            Data = caixaService.GetStatus()
+            Data = caixaService.GetStatus(currentUser.CompanyId)
         });
+    }
 
     [HttpPost("abrir")]
     public IActionResult Abrir([FromBody] AbrirCaixaRequest request)

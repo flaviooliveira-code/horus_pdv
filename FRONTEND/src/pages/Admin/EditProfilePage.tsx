@@ -18,27 +18,35 @@ type ChangePasswordResult = {
 type EditProfilePageProps = {
   userName: string;
   userEmail: string;
+  userPhone: string;
   userRole: string;
   userAvatarUrl: string | null;
   onUploadAvatar: (file: File) => void;
   onRemoveAvatar: () => void;
   onChangePassword: (currentPassword: string, nextPassword: string) => Promise<ChangePasswordResult>;
+  onUpdateProfile: (name: string, email: string, phone: string) => Promise<ChangePasswordResult>;
 };
 
 export default function EditProfilePage({
   userName,
   userEmail,
+  userPhone,
   userRole,
   userAvatarUrl,
   onUploadAvatar,
   onRemoveAvatar,
   onChangePassword,
+  onUpdateProfile,
 }: EditProfilePageProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const statusDialog = useStatusDialog();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [profileName, setProfileName] = useState(userName);
+  const [profileEmail, setProfileEmail] = useState(userEmail);
+  const [profilePhone, setProfilePhone] = useState(userPhone);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const initials = userName
     .trim()
@@ -79,6 +87,28 @@ export default function EditProfilePage({
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
+    statusDialog.success(result.message);
+  };
+
+  const handleUpdateProfile = async () => {
+    if (profileName.trim().length < 3) {
+      statusDialog.error("Informe um nome com pelo menos 3 caracteres.");
+      return;
+    }
+
+    if (!profileEmail.includes("@")) {
+      statusDialog.error("Informe um e-mail válido.");
+      return;
+    }
+
+    setSavingProfile(true);
+    const result = await onUpdateProfile(profileName, profileEmail, profilePhone);
+    setSavingProfile(false);
+    if (!result.success) {
+      statusDialog.error(result.message);
+      return;
+    }
+
     statusDialog.success(result.message);
   };
 
@@ -151,19 +181,49 @@ export default function EditProfilePage({
               <label className="mb-1 block text-sm font-semibold text-text-primary">
                 Nome
               </label>
-              <input value={userName} readOnly disabled className="input-field w-full" />
+              <input
+                value={profileName}
+                onChange={(event) => setProfileName(event.target.value)}
+                className="input-field w-full"
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold text-text-primary">
                 Email
               </label>
-              <input value={userEmail} readOnly disabled className="input-field w-full" />
+              <input
+                type="email"
+                value={profileEmail}
+                onChange={(event) => setProfileEmail(event.target.value)}
+                className="input-field w-full"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-text-primary">
+                Telefone
+              </label>
+              <input
+                value={profilePhone}
+                onChange={(event) => setProfilePhone(event.target.value)}
+                className="input-field w-full"
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold text-text-primary">
                 Permissão de usuário
               </label>
               <input value={userRole} readOnly disabled className="input-field w-full" />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => void handleUpdateProfile()}
+                disabled={savingProfile}
+              >
+                {savingProfile ? "Salvando..." : "Salvar perfil"}
+              </button>
             </div>
 
             <div className="rounded-xl border border-border-primary bg-bg-primary p-3 md:p-4">

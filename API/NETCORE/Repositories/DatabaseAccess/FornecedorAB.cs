@@ -10,17 +10,19 @@ namespace HORUSPDV_API.Repositories.DatabaseAccess;
 
 public class FornecedorAB(Connection connection)
 {
-    public async Task<List<FornecedorAD>> ListarAsync()
+    public async Task<List<FornecedorAD>> ListarAsync(string companyId)
     {
         const string sql = """
             SELECT Id, CompanyName, FantasyName, Cnpj, Cep, City, State, Address, Neighborhood,
                    StreetComplement, Number, ReferencePoint, Telephone, Cellphone, Email
             FROM Fornecedores
+            WHERE CompanyId = @CompanyId
             ORDER BY FantasyName;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<FornecedorAD>();
         while (await reader.ReadAsync())
@@ -31,26 +33,27 @@ public class FornecedorAB(Connection connection)
         return rows;
     }
 
-    public async Task<FornecedorAD?> ObterAsync(string id)
+    public async Task<FornecedorAD?> ObterAsync(string companyId, string id)
     {
         const string sql = """
             SELECT Id, CompanyName, FantasyName, Cnpj, Cep, City, State, Address, Neighborhood,
                    StreetComplement, Number, ReferencePoint, Telephone, Cellphone, Email
             FROM Fornecedores
-            WHERE Id = @Id;
+            WHERE Id = @Id AND CompanyId = @CompanyId;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@Id", id);
         await using var reader = await command.ExecuteReaderAsync();
         return await reader.ReadAsync() ? Map(reader) : null;
     }
 
-    public async Task<FornecedorAD> SalvarAsync(FornecedorAD supplier)
+    public async Task<FornecedorAD> SalvarAsync(string companyId, FornecedorAD supplier)
     {
         const string sql = """
-            IF EXISTS (SELECT 1 FROM Fornecedores WHERE Id = @Id)
+            IF EXISTS (SELECT 1 FROM Fornecedores WHERE Id = @Id AND CompanyId = @CompanyId)
             BEGIN
                 UPDATE Fornecedores
                    SET CompanyName = @CompanyName,
@@ -67,30 +70,32 @@ public class FornecedorAB(Connection connection)
                        Telephone = @Telephone,
                        Cellphone = @Cellphone,
                        Email = @Email
-                 WHERE Id = @Id;
+                 WHERE Id = @Id AND CompanyId = @CompanyId;
             END
             ELSE
             BEGIN
                 INSERT INTO Fornecedores
-                    (Id, CompanyName, FantasyName, Cnpj, Cep, City, State, Address, Neighborhood,
+                    (Id, CompanyId, CompanyName, FantasyName, Cnpj, Cep, City, State, Address, Neighborhood,
                      StreetComplement, Number, ReferencePoint, Telephone, Cellphone, Email)
                 VALUES
-                    (@Id, @CompanyName, @FantasyName, @Cnpj, @Cep, @City, @State, @Address, @Neighborhood,
+                    (@Id, @CompanyId, @CompanyName, @FantasyName, @Cnpj, @Cep, @City, @State, @Address, @Neighborhood,
                      @StreetComplement, @Number, @ReferencePoint, @Telephone, @Cellphone, @Email);
             END;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         AddParameters(command, supplier);
         await command.ExecuteNonQueryAsync();
         return supplier;
     }
 
-    public async Task<bool> ExcluirAsync(string id)
+    public async Task<bool> ExcluirAsync(string companyId, string id)
     {
         await using var db = await connection.OpenConnectionAsync();
-        await using var command = new SqlCommand("DELETE FROM Fornecedores WHERE Id = @Id;", db);
+        await using var command = new SqlCommand("DELETE FROM Fornecedores WHERE Id = @Id AND CompanyId = @CompanyId;", db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@Id", id);
         return await command.ExecuteNonQueryAsync() > 0;
     }

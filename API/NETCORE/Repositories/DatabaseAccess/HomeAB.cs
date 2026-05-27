@@ -12,10 +12,10 @@ public class HomeAB(Connection connection)
 {
     private static readonly CultureInfo PtBr = new("pt-BR");
 
-    public async Task<object> ObterAsync()
+    public async Task<object> ObterAsync(string companyId)
     {
-        var sales = await ListarVendasAsync();
-        var products = await ListarProdutosAsync();
+        var sales = await ListarVendasAsync(companyId);
+        var products = await ListarProdutosAsync(companyId);
         var today = DateTimeOffset.Now.Date;
         var todaySales = sales.Where(item => item.SaleDate.Date == today).ToList();
         var todayRevenue = todaySales.Sum(item => item.TotalAmount);
@@ -70,15 +70,17 @@ public class HomeAB(Connection connection)
         };
     }
 
-    private async Task<List<HomeSaleRow>> ListarVendasAsync()
+    private async Task<List<HomeSaleRow>> ListarVendasAsync(string companyId)
     {
         const string sql = """
             SELECT SaleDate, CustomerCpf, TotalAmount
-            FROM Vendas;
+            FROM Vendas
+            WHERE CompanyId = @CompanyId;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<HomeSaleRow>();
         while (await reader.ReadAsync())
@@ -92,15 +94,17 @@ public class HomeAB(Connection connection)
         return rows;
     }
 
-    private async Task<List<HomeProductRow>> ListarProdutosAsync()
+    private async Task<List<HomeProductRow>> ListarProdutosAsync(string companyId)
     {
         const string sql = """
             SELECT ProductQnt
-            FROM Produtos;
+            FROM Produtos
+            WHERE CompanyId = @CompanyId;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<HomeProductRow>();
         while (await reader.ReadAsync())

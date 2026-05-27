@@ -13,23 +13,38 @@ namespace HORUSPDV_API.Controllers.Usuario;
 
 [ApiController]
 [Route("api/[controller]")]
+[HorusAuthorizeRoles("administrador", "gerente")]
 public class UsuarioController(HorusSecurityStore securityStore) : ControllerBase
 {
     [HttpGet]
     public IActionResult Listar()
-        => Ok(new ApiResponse<object>
+    {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        return Ok(new ApiResponse<object>
         {
             Success = true,
             Message = "Usuarios obtidos com sucesso.",
-            Data = securityStore.ListUsers()
+            Data = securityStore.ListUsers(currentUser.CompanyId)
         });
+    }
 
     [HttpPost]
     public IActionResult Criar([FromBody] UsuarioRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
         try
         {
-            var user = securityStore.CreateUser(request);
+            var user = securityStore.CreateUser(request, currentUser.CompanyId);
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
                 Success = true,
@@ -46,9 +61,15 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
     [HttpPut("{id}")]
     public IActionResult Atualizar(string id, [FromBody] UsuarioRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
         try
         {
-            var user = securityStore.UpdateUser(id, request);
+            var user = securityStore.UpdateUser(id, request, currentUser.CompanyId);
             if (user is null)
             {
                 return NotFound(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
@@ -70,7 +91,13 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
     [HttpPatch("{id}/status")]
     public IActionResult AlterarStatus(string id, [FromBody] UsuarioStatusRequest request)
     {
-        var user = securityStore.UpdateStatus(id, request.Status);
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        var user = securityStore.UpdateStatus(id, request.Status, currentUser.CompanyId);
         if (user is null)
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
@@ -87,7 +114,13 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
     [HttpPost("{id}/resetar-senha")]
     public IActionResult ResetarSenha(string id)
     {
-        var result = securityStore.ResetPassword(id);
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        var result = securityStore.ResetPassword(id, currentUser.CompanyId);
         if (result is null)
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
@@ -105,4 +138,7 @@ public class UsuarioController(HorusSecurityStore securityStore) : ControllerBas
     {
         public string Status { get; set; } = "ativo";
     }
+
+    private AuthenticatedUser? GetCurrentUser()
+        => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

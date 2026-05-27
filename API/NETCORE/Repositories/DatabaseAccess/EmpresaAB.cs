@@ -11,7 +11,10 @@ namespace HORUSPDV_API.Repositories.DatabaseAccess;
 
 public class EmpresaAB(Connection connection, HorusSecretProtector secretProtector)
 {
-    public async Task<EmpresaAD?> ObterPrincipalAsync()
+    public Task<EmpresaAD?> ObterPrincipalAsync()
+        => ObterAsync("empresa-principal");
+
+    public async Task<EmpresaAD?> ObterAsync(string companyId)
     {
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(
@@ -21,19 +24,23 @@ public class EmpresaAB(Connection connection, HorusSecretProtector secretProtect
                    EmailSmtpEnabled, EmailSmtpHost, EmailSmtpPort, EmailSmtpEnableSsl, EmailSmtpUser,
                    EmailSmtpPassword, EmailSmtpFromEmail, EmailSmtpFromName, EmailSmtpReplyTo
             FROM Empresas
-            WHERE Id = N'empresa-principal';
+            WHERE Id = @Id;
             """,
             db);
+        command.Parameters.AddWithValue("@Id", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         return await reader.ReadAsync() ? Map(reader) : null;
     }
 
-    public async Task<EmpresaAD> SalvarPrincipalAsync(EmpresaAD empresa)
+    public Task<EmpresaAD> SalvarPrincipalAsync(EmpresaAD empresa)
+        => SalvarAsync("empresa-principal", empresa);
+
+    public async Task<EmpresaAD> SalvarAsync(string companyId, EmpresaAD empresa)
     {
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(
             """
-            IF EXISTS (SELECT 1 FROM Empresas WHERE Id = N'empresa-principal')
+            IF EXISTS (SELECT 1 FROM Empresas WHERE Id = @Id)
             BEGIN
                 UPDATE Empresas
                    SET FantasyName = @FantasyName,
@@ -64,7 +71,7 @@ public class EmpresaAB(Connection connection, HorusSecretProtector secretProtect
                        EmailSmtpFromEmail = @EmailSmtpFromEmail,
                        EmailSmtpFromName = @EmailSmtpFromName,
                        EmailSmtpReplyTo = @EmailSmtpReplyTo
-                 WHERE Id = N'empresa-principal';
+                 WHERE Id = @Id;
             END
             ELSE
             BEGIN
@@ -74,16 +81,17 @@ public class EmpresaAB(Connection connection, HorusSecretProtector secretProtect
                      EmailSmtpEnabled, EmailSmtpHost, EmailSmtpPort, EmailSmtpEnableSsl, EmailSmtpUser,
                      EmailSmtpPassword, EmailSmtpFromEmail, EmailSmtpFromName, EmailSmtpReplyTo)
                 VALUES
-                    (N'empresa-principal', @FantasyName, @CorporateName, @Cnpj, @StateRegistration, @Website,
+                    (@Id, @FantasyName, @CorporateName, @Cnpj, @StateRegistration, @Website,
                      @Email, @SacPhone, @Phone, @Mobile, @Cep, @Address, @Number, @Neighborhood, @City, @Uf, @Complement,
                      @EmailSmtpEnabled, @EmailSmtpHost, @EmailSmtpPort, @EmailSmtpEnableSsl, @EmailSmtpUser,
                      @EmailSmtpPassword, @EmailSmtpFromEmail, @EmailSmtpFromName, @EmailSmtpReplyTo);
             END;
             """,
             db);
+        command.Parameters.AddWithValue("@Id", companyId);
         AddParameters(command, empresa);
         await command.ExecuteNonQueryAsync();
-        return await ObterPrincipalAsync() ?? empresa;
+        return await ObterAsync(companyId) ?? empresa;
     }
 
     private void AddParameters(SqlCommand command, EmpresaAD source)

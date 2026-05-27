@@ -8,6 +8,7 @@ using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Repositories.DatabaseAccess;
+using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HORUSPDV_API.Controllers.ModuloMercado;
@@ -19,7 +20,9 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     [HttpGet("{id}")]
     public async Task<IActionResult> Obter(string id)
     {
-        var config = await BuildConfigAsync(id);
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        var config = await BuildConfigAsync(currentUser.CompanyId, id);
         if (config is null)
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
@@ -38,6 +41,9 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CriarRegistro(string id, [FromBody] ModuloMercadoRegistroRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+
         if (!await ModuleExistsAsync(id))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
@@ -46,12 +52,12 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
         try
         {
             await moduloMercadoAB.GarantirModuloAsync(id, BuildModuleTitle(id)!);
-            await moduloMercadoAB.CriarRegistroAsync(MapRequest(id, $"mm-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request));
+            await moduloMercadoAB.CriarRegistroAsync(MapRequest(currentUser.CompanyId, id, $"mm-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request));
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
                 Success = true,
                 Message = "Registro criado com sucesso.",
-                Data = await BuildConfigAsync(id)
+                Data = await BuildConfigAsync(currentUser.CompanyId, id)
             });
         }
         catch (InvalidOperationException ex)
@@ -65,6 +71,9 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AtualizarRegistro(string id, string recordId, [FromBody] ModuloMercadoRegistroRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+
         if (!await ModuleExistsAsync(id))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
@@ -72,7 +81,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
 
         try
         {
-            var updated = await moduloMercadoAB.AtualizarRegistroAsync(MapRequest(id, recordId, request));
+            var updated = await moduloMercadoAB.AtualizarRegistroAsync(MapRequest(currentUser.CompanyId, id, recordId, request));
             if (!updated)
             {
                 return NotFound(new ApiResponse<object> { Success = false, Message = "Registro não encontrado." });
@@ -82,7 +91,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
             {
                 Success = true,
                 Message = "Registro atualizado com sucesso.",
-                Data = await BuildConfigAsync(id)
+                Data = await BuildConfigAsync(currentUser.CompanyId, id)
             });
         }
         catch (InvalidOperationException ex)
@@ -96,12 +105,15 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ExcluirRegistro(string id, string recordId)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+
         if (!await ModuleExistsAsync(id))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Módulo não encontrado." });
         }
 
-        if (!await moduloMercadoAB.ExcluirRegistroAsync(id, recordId))
+        if (!await moduloMercadoAB.ExcluirRegistroAsync(currentUser.CompanyId, id, recordId))
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Registro não encontrado." });
         }
@@ -110,16 +122,16 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
         {
             Success = true,
             Message = "Registro removido com sucesso.",
-            Data = await BuildConfigAsync(id)
+            Data = await BuildConfigAsync(currentUser.CompanyId, id)
         });
     }
 
-    private async Task<object?> BuildConfigAsync(string id)
+    private async Task<object?> BuildConfigAsync(string companyId, string id)
     {
         var title = BuildModuleTitle(id);
         if (title is null) return null;
 
-        var records = (await moduloMercadoAB.ListarRegistrosAsync(id)).Select(ToModel).ToList();
+        var records = (await moduloMercadoAB.ListarRegistrosAsync(companyId, id)).Select(ToModel).ToList();
         var pendingCount = records.Count(item => IsPending(item.Status));
         var completedCount = records.Count(item => IsCompleted(item.Status));
         var completionRate = records.Count == 0
@@ -193,6 +205,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
     };
 
     private static ModuloMercadoRegistroAD MapRequest(
+        string companyId,
         string moduleId,
         string recordId,
         ModuloMercadoRegistroRequest request)
@@ -210,6 +223,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
         return new ModuloMercadoRegistroAD
         {
             Id = recordId,
+            CompanyId = companyId,
             ModuleId = moduleId,
             Title = request.Title.Trim(),
             Description = request.Description.Trim(),
@@ -239,4 +253,7 @@ public class ModuloMercadoController(ModuloMercadoAB moduloMercadoAB) : Controll
            || status.Contains("audit", StringComparison.OrdinalIgnoreCase)
            || status.Contains("fech", StringComparison.OrdinalIgnoreCase)
            || status.Contains("ativo", StringComparison.OrdinalIgnoreCase);
+
+    private AuthenticatedUser? GetCurrentUser()
+        => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

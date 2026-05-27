@@ -20,16 +20,18 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
     private static readonly object AttemptSyncRoot = new();
     private static readonly Dictionary<string, LoginAttemptBucket> Attempts = new(StringComparer.OrdinalIgnoreCase);
 
-    public List<SecurityUserDto> ListUsers()
+    public List<SecurityUserDto> ListUsers(string companyId)
     {
         using var db = connection.OpenConnection();
         using var command = new SqlCommand(
             """
-            SELECT Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
+            SELECT Id, CompanyId, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
             FROM Usuarios
+            WHERE CompanyId = @CompanyId
             ORDER BY Name;
             """,
             db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         using var reader = command.ExecuteReader();
         var rows = new List<SecurityUserDto>();
         while (reader.Read())
@@ -40,10 +42,11 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         return rows;
     }
 
-    public SecurityUserDto CreateUser(UsuarioRequest request)
+    public SecurityUserDto CreateUser(UsuarioRequest request, string companyId)
     {
         var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request, true);
-        ValidateDuplicates(user, null);
+        user.CompanyId = companyId;
+        ValidateDuplicates(user, null, companyId);
         InsertUser(user);
         return ToDto(user);
     }
@@ -60,29 +63,33 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
             throw new InvalidOperationException("A confirmação de senha não confere.");
         }
 
+        var companyId = $"emp-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
         var user = MapRequest($"usr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", new UsuarioRequest
         {
             Cpf = request.Cnpj,
             Name = request.Name,
             Email = request.Email,
             Phone = request.Phone,
-            Role = "atendente",
+            Role = "administrador",
             Status = "ativo",
             Password = request.Password
         }, true);
+        user.CompanyId = companyId;
         user.MustChangePassword = false;
-        ValidateDuplicates(user, null);
+        ValidateDuplicates(user, null, companyId);
+        EnsureCompanyForPublicRegistration(companyId, request);
         InsertUser(user);
         return ToDto(user);
     }
 
-    public SecurityUserDto? UpdateUser(string id, UsuarioRequest request)
+    public SecurityUserDto? UpdateUser(string id, UsuarioRequest request, string companyId)
     {
-        var current = FindUserById(id);
+        var current = FindUserById(id, companyId);
         if (current is null) return null;
 
         var updated = MapRequest(id, request, false);
-        ValidateDuplicates(updated, id);
+        updated.CompanyId = companyId;
+        ValidateDuplicates(updated, id, companyId);
         updated.PasswordHash = string.IsNullOrWhiteSpace(request.Password)
             ? current.PasswordHash
             : PasswordHasher.Hash(request.Password);
@@ -97,16 +104,17 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         return ToDto(updated);
     }
 
-    public SecurityUserDto? UpdateStatus(string id, string status)
+    public SecurityUserDto? UpdateStatus(string id, string status, string companyId)
     {
-        var user = FindUserById(id);
+        var user = FindUserById(id, companyId);
         if (user is null) return null;
 
         user.Status = status == "inativo" ? "inativo" : "ativo";
         using var db = connection.OpenConnection();
-        using var command = new SqlCommand("UPDATE Usuarios SET Status = @Status WHERE Id = @Id;", db);
+        using var command = new SqlCommand("UPDATE Usuarios SET Status = @Status WHERE Id = @Id AND CompanyId = @CompanyId;", db);
         command.Parameters.AddWithValue("@Status", user.Status);
         command.Parameters.AddWithValue("@Id", user.Id);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.ExecuteNonQuery();
 
         if (user.Status == "inativo")
@@ -117,9 +125,36 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         return ToDto(user);
     }
 
-    public ResetPasswordResult? ResetPassword(string id)
+    public SecurityUserDto? UpdateOwnProfile(string userId, string name, string email, string phone)
     {
-        var user = FindUserById(id);
+        var user = FindUserById(userId);
+        if (user is null || user.Status != "ativo") return null;
+
+        var request = new UsuarioRequest
+        {
+            CompanyId = user.CompanyId,
+            Cpf = user.Cpf,
+            Name = name,
+            Email = email,
+            Phone = phone,
+            Role = user.Role,
+            Status = user.Status,
+            Password = string.Empty
+        };
+        var updated = MapRequest(user.Id, request, false);
+        updated.CompanyId = user.CompanyId;
+        updated.PasswordHash = user.PasswordHash;
+        updated.CreatedAt = user.CreatedAt;
+        updated.LastLoginAt = user.LastLoginAt;
+        updated.MustChangePassword = user.MustChangePassword;
+        ValidateDuplicates(updated, user.Id, user.CompanyId);
+        UpdateUserRecord(updated);
+        return ToDto(updated);
+    }
+
+    public ResetPasswordResult? ResetPassword(string id, string companyId)
+    {
+        var user = FindUserById(id, companyId);
         if (user is null) return null;
 
         var password = $"Tmp@{Random.Shared.Next(100000, 999999)}9";
@@ -533,6 +568,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         return new SecurityUserRecord
         {
             Id = id,
+            CompanyId = request.CompanyId,
             Cpf = request.Cpf.Trim(),
             Name = request.Name.Trim(),
             Email = request.Email.Trim().ToLowerInvariant(),
@@ -546,17 +582,20 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         };
     }
 
-    private void ValidateDuplicates(SecurityUserRecord user, string? currentId)
+    private void ValidateDuplicates(SecurityUserRecord user, string? currentId, string companyId)
     {
         using var db = connection.OpenConnection();
         using var command = new SqlCommand(
             """
             SELECT COUNT(1)
             FROM Usuarios
-            WHERE Id <> @CurrentId AND (Cpf = @Cpf OR Email = @Email);
+            WHERE Id <> @CurrentId
+              AND CompanyId = @CompanyId
+              AND (Cpf = @Cpf OR Email = @Email);
             """,
             db);
         command.Parameters.AddWithValue("@CurrentId", currentId ?? string.Empty);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@Cpf", user.Cpf);
         command.Parameters.AddWithValue("@Email", user.Email);
 
@@ -571,11 +610,39 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         using var db = connection.OpenConnection();
         using var command = new SqlCommand(
             """
-            INSERT INTO Usuarios (Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword)
-            VALUES (@Id, @Cpf, @Name, @Email, @Phone, @Role, @Status, @CreatedAt, @LastLoginAt, @PasswordHash, @MustChangePassword);
+            INSERT INTO Usuarios (Id, CompanyId, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword)
+            VALUES (@Id, @CompanyId, @Cpf, @Name, @Email, @Phone, @Role, @Status, @CreatedAt, @LastLoginAt, @PasswordHash, @MustChangePassword);
             """,
             db);
         AddUserParameters(command, user);
+        command.ExecuteNonQuery();
+    }
+
+    private void EnsureCompanyForPublicRegistration(string companyId, AuthRegisterRequest request)
+    {
+        using var db = connection.OpenConnection();
+        using var command = new SqlCommand(
+            """
+            IF NOT EXISTS (SELECT 1 FROM Empresas WHERE Id = @Id)
+            BEGIN
+                INSERT INTO Empresas
+                    (Id, FantasyName, CorporateName, Cnpj, StateRegistration, Website, Email, SacPhone, Phone, Mobile,
+                     Cep, Address, Number, Neighborhood, City, Uf, Complement, EmailSmtpEnabled, EmailSmtpHost,
+                     EmailSmtpPort, EmailSmtpEnableSsl, EmailSmtpUser, EmailSmtpPassword, EmailSmtpFromEmail,
+                     EmailSmtpFromName, EmailSmtpReplyTo)
+                VALUES
+                    (@Id, @FantasyName, @CorporateName, @Cnpj, N'', N'', @Email, N'', @Phone, @Phone,
+                     N'', N'', N'', N'', N'', N'', N'', 0, N'smtp-mail.outlook.com',
+                     587, 1, N'', N'', N'', @FantasyName, N'');
+            END;
+            """,
+            db);
+        command.Parameters.AddWithValue("@Id", companyId);
+        command.Parameters.AddWithValue("@FantasyName", request.Name.Trim());
+        command.Parameters.AddWithValue("@CorporateName", request.Name.Trim());
+        command.Parameters.AddWithValue("@Cnpj", request.Cnpj.Trim());
+        command.Parameters.AddWithValue("@Email", request.Email.Trim().ToLowerInvariant());
+        command.Parameters.AddWithValue("@Phone", request.Phone.Trim());
         command.ExecuteNonQuery();
     }
 
@@ -586,6 +653,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
             """
             UPDATE Usuarios
                SET Cpf = @Cpf,
+                   CompanyId = @CompanyId,
                    Name = @Name,
                    Email = @Email,
                    Phone = @Phone,
@@ -594,7 +662,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
                    LastLoginAt = @LastLoginAt,
                    PasswordHash = @PasswordHash,
                    MustChangePassword = @MustChangePassword
-             WHERE Id = @Id;
+             WHERE Id = @Id AND CompanyId = @CompanyId;
             """,
             db);
         AddUserParameters(command, user);
@@ -607,12 +675,19 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
         return FindUserById(db, null, id);
     }
 
+    private SecurityUserRecord? FindUserById(string id, string companyId)
+    {
+        using var db = connection.OpenConnection();
+        var user = FindUserById(db, null, id);
+        return user is not null && user.CompanyId == companyId ? user : null;
+    }
+
     private SecurityUserRecord? FindUserByEmail(string email)
     {
         using var db = connection.OpenConnection();
         using var command = new SqlCommand(
             """
-            SELECT Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
+            SELECT Id, CompanyId, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
             FROM Usuarios
             WHERE Email = @Email;
             """,
@@ -626,7 +701,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
     {
         using var command = new SqlCommand(
             """
-            SELECT Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
+            SELECT Id, CompanyId, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
             FROM Usuarios
             WHERE Id = @Id;
             """,
@@ -645,7 +720,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
     {
         using var command = new SqlCommand(
             """
-            SELECT Id, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
+            SELECT Id, CompanyId, Cpf, Name, Email, Phone, Role, Status, CreatedAt, LastLoginAt, PasswordHash, MustChangePassword
             FROM Usuarios
             WHERE REPLACE(REPLACE(REPLACE(REPLACE(Cpf, '.', ''), '/', ''), '-', ''), ' ', '') = @Cnpj
               AND Email = @Email
@@ -716,6 +791,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
     private static void AddUserParameters(SqlCommand command, SecurityUserRecord user)
     {
         command.Parameters.AddWithValue("@Id", user.Id);
+        command.Parameters.AddWithValue("@CompanyId", user.CompanyId);
         command.Parameters.AddWithValue("@Cpf", user.Cpf);
         command.Parameters.AddWithValue("@Name", user.Name);
         command.Parameters.AddWithValue("@Email", user.Email);
@@ -784,6 +860,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
     private static SecurityUserRecord ReadUser(SqlDataReader reader) => new()
     {
         Id = ReadString(reader, "Id"),
+        CompanyId = ReadString(reader, "CompanyId"),
         Cpf = ReadString(reader, "Cpf"),
         Name = ReadString(reader, "Name"),
         Email = ReadString(reader, "Email"),
@@ -817,6 +894,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
     private static SecurityUserDto ToDto(SecurityUserRecord source) => new()
     {
         Id = source.Id,
+        CompanyId = source.CompanyId,
         Cpf = source.Cpf,
         Name = source.Name,
         Email = source.Email,
@@ -843,6 +921,7 @@ public class HorusSecurityStore(Connection connection, HorusSecurityOptions secu
 public class SecurityUserDto
 {
     public string Id { get; set; } = string.Empty;
+    public string CompanyId { get; set; } = string.Empty;
     public string Cpf { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
@@ -901,6 +980,7 @@ internal class LoginAttemptBucket
 internal sealed class SecurityUserRecord
 {
     public string Id { get; set; } = string.Empty;
+    public string CompanyId { get; set; } = "empresa-principal";
     public string Cpf { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;

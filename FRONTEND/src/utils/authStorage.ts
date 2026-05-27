@@ -9,6 +9,7 @@ export const AUTH_REMEMBER_STORAGE_KEY = "horuspdv.auth.remember";
 
 export type AuthenticatedUser = {
   id: string;
+  companyId: string;
   cpf: string;
   name: string;
   email: string;

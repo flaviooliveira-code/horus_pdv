@@ -35,18 +35,19 @@ public class ModuloMercadoAB(Connection connection)
         await command.ExecuteNonQueryAsync();
     }
 
-    public async Task<List<ModuloMercadoRegistroAD>> ListarRegistrosAsync(string id)
+    public async Task<List<ModuloMercadoRegistroAD>> ListarRegistrosAsync(string companyId, string id)
     {
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(
             """
-            SELECT Id, ModuleId, Title, Description, Status, Amount, Meta
+            SELECT Id, CompanyId, ModuleId, Title, Description, Status, Amount, Meta
             FROM ModuloMercadoRegistros
-            WHERE ModuleId = @ModuleId
+            WHERE CompanyId = @CompanyId AND ModuleId = @ModuleId
             ORDER BY Id;
             """,
             db);
         command.Parameters.AddWithValue("@ModuleId", id);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ModuloMercadoRegistroAD>();
         while (await reader.ReadAsync())
@@ -62,8 +63,8 @@ public class ModuloMercadoAB(Connection connection)
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(
             """
-            INSERT INTO ModuloMercadoRegistros (Id, ModuleId, Title, Description, Status, Amount, Meta)
-            VALUES (@Id, @ModuleId, @Title, @Description, @Status, @Amount, @Meta);
+            INSERT INTO ModuloMercadoRegistros (Id, CompanyId, ModuleId, Title, Description, Status, Amount, Meta)
+            VALUES (@Id, @CompanyId, @ModuleId, @Title, @Description, @Status, @Amount, @Meta);
             """,
             db);
         AddParameters(command, registro);
@@ -81,19 +82,20 @@ public class ModuloMercadoAB(Connection connection)
                    Status = @Status,
                    Amount = @Amount,
                    Meta = @Meta
-             WHERE ModuleId = @ModuleId AND Id = @Id;
+             WHERE CompanyId = @CompanyId AND ModuleId = @ModuleId AND Id = @Id;
             """,
             db);
         AddParameters(command, registro);
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
-    public async Task<bool> ExcluirRegistroAsync(string moduleId, string recordId)
+    public async Task<bool> ExcluirRegistroAsync(string companyId, string moduleId, string recordId)
     {
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(
-            "DELETE FROM ModuloMercadoRegistros WHERE ModuleId = @ModuleId AND Id = @Id;",
+            "DELETE FROM ModuloMercadoRegistros WHERE CompanyId = @CompanyId AND ModuleId = @ModuleId AND Id = @Id;",
             db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@ModuleId", moduleId);
         command.Parameters.AddWithValue("@Id", recordId);
         return await command.ExecuteNonQueryAsync() > 0;
@@ -102,6 +104,7 @@ public class ModuloMercadoAB(Connection connection)
     private static void AddParameters(SqlCommand command, ModuloMercadoRegistroAD registro)
     {
         command.Parameters.AddWithValue("@Id", registro.Id);
+        command.Parameters.AddWithValue("@CompanyId", registro.CompanyId);
         command.Parameters.AddWithValue("@ModuleId", registro.ModuleId);
         command.Parameters.AddWithValue("@Title", registro.Title);
         command.Parameters.AddWithValue("@Description", registro.Description);
@@ -113,6 +116,7 @@ public class ModuloMercadoAB(Connection connection)
     private static ModuloMercadoRegistroAD Map(SqlDataReader reader) => new()
     {
         Id = ReadString(reader, "Id"),
+        CompanyId = ReadString(reader, "CompanyId"),
         ModuleId = ReadString(reader, "ModuleId"),
         Title = ReadString(reader, "Title"),
         Description = ReadString(reader, "Description"),

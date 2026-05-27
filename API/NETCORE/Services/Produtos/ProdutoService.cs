@@ -12,32 +12,32 @@ namespace HORUSPDV_API.Services.Produtos;
 
 public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) : IProdutoService
 {
-    public async Task<List<ProdutoModel>> ListarAsync()
-        => (await produtosAB.ListarAsync()).Select(ToModel).ToList();
+    public async Task<List<ProdutoModel>> ListarAsync(string companyId)
+        => (await produtosAB.ListarAsync(companyId)).Select(ToModel).ToList();
 
-    public async Task<ProdutoModel> CriarAsync(ProdutoRequest request)
+    public async Task<ProdutoModel> CriarAsync(string companyId, ProdutoRequest request)
     {
         Validate(request);
-        await ValidateBusinessRulesAsync(request, null);
+        await ValidateBusinessRulesAsync(companyId, request, null);
         var product = MapRequest($"pr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request);
-        return ToModel(await produtosAB.SalvarAsync(product));
+        return ToModel(await produtosAB.SalvarAsync(companyId, product));
     }
 
-    public async Task<ProdutoModel?> AtualizarAsync(string id, ProdutoRequest request)
+    public async Task<ProdutoModel?> AtualizarAsync(string companyId, string id, ProdutoRequest request)
     {
         Validate(request);
-        var current = await produtosAB.ObterAsync(id);
+        var current = await produtosAB.ObterAsync(companyId, id);
         if (current is null)
         {
             return null;
         }
 
-        await ValidateBusinessRulesAsync(request, id);
-        return ToModel(await produtosAB.SalvarAsync(MapRequest(id, request)));
+        await ValidateBusinessRulesAsync(companyId, request, id);
+        return ToModel(await produtosAB.SalvarAsync(companyId, MapRequest(id, request)));
     }
 
-    public Task<bool> ExcluirAsync(string id)
-        => produtosAB.ExcluirAsync(id);
+    public Task<bool> ExcluirAsync(string companyId, string id)
+        => produtosAB.ExcluirAsync(companyId, id);
 
     private static void Validate(ProdutoRequest request)
     {
@@ -72,9 +72,9 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
         }
     }
 
-    private async Task ValidateBusinessRulesAsync(ProdutoRequest request, string? currentId)
+    private async Task ValidateBusinessRulesAsync(string companyId, ProdutoRequest request, string? currentId)
     {
-        var products = await produtosAB.ListarAsync();
+        var products = await produtosAB.ListarAsync(companyId);
         var productCode = request.ProductCode.Trim();
         if (products.Any(item =>
                 item.Id != currentId &&
@@ -83,7 +83,7 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
             throw new InvalidOperationException("Já existe produto com este código.");
         }
 
-        var suppliers = await fornecedoresAB.ListarAsync();
+        var suppliers = await fornecedoresAB.ListarAsync(companyId);
         var supplierName = request.ProductSupplier.Trim();
         if (!suppliers.Any(item =>
                 item.FantasyName.Equals(supplierName, StringComparison.OrdinalIgnoreCase) ||

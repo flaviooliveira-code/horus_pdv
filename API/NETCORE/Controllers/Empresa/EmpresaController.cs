@@ -7,18 +7,26 @@ using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Repositories.DatabaseAccess;
+using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HORUSPDV_API.Controllers.Empresa;
 
 [ApiController]
 [Route("api/[controller]")]
+[HorusAuthorizeRoles("administrador")]
 public class EmpresaController(EmpresaAB empresaAB) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Obter()
     {
-        var empresa = await empresaAB.ObterPrincipalAsync();
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<EmpresaRequest> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        var empresa = await empresaAB.ObterAsync(currentUser.CompanyId);
         if (empresa is null)
         {
             return NotFound(new ApiResponse<EmpresaRequest> { Success = false, Message = "Empresa não encontrada." });
@@ -35,6 +43,12 @@ public class EmpresaController(EmpresaAB empresaAB) : ControllerBase
     [HttpPut]
     public async Task<IActionResult> Atualizar([FromBody] EmpresaRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<EmpresaRequest> { Success = false, Message = "Sessão não encontrada." });
+        }
+
         if (string.IsNullOrWhiteSpace(request.FantasyName) || request.FantasyName.Trim().Length < 3)
         {
             return BadRequest(new ApiResponse<EmpresaRequest> { Success = false, Message = "Nome fantasia e obrigatorio." });
@@ -45,7 +59,7 @@ public class EmpresaController(EmpresaAB empresaAB) : ControllerBase
             return BadRequest(new ApiResponse<EmpresaRequest> { Success = false, Message = "CNPJ invalido." });
         }
 
-        var current = await empresaAB.ObterPrincipalAsync();
+        var current = await empresaAB.ObterAsync(currentUser.CompanyId);
         if (request.EmailSmtpEnabled)
         {
             var validationMessage = ValidateEmailConfiguration(
@@ -57,7 +71,7 @@ public class EmpresaController(EmpresaAB empresaAB) : ControllerBase
             }
         }
 
-        var saved = await empresaAB.SalvarPrincipalAsync(ToDataAccess(request));
+        var saved = await empresaAB.SalvarAsync(currentUser.CompanyId, ToDataAccess(request));
         return Ok(new ApiResponse<EmpresaRequest>
         {
             Success = true,
@@ -159,4 +173,7 @@ public class EmpresaController(EmpresaAB empresaAB) : ControllerBase
 
         return string.Empty;
     }
+
+    private AuthenticatedUser? GetCurrentUser()
+        => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

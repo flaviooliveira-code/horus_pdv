@@ -10,17 +10,19 @@ namespace HORUSPDV_API.Repositories.DatabaseAccess;
 
 public class ProdutoAB(Connection connection)
 {
-    public async Task<List<ProdutoAD>> ListarAsync()
+    public async Task<List<ProdutoAD>> ListarAsync(string companyId)
     {
         const string sql = """
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
                    ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct
             FROM Produtos
+            WHERE CompanyId = @CompanyId
             ORDER BY ProductName;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ProdutoAD>();
         while (await reader.ReadAsync())
@@ -31,27 +33,28 @@ public class ProdutoAB(Connection connection)
         return rows;
     }
 
-    public async Task<ProdutoAD?> ObterAsync(string id)
+    public async Task<ProdutoAD?> ObterAsync(string companyId, string id)
     {
         const string sql = """
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
                    ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct
             FROM Produtos
-            WHERE Id = @Id;
+            WHERE Id = @Id AND CompanyId = @CompanyId;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@Id", id);
         await using var reader = await command.ExecuteReaderAsync();
         return await reader.ReadAsync() ? Map(reader) : null;
     }
 
-    public async Task<ProdutoAD> SalvarAsync(ProdutoAD product)
+    public async Task<ProdutoAD> SalvarAsync(string companyId, ProdutoAD product)
     {
-        var supplierId = await ResolveSupplierIdAsync(product.ProductSupplier);
+        var supplierId = await ResolveSupplierIdAsync(companyId, product.ProductSupplier);
         const string sql = """
-            IF EXISTS (SELECT 1 FROM Produtos WHERE Id = @Id)
+            IF EXISTS (SELECT 1 FROM Produtos WHERE Id = @Id AND CompanyId = @CompanyId)
             BEGIN
                 UPDATE Produtos
                    SET ProductImageUrl = @ProductImageUrl,
@@ -65,30 +68,32 @@ public class ProdutoAB(Connection connection)
                        ProductUnitPrice = @ProductUnitPrice,
                        ProductSalePrice = @ProductSalePrice,
                        TotalPriceOnProduct = @TotalPriceOnProduct
-                 WHERE Id = @Id;
+                 WHERE Id = @Id AND CompanyId = @CompanyId;
             END
             ELSE
             BEGIN
                 INSERT INTO Produtos
-                    (Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier, SupplierId,
+                    (Id, CompanyId, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier, SupplierId,
                      ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct)
                 VALUES
-                    (@Id, @ProductImageUrl, @ProductImageName, @ProductName, @ProductCode, @ProductSupplier, @SupplierId,
+                    (@Id, @CompanyId, @ProductImageUrl, @ProductImageName, @ProductName, @ProductCode, @ProductSupplier, @SupplierId,
                      @ProductDescription, @ProductQnt, @ProductUnitPrice, @ProductSalePrice, @TotalPriceOnProduct);
             END;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         AddParameters(command, product, supplierId);
         await command.ExecuteNonQueryAsync();
         return product;
     }
 
-    public async Task<bool> ExcluirAsync(string id)
+    public async Task<bool> ExcluirAsync(string companyId, string id)
     {
         await using var db = await connection.OpenConnectionAsync();
-        await using var command = new SqlCommand("DELETE FROM Produtos WHERE Id = @Id;", db);
+        await using var command = new SqlCommand("DELETE FROM Produtos WHERE Id = @Id AND CompanyId = @CompanyId;", db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@Id", id);
         return await command.ExecuteNonQueryAsync() > 0;
     }
@@ -165,16 +170,17 @@ public class ProdutoAB(Connection connection)
         }
     }
 
-    private async Task<string?> ResolveSupplierIdAsync(string supplierName)
+    private async Task<string?> ResolveSupplierIdAsync(string companyId, string supplierName)
     {
         const string sql = """
             SELECT TOP 1 Id
             FROM Fornecedores
-            WHERE FantasyName = @Name OR CompanyName = @Name;
+            WHERE CompanyId = @CompanyId AND (FantasyName = @Name OR CompanyName = @Name);
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@Name", supplierName);
         var result = await command.ExecuteScalarAsync();
         return result as string;

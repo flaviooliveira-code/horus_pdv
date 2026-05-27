@@ -7,6 +7,7 @@ using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
 using HORUSPDV_API.Services.Caixa;
+using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HORUSPDV_API.Controllers.HistoricoVendas;
@@ -18,7 +19,9 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
     [HttpGet]
     public async Task<IActionResult> Listar()
     {
-        var rows = await historicoVendasAB.ListarAsync();
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        var rows = await historicoVendasAB.ListarAsync(currentUser.CompanyId);
         return Ok(new ApiResponse<object>
         {
             Success = true,
@@ -30,6 +33,9 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
     [HttpPost]
     public async Task<IActionResult> Registrar([FromBody] VendaRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+
         if (request.Items.Count == 0)
         {
             return BadRequest(new ApiResponse<object> { Success = false, Message = "Venda sem itens." });
@@ -37,8 +43,8 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
 
         try
         {
-            caixaService.EnsureVendaPermitida();
-            var result = await historicoVendasAB.RegistrarAsync(request);
+            caixaService.EnsureVendaPermitida(currentUser.CompanyId);
+            var result = await historicoVendasAB.RegistrarAsync(currentUser.CompanyId, request);
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
                 Success = true,
@@ -55,7 +61,9 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
     [HttpPost("{saleNumber}/imprimir")]
     public async Task<IActionResult> Imprimir(string saleNumber)
     {
-        var saleRows = await historicoVendasAB.ListarAsync(saleNumber);
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        var saleRows = await historicoVendasAB.ListarAsync(currentUser.CompanyId, saleNumber);
         if (saleRows.Count == 0)
         {
             return NotFound(new ApiResponse<object> { Success = false, Message = "Venda não encontrada." });
@@ -74,4 +82,7 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
             }
         });
     }
+
+    private AuthenticatedUser? GetCurrentUser()
+        => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

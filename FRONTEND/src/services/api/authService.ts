@@ -55,6 +55,14 @@ export const authService = {
     return response.data;
   },
 
+  async updateMe(payload: { name: string; email: string; phone: string }) {
+    const response = await apiRequest<AuthenticatedUser>(`${AUTH_API_URL}/me`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    return response.data;
+  },
+
   async logout() {
     await apiRequest<object>(`${AUTH_API_URL}/logout`, { method: "POST" });
   },

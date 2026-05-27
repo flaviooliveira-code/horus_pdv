@@ -7,6 +7,7 @@ using HORUSPDV_API.Models.Fornecedores;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Services.Fornecedores;
+using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HORUSPDV_API.Controllers.Fornecedores;
@@ -19,7 +20,9 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
     [ProducesResponseType(typeof(ApiResponse<List<FornecedorModel>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Listar()
     {
-        var data = await fornecedorService.ListarAsync();
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<List<FornecedorModel>> { Success = false, Message = "Sessão não encontrada." });
+        var data = await fornecedorService.ListarAsync(currentUser.CompanyId);
         return Ok(new ApiResponse<List<FornecedorModel>>
         {
             Success = true,
@@ -32,9 +35,11 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
     [ProducesResponseType(typeof(ApiResponse<FornecedorModel>), StatusCodes.Status201Created)]
     public async Task<IActionResult> Criar([FromBody] FornecedorRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<FornecedorModel> { Success = false, Message = "Sessão não encontrada." });
         try
         {
-            var created = await fornecedorService.CriarAsync(request);
+            var created = await fornecedorService.CriarAsync(currentUser.CompanyId, request);
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<FornecedorModel>
             {
                 Success = true,
@@ -52,9 +57,11 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
     [ProducesResponseType(typeof(ApiResponse<FornecedorModel>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Atualizar(string id, [FromBody] FornecedorRequest request)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<FornecedorModel> { Success = false, Message = "Sessão não encontrada." });
         try
         {
-            var updated = await fornecedorService.AtualizarAsync(id, request);
+            var updated = await fornecedorService.AtualizarAsync(currentUser.CompanyId, id, request);
             if (updated is null)
             {
                 return NotFound(new ApiResponse<FornecedorModel> { Success = false, Message = "Fornecedor não encontrado." });
@@ -77,9 +84,11 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Excluir(string id)
     {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
         try
         {
-            var removed = await fornecedorService.ExcluirAsync(id);
+            var removed = await fornecedorService.ExcluirAsync(currentUser.CompanyId, id);
             if (!removed)
             {
                 return NotFound(new ApiResponse<object> { Success = false, Message = "Fornecedor não encontrado." });
@@ -92,4 +101,7 @@ public class FornecedorController(IFornecedorService fornecedorService) : Contro
             return BadRequest(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
     }
+
+    private AuthenticatedUser? GetCurrentUser()
+        => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

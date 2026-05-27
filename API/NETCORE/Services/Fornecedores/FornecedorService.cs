@@ -12,36 +12,36 @@ namespace HORUSPDV_API.Services.Fornecedores;
 
 public class FornecedorService(FornecedorAB fornecedoresAB, ProdutoAB produtosAB) : IFornecedorService
 {
-    public async Task<List<FornecedorModel>> ListarAsync()
-        => (await fornecedoresAB.ListarAsync()).Select(ToModel).ToList();
+    public async Task<List<FornecedorModel>> ListarAsync(string companyId)
+        => (await fornecedoresAB.ListarAsync(companyId)).Select(ToModel).ToList();
 
-    public async Task<FornecedorModel> CriarAsync(FornecedorRequest request)
+    public async Task<FornecedorModel> CriarAsync(string companyId, FornecedorRequest request)
     {
         Validate(request);
-        await ValidateDuplicatesAsync(request, null);
+        await ValidateDuplicatesAsync(companyId, request, null);
         var supplier = MapRequest($"fr-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", request);
-        return ToModel(await fornecedoresAB.SalvarAsync(supplier));
+        return ToModel(await fornecedoresAB.SalvarAsync(companyId, supplier));
     }
 
-    public async Task<FornecedorModel?> AtualizarAsync(string id, FornecedorRequest request)
+    public async Task<FornecedorModel?> AtualizarAsync(string companyId, string id, FornecedorRequest request)
     {
         Validate(request);
-        var current = await fornecedoresAB.ObterAsync(id);
+        var current = await fornecedoresAB.ObterAsync(companyId, id);
         if (current is null)
         {
             return null;
         }
 
-        await ValidateDuplicatesAsync(request, id);
-        return ToModel(await fornecedoresAB.SalvarAsync(MapRequest(id, request)));
+        await ValidateDuplicatesAsync(companyId, request, id);
+        return ToModel(await fornecedoresAB.SalvarAsync(companyId, MapRequest(id, request)));
     }
 
-    public async Task<bool> ExcluirAsync(string id)
+    public async Task<bool> ExcluirAsync(string companyId, string id)
     {
-        var supplier = await fornecedoresAB.ObterAsync(id);
+        var supplier = await fornecedoresAB.ObterAsync(companyId, id);
         if (supplier is null) return false;
 
-        var products = await produtosAB.ListarAsync();
+        var products = await produtosAB.ListarAsync(companyId);
         if (products.Any(item =>
                 item.ProductSupplier.Equals(supplier.FantasyName, StringComparison.OrdinalIgnoreCase) ||
                 item.ProductSupplier.Equals(supplier.CompanyName, StringComparison.OrdinalIgnoreCase)))
@@ -49,7 +49,7 @@ public class FornecedorService(FornecedorAB fornecedoresAB, ProdutoAB produtosAB
             throw new InvalidOperationException("Fornecedor possui produtos vinculados e não pode ser excluído.");
         }
 
-        return await fornecedoresAB.ExcluirAsync(id);
+        return await fornecedoresAB.ExcluirAsync(companyId, id);
     }
 
     private static void Validate(FornecedorRequest request)
@@ -85,9 +85,9 @@ public class FornecedorService(FornecedorAB fornecedoresAB, ProdutoAB produtosAB
         }
     }
 
-    private async Task ValidateDuplicatesAsync(FornecedorRequest request, string? currentId)
+    private async Task ValidateDuplicatesAsync(string companyId, FornecedorRequest request, string? currentId)
     {
-        var suppliers = await fornecedoresAB.ListarAsync();
+        var suppliers = await fornecedoresAB.ListarAsync(companyId);
         var cnpj = OnlyDigits(request.Cnpj);
         if (suppliers.Any(item => item.Id != currentId && OnlyDigits(item.Cnpj) == cnpj))
         {

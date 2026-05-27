@@ -262,6 +262,39 @@ public class AuthController(
         });
     }
 
+    [HttpPut("me")]
+    public IActionResult UpdateMe([FromBody] UpdateProfileRequest request)
+    {
+        if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        try
+        {
+            var user = securityStore.UpdateOwnProfile(
+                currentUser.Id,
+                request.Name,
+                request.Email,
+                request.Phone);
+            if (user is null)
+            {
+                return Unauthorized(new ApiResponse<object> { Success = false, Message = "Usuário inativo ou inexistente." });
+            }
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Perfil atualizado com sucesso.",
+                Data = user
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+    }
+
     [HttpPost("logout")]
     public IActionResult Logout()
     {
@@ -318,5 +351,12 @@ public class AuthController(
         }
 
         return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "0.0.0.0";
+    }
+
+    public class UpdateProfileRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
     }
 }

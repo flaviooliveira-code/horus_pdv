@@ -5,6 +5,7 @@
  */
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DatabaseAccess;
+using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -17,13 +18,18 @@ public class RelatorioController(RelatorioAB relatorioAB) : ControllerBase
     [HttpPost("Gerar")]
     public async Task<IActionResult> Gerar([FromBody] RelatorioGerarRequest request)
     {
+        if (HttpContext.Items["CurrentUser"] is not AuthenticatedUser currentUser)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Sessão não encontrada." });
+        }
+
         try
         {
             return Ok(new ApiResponse<object>
             {
                 Success = true,
                 Message = "Relatório gerado com sucesso.",
-                Data = await relatorioAB.GerarAsync(request.ReportId, request.Filters)
+                Data = await relatorioAB.GerarAsync(currentUser.CompanyId, request.ReportId, request.Filters)
             });
         }
         catch (InvalidOperationException ex)

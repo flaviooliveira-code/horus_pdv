@@ -14,23 +14,23 @@ public class RelatorioAB(Connection connection)
 {
     private static readonly CultureInfo PtBr = new("pt-BR");
 
-    public async Task<object> GerarAsync(string reportId, Dictionary<string, JsonElement> filters)
+    public async Task<object> GerarAsync(string companyId, string reportId, Dictionary<string, JsonElement> filters)
         => reportId switch
         {
-            "vendas-periodo" => await GerarVendasPeriodoAsync(filters),
-            "historico-vendas" => await GerarHistoricoVendasAsync(filters),
-            "produtos-mais-vendidos" => await GerarProdutosMaisVendidosAsync(filters),
-            "clientes-frequentes" => await GerarClientesFrequentesAsync(filters),
-            "estoque-critico" => await GerarEstoqueCriticoAsync(filters),
-            "compras-fornecedor" => await GerarComprasFornecedorAsync(),
-            "movimento-estoque" => await GerarMovimentoEstoqueAsync(),
-            "desempenho-caixa" => await GerarDesempenhoCaixaAsync(filters),
+            "vendas-periodo" => await GerarVendasPeriodoAsync(companyId, filters),
+            "historico-vendas" => await GerarHistoricoVendasAsync(companyId, filters),
+            "produtos-mais-vendidos" => await GerarProdutosMaisVendidosAsync(companyId, filters),
+            "clientes-frequentes" => await GerarClientesFrequentesAsync(companyId, filters),
+            "estoque-critico" => await GerarEstoqueCriticoAsync(companyId, filters),
+            "compras-fornecedor" => await GerarComprasFornecedorAsync(companyId),
+            "movimento-estoque" => await GerarMovimentoEstoqueAsync(companyId),
+            "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters),
             _ => throw new InvalidOperationException("Relatório não encontrado.")
         };
 
-    private async Task<object> GerarVendasPeriodoAsync(Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarVendasPeriodoAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
-        var rows = FilterSales(await ListarVendasAsync(), filters, includeItems: false);
+        var rows = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: false);
         var groupBy = GetString(filters, "groupBy", "daily");
         var reportRows = rows
             .GroupBy(row => BuildPeriodKey(row.SaleDate, groupBy))
@@ -52,9 +52,9 @@ public class RelatorioAB(Connection connection)
             reportRows);
     }
 
-    private async Task<object> GerarHistoricoVendasAsync(Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarHistoricoVendasAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
-        var rows = FilterSales(await ListarVendasAsync(), filters, includeItems: true)
+        var rows = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: true)
             .OrderByDescending(item => item.SaleDate)
             .Select(item => Row(
                 ("saleNumber", item.SaleNumber),
@@ -71,9 +71,9 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarProdutosMaisVendidosAsync(Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarProdutosMaisVendidosAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
-        var rows = FilterSales(await ListarVendasAsync(), filters, includeItems: true)
+        var rows = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: true)
             .GroupBy(item => new { item.ProductCode, item.ProductName })
             .Select(group => Row(
                 ("codigo", group.Key.ProductCode),
@@ -88,9 +88,9 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarClientesFrequentesAsync(Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarClientesFrequentesAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
-        var rows = FilterSales(await ListarVendasAsync(), filters, includeItems: false)
+        var rows = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: false)
             .Where(item => IsWithinTimeRange(item.SaleDate, filters))
             .GroupBy(item => string.IsNullOrWhiteSpace(item.CustomerCpf) || item.CustomerCpf == "-"
                 ? item.CustomerName
@@ -113,10 +113,10 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarEstoqueCriticoAsync(Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarEstoqueCriticoAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
         var onlyOutOfStock = GetBool(filters, "onlyOutOfStock");
-        var rows = (await ListarProdutosAsync())
+        var rows = (await ListarProdutosAsync(companyId))
             .Where(item => onlyOutOfStock ? item.Quantity <= 0 : item.Quantity <= 5)
             .Select(item => Row(
                 ("codigo", item.Code),
@@ -132,9 +132,9 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarComprasFornecedorAsync()
+    private async Task<object> GerarComprasFornecedorAsync(string companyId)
     {
-        var rows = (await ListarProdutosAsync())
+        var rows = (await ListarProdutosAsync(companyId))
             .GroupBy(item => string.IsNullOrWhiteSpace(item.Supplier) ? "Sem fornecedor" : item.Supplier)
             .Select(group => Row(
                 ("fornecedor", group.Key),
@@ -149,9 +149,9 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarMovimentoEstoqueAsync()
+    private async Task<object> GerarMovimentoEstoqueAsync(string companyId)
     {
-        var rows = (await ListarProdutosAsync())
+        var rows = (await ListarProdutosAsync(companyId))
             .Select(item => Row(
                 ("codigo", item.Code),
                 ("produto", item.Name),
@@ -166,11 +166,11 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarDesempenhoCaixaAsync(Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarDesempenhoCaixaAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
         var startDate = GetDate(filters, "startDate") ?? DateTimeOffset.Now.AddDays(-30).Date;
         var endDate = (GetDate(filters, "endDate") ?? DateTimeOffset.Now.Date).AddDays(1);
-        var rows = (await ListarCaixasAsync())
+        var rows = (await ListarCaixasAsync(companyId))
             .Where(item => item.OpenedAt >= startDate && item.OpenedAt < endDate)
             .Select(item => Row(
                 ("abertura", item.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")),
@@ -186,18 +186,20 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<List<ReportSaleRow>> ListarVendasAsync()
+    private async Task<List<ReportSaleRow>> ListarVendasAsync(string companyId)
     {
         const string sql = """
             SELECT v.SaleNumber, v.CustomerName, v.CustomerCpf, v.PaymentType, v.TotalAmount, v.SaleDate,
                    i.ProductCode, i.ProductName, i.Quantity, i.UnitPrice, i.ItemTotal
             FROM Vendas v
             LEFT JOIN VendaItens i ON i.VendaId = v.Id
+            WHERE v.CompanyId = @CompanyId
             ORDER BY v.SaleDate DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ReportSaleRow>();
         while (await reader.ReadAsync())
@@ -219,16 +221,18 @@ public class RelatorioAB(Connection connection)
         return rows;
     }
 
-    private async Task<List<ReportProductRow>> ListarProdutosAsync()
+    private async Task<List<ReportProductRow>> ListarProdutosAsync(string companyId)
     {
         const string sql = """
             SELECT ProductCode, ProductName, ProductSupplier, ProductQnt, ProductUnitPrice, ProductSalePrice
             FROM Produtos
+            WHERE CompanyId = @CompanyId
             ORDER BY ProductName;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ReportProductRow>();
         while (await reader.ReadAsync())
@@ -245,16 +249,18 @@ public class RelatorioAB(Connection connection)
         return rows;
     }
 
-    private async Task<List<ReportCashRow>> ListarCaixasAsync()
+    private async Task<List<ReportCashRow>> ListarCaixasAsync(string companyId)
     {
         const string sql = """
             SELECT OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, OperatorName
             FROM CaixaSessoes
+            WHERE CompanyId = @CompanyId
             ORDER BY OpenedAt DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ReportCashRow>();
         while (await reader.ReadAsync())
