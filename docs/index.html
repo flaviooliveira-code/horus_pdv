@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Hórus PDV é um PDV grátis com frente de caixa, sistema de cadastro, estoque, caixa, vendas, clientes e relatórios para pequenos comércios."
+      content="PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade."
     />
     <meta
       name="keywords"
@@ -15,60 +15,179 @@
       rel="canonical"
       href="https://flaviooliveira-code.github.io/horus_pdv/"
     />
-    <meta name="theme-color" content="#075f91" />
-    <title>Hórus PDV - PDV grátis e frente de caixa</title>
+    <meta name="theme-color" content="#0369a1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1118" media="(prefers-color-scheme: dark)" />
+    <title>PDV grátis e frente de caixa open source | Hórus PDV</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon-48.png" type="image/png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Hórus PDV" />
+    <meta property="og:title" content="PDV grátis e frente de caixa open source | Hórus PDV" />
+    <meta property="og:description" content="PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade." />
+    <meta property="og:url" content="https://flaviooliveira-code.github.io/horus_pdv/" />
+    <meta property="og:image" content="https://flaviooliveira-code.github.io/horus_pdv/images/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Hórus PDV: PDV grátis e frente de caixa, com o dashboard do sistema" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PDV grátis e frente de caixa open source | Hórus PDV" />
+    <meta name="twitter:description" content="PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade." />
+    <meta name="twitter:image" content="https://flaviooliveira-code.github.io/horus_pdv/images/og-image.png" />
+
+    <script type="application/ld+json">
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Hórus PDV",
+    "url": "https://flaviooliveira-code.github.io/horus_pdv/",
+    "description": "PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade.",
+    "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "Ponto de venda (PDV)",
+    "operatingSystem": "Windows, Linux, macOS",
+    "inLanguage": "pt-BR",
+    "isAccessibleForFree": true,
+    "license": "https://opensource.org/licenses/MIT",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "BRL"
+    },
+    "image": "https://flaviooliveira-code.github.io/horus_pdv/images/og-image.png",
+    "screenshot": [
+      "https://flaviooliveira-code.github.io/horus_pdv/images/frente-caixa.png",
+      "https://flaviooliveira-code.github.io/horus_pdv/images/dashboard.png",
+      "https://flaviooliveira-code.github.io/horus_pdv/images/produtos.png"
+    ],
+    "featureList": [
+      "Frente de caixa",
+      "Cadastro de clientes, fornecedores e produtos",
+      "Controle de estoque",
+      "Abertura e fechamento de caixa",
+      "Histórico de vendas",
+      "Relatórios"
+    ],
+    "author": {
+      "@type": "Person",
+      "name": "Flávio Oliveira",
+      "url": "https://flaviooliveira.dev"
+    },
+    "sameAs": [
+      "https://github.com/flaviooliveira-code/horus_pdv"
+    ]
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    "name": "Demonstração do Hórus PDV",
+    "description": "Demonstração do Hórus PDV operando com API real: cadastro, login, abertura de caixa, venda, cupom, histórico e relatórios.",
+    "thumbnailUrl": "https://flaviooliveira-code.github.io/horus_pdv/images/dashboard.png",
+    "contentUrl": "https://flaviooliveira-code.github.io/horus_pdv/videos/horus-pdv-demo.webm",
+    "uploadDate": "2026-05-08T14:16:54-03:00",
+    "inLanguage": "pt-BR"
+  }
+]
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&family=Geist+Mono:wght@400..600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"
+    />
+    <link rel="preload" as="image" href="images/dashboard.webp" type="image/webp" />
     <style>
       :root {
-        color-scheme: light;
-        --bg: #f8fafc;
+        color-scheme: light dark;
+        --bg: #f5f7f9;
         --surface: #ffffff;
-        --surface-soft: #eef6fb;
-        --surface-strong: #e4f0f8;
-        --ink: #111827;
-        --muted: #52657d;
-        --subtle: #74849a;
-        --line: #d8e4f1;
-        --brand: #075f91;
-        --brand-dark: #063f62;
-        --accent: #13a38b;
-        --accent-dark: #0b7d6b;
-        --orange: #c96818;
-        --code: #0f1d2e;
-        --shadow: 0 24px 70px rgba(18, 32, 51, 0.12);
-        --container: 1160px;
+        --surface-2: #edf1f5;
+        --ink: #0d1722;
+        --muted: #4f5f71;
+        --line: #dde4eb;
+        --line-strong: #c7d2dd;
+        --brand: #0369a1;
+        --brand-strong: #025582;
+        --brand-soft: #e2eff7;
+        --on-brand: #ffffff;
+        --code-bg: #0c1622;
+        --code-ink: #dbe7f2;
+        --code-muted: #7f93a8;
+        --shadow-sm: 0 1px 2px rgba(13, 34, 56, 0.06),
+          0 4px 12px rgba(13, 34, 56, 0.05);
+        --shadow-lg: 0 2px 6px rgba(13, 34, 56, 0.06),
+          0 30px 80px -20px rgba(13, 34, 56, 0.28);
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+        --radius: 14px;
+        --radius-lg: 20px;
+        --container: 1200px;
+        --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          sans-serif;
+        --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+          monospace;
       }
 
-      * {
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1118;
+          --surface: #111a24;
+          --surface-2: #16212d;
+          --ink: #e7edf3;
+          --muted: #9aabbd;
+          --line: #213041;
+          --line-strong: #2d3f53;
+          --brand: #4aa8e2;
+          --brand-strong: #7cc0ec;
+          --brand-soft: rgba(74, 168, 226, 0.12);
+          --on-brand: #04121d;
+          --code-bg: #070c12;
+          --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+          --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.3),
+            0 30px 80px -20px rgba(0, 0, 0, 0.7);
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
         box-sizing: border-box;
       }
 
       html {
         scroll-behavior: smooth;
+        scroll-padding-top: 88px;
+        -webkit-text-size-adjust: 100%;
       }
 
       body {
         margin: 0;
-        background:
-          radial-gradient(
-            circle at 12% 12%,
-            rgba(19, 163, 139, 0.12),
-            transparent 30%
-          ),
-          radial-gradient(
-            circle at 88% 0%,
-            rgba(7, 95, 145, 0.14),
-            transparent 28%
-          ),
-          linear-gradient(180deg, #f8fbff 0%, #ffffff 30%, #f8fafc 100%);
+        background: var(--bg);
         color: var(--ink);
-        font-family:
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
-        line-height: 1.55;
+        font-family: var(--font);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        caret-color: var(--brand);
+      }
+
+      ::selection {
+        background: var(--brand);
+        color: var(--on-brand);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--brand);
+        outline-offset: 3px;
+        border-radius: 6px;
       }
 
       a {
@@ -76,10 +195,9 @@
         text-decoration: none;
       }
 
-      button,
-      input,
-      textarea {
+      button {
         font: inherit;
+        color: inherit;
       }
 
       img,
@@ -88,477 +206,638 @@
         max-width: 100%;
       }
 
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1,
+      h2,
+      h3 {
+        text-wrap: balance;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        font-weight: 700;
+      }
+
+      p {
+        text-wrap: pretty;
+      }
+
+      code,
+      pre,
+      kbd {
+        font-family: var(--mono);
+      }
+
       .container {
-        width: min(var(--container), calc(100% - 40px));
+        width: min(var(--container), 100% - 48px);
         margin-inline: auto;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
       }
 
       .skip-link {
         position: fixed;
         left: 16px;
         top: 12px;
-        z-index: 999;
-        transform: translateY(-140%);
-        border-radius: 999px;
+        z-index: 200;
+        transform: translateY(-160%);
+        border-radius: 10px;
         background: var(--ink);
-        color: #ffffff;
+        color: var(--bg);
         padding: 10px 14px;
-        font-weight: 800;
+        font-weight: 600;
+        transition: transform 200ms var(--ease-out);
       }
 
       .skip-link:focus {
         transform: translateY(0);
       }
 
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 0 18px;
+        white-space: nowrap;
+        transition:
+          transform 160ms var(--ease-out),
+          background-color 200ms ease,
+          border-color 200ms ease,
+          box-shadow 200ms ease;
+      }
+
+      .btn i {
+        font-size: 18px;
+      }
+
+      .btn:active {
+        transform: scale(0.97);
+      }
+
+      .btn-primary {
+        border-color: var(--brand);
+        background: var(--brand);
+        color: var(--on-brand);
+        box-shadow: 0 1px 2px rgba(3, 60, 94, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      }
+
+      .btn-ghost {
+        border-color: transparent;
+        background: transparent;
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .btn:hover {
+          border-color: var(--brand);
+        }
+
+        .btn-primary:hover {
+          background: var(--brand-strong);
+          border-color: var(--brand-strong);
+        }
+
+        .btn-ghost:hover {
+          background: var(--surface-2);
+          border-color: transparent;
+        }
+      }
+
+      .btn .ph-arrow-right {
+        transition: transform 200ms var(--ease-out);
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .btn:hover .ph-arrow-right {
+          transform: translateX(3px);
+        }
+      }
+
+      /* Nav */
       .nav-shell {
         position: sticky;
         top: 0;
         z-index: 50;
-        padding: 14px 0;
-        background: rgba(248, 250, 252, 0.74);
-        backdrop-filter: blur(16px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        backdrop-filter: saturate(160%) blur(14px);
+        -webkit-backdrop-filter: saturate(160%) blur(14px);
+        border-bottom: 1px solid transparent;
+        transition: border-color 200ms ease;
+      }
+
+      .nav-shell.is-stuck {
+        border-bottom-color: var(--line);
       }
 
       .navbar {
         display: flex;
-        min-height: 66px;
         align-items: center;
         justify-content: space-between;
-        gap: 18px;
-        border: 1px solid rgba(216, 228, 241, 0.92);
-        border-radius: 22px;
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 18px 46px rgba(18, 32, 51, 0.08);
-        padding: 10px 12px 10px 14px;
+        gap: 24px;
+        height: 68px;
       }
 
       .brand {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        font-weight: 950;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
         white-space: nowrap;
       }
 
-      .icon svg {
-        width: 22px;
-        height: 22px;
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--brand);
+        color: var(--on-brand);
+        font-size: 18px;
       }
 
       .nav-links {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
-        justify-content: center;
-        gap: 4px;
+        gap: 2px;
       }
 
       .nav-links a {
-        border-radius: 12px;
+        border-radius: 8px;
         color: var(--muted);
         font-size: 14px;
-        font-weight: 800;
-        padding: 9px 10px;
-      }
-
-      .nav-links a:hover,
-      .nav-links a:focus-visible {
-        background: var(--surface-soft);
-        color: var(--brand-dark);
-        outline: none;
-      }
-
-      .nav-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .btn {
-        display: inline-flex;
-        min-height: 42px;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: var(--surface);
-        color: var(--ink);
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 900;
-        padding: 10px 15px;
+        font-weight: 500;
+        padding: 8px 12px;
         transition:
-          transform 0.18s ease,
-          border-color 0.18s ease,
-          box-shadow 0.18s ease,
-          background 0.18s ease;
+          color 150ms ease,
+          background-color 150ms ease;
       }
 
-      .btn:hover,
-      .btn:focus-visible {
-        transform: translateY(-1px);
-        border-color: rgba(7, 95, 145, 0.44);
-        box-shadow: 0 14px 28px rgba(18, 32, 51, 0.1);
-        outline: none;
+      @media (hover: hover) and (pointer: fine) {
+        .nav-links a:hover {
+          color: var(--ink);
+          background: var(--surface-2);
+        }
       }
 
-      .btn-primary {
-        border-color: var(--brand);
-        background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-        color: #ffffff;
-      }
-
-      .btn-accent {
-        border-color: var(--accent);
-        background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-        color: #ffffff;
-      }
-
-      button.btn {
-        appearance: none;
-      }
-
-      .hero {
-        padding: 64px 0 48px;
-      }
-
-      .hero-inner {
-        text-align: center;
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        border: 1px solid rgba(7, 95, 145, 0.18);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.76);
-        color: var(--brand-dark);
-        font-size: 12px;
-        font-weight: 950;
-        letter-spacing: 0.1em;
-        padding: 7px 12px;
-        text-transform: uppercase;
-      }
-
-      .badge-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 99px;
-        background: var(--accent);
-        box-shadow: 0 0 0 5px rgba(19, 163, 139, 0.14);
-      }
-
-      h1,
-      h2,
-      h3,
-      p {
-        margin-top: 0;
-      }
-
-      h1 {
-        max-width: 980px;
-        margin: 20px auto 0;
-        font-size: clamp(43px, 7vw, 92px);
-        line-height: 0.98;
-        letter-spacing: 0;
-      }
-
-      .rotating-word {
-        display: block;
-        color: var(--brand);
-        animation: word-in 0.52s ease both;
-      }
-
-      .lead {
-        max-width: 760px;
-        margin: 22px auto 0;
-        color: var(--muted);
-        font-size: clamp(17px, 1.7vw, 22px);
-      }
-
-      .hero-actions {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 12px;
-        margin-top: 30px;
-      }
-
-      .proof-strip {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 8px;
-        margin-top: 18px;
-      }
-
-      .proof-strip span {
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.84);
-        color: var(--muted);
-        font-size: 13px;
-        font-weight: 850;
-        padding: 7px 11px;
-      }
-
-      .hero-showcase {
-        position: relative;
-        margin-top: 42px;
-      }
-
-      .hero-shadow {
-        position: absolute;
-        left: 50%;
-        bottom: -18px;
-        width: min(760px, 82%);
-        height: 42px;
-        transform: translateX(-50%);
-        border-radius: 999px;
-        background: rgba(18, 32, 51, 0.18);
-        filter: blur(30px);
-      }
-
-      .window {
-        position: relative;
-        overflow: hidden;
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        background: var(--surface);
-        box-shadow: var(--shadow);
-      }
-
-      .window-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        min-height: 42px;
-        border-bottom: 1px solid var(--line);
-        background: #ffffff;
+      .navbar .btn {
+        min-height: 38px;
+        font-size: 14px;
         padding: 0 14px;
       }
 
-      .traffic {
+      .nav-end {
         display: flex;
+        align-items: center;
         gap: 8px;
       }
 
-      .traffic i {
-        width: 11px;
-        height: 11px;
-        border-radius: 99px;
-      }
-
-      .traffic i:nth-child(1) {
-        background: #e85d5d;
-      }
-
-      .traffic i:nth-child(2) {
-        background: #e0a72f;
-      }
-
-      .traffic i:nth-child(3) {
-        background: #2fbf75;
-      }
-
-      .window-title {
-        color: var(--subtle);
-        font-size: 13px;
-        font-weight: 900;
-      }
-
-      .carousel {
+      .menu-btn {
         position: relative;
+        display: none;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+        background: var(--surface);
+        cursor: pointer;
+        padding: 0;
+        transition:
+          transform 160ms var(--ease-out),
+          background-color 150ms ease;
+      }
+
+      .menu-btn:active {
+        transform: scale(0.94);
+      }
+
+      .menu-btn i {
+        grid-area: 1 / 1;
+        font-size: 18px;
+        transition:
+          opacity 180ms ease,
+          transform 220ms var(--ease-out),
+          filter 180ms ease;
+      }
+
+      .menu-btn .ph-x,
+      .menu-btn[aria-expanded="true"] .ph-list {
+        opacity: 0;
+        transform: rotate(-45deg) scale(0.8);
+        filter: blur(2px);
+      }
+
+      .menu-btn[aria-expanded="true"] .ph-x {
+        opacity: 1;
+        transform: none;
+        filter: none;
+      }
+
+      .mobile-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        display: none;
+        border-bottom: 1px solid var(--line);
+        background: var(--bg);
+        box-shadow: 0 24px 40px -24px rgba(13, 34, 56, 0.25);
+        opacity: 0;
+        transform: translateY(-6px);
+        visibility: hidden;
+        transition:
+          opacity 180ms ease,
+          transform 240ms var(--ease-out),
+          visibility 0s linear 240ms;
+      }
+
+      .mobile-menu.is-open {
+        opacity: 1;
+        transform: none;
+        visibility: visible;
+        transition-delay: 0s;
+      }
+
+      .mobile-menu ul {
+        margin: 0 auto;
+        padding: 8px 0 16px;
+        list-style: none;
+      }
+
+      .mobile-menu li + li {
+        border-top: 1px solid var(--line);
+      }
+
+      .mobile-menu a {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 15px 0;
+        font-size: 17px;
+        font-weight: 500;
+      }
+
+      .mobile-menu a i {
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .mobile-menu li {
+          opacity: 0;
+          transform: translateY(-4px);
+          transition:
+            opacity 200ms ease,
+            transform 260ms var(--ease-out);
+        }
+
+        .mobile-menu.is-open li {
+          opacity: 1;
+          transform: none;
+          transition-delay: calc(var(--i) * 25ms);
+        }
+      }
+
+      .nav-shell.menu-open {
+        border-bottom-color: var(--line);
+        background: var(--bg);
+      }
+
+      /* Hero */
+      .hero {
+        padding: 72px 0 0;
+      }
+
+      .hero-top {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        align-items: end;
+        gap: 48px;
+      }
+
+      .hero h1 {
+        font-size: clamp(42px, 5.6vw, 76px);
+        line-height: 1;
+        letter-spacing: -0.045em;
+        font-weight: 750;
+      }
+
+      .rotator {
+        display: block;
+        color: var(--brand);
+        padding-bottom: 0.08em;
+      }
+
+      .rotator-word {
+        display: inline-block;
+        will-change: transform, opacity, filter;
+      }
+
+      .hero-side {
+        display: grid;
+        gap: 28px;
+        padding-bottom: 8px;
+      }
+
+      .lead {
+        max-width: 44ch;
+        color: var(--muted);
+        font-size: clamp(17px, 1.4vw, 19px);
+        line-height: 1.55;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .showcase {
+        margin-top: 56px;
+      }
+
+      .frame {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--surface);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .frame-bar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        height: 40px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface-2);
+        padding: 0 14px;
+      }
+
+      .lights {
+        display: flex;
+        gap: 6px;
+      }
+
+      .lights i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--line-strong);
+      }
+
+      .frame-url {
+        flex: 1;
+        max-width: 340px;
+        margin-inline: auto;
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        text-align: center;
+        padding: 3px 10px;
+        transform: translateX(-28px);
+      }
+
+      .stage {
+        display: grid;
+        background: var(--surface);
       }
 
       .slide {
-        display: none;
+        grid-area: 1 / 1;
+        display: block;
         width: 100%;
         border: 0;
         background: transparent;
         cursor: zoom-in;
         padding: 0;
+        opacity: 0;
+        filter: blur(6px);
+        transform: scale(1.012);
+        visibility: hidden;
+        transition:
+          opacity 480ms var(--ease-out),
+          filter 480ms var(--ease-out),
+          transform 600ms var(--ease-out),
+          visibility 0s linear 480ms;
       }
 
       .slide.is-active {
-        display: block;
+        opacity: 1;
+        filter: blur(0);
+        transform: scale(1);
+        visibility: visible;
+        transition-delay: 0s;
       }
 
       .slide img {
         width: 100%;
-        aspect-ratio: 16 / 9;
-        object-fit: cover;
-        object-position: left top;
+        height: auto;
+        aspect-ratio: 16 / 10;
       }
 
-      .carousel-panel {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        border-top: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.96);
-        padding: 16px 18px;
-      }
-
-      .carousel-panel strong {
-        display: block;
-        font-size: 16px;
-      }
-
-      .carousel-panel span {
-        display: block;
-        color: var(--muted);
-        font-size: 13px;
-        font-weight: 700;
-      }
-
-      .carousel-controls {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .carousel-controls button {
-        display: grid;
-        place-items: center;
-        width: 38px;
-        height: 38px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: #ffffff;
-        color: var(--brand);
-        cursor: pointer;
-        font-size: 22px;
-        font-weight: 900;
-      }
-
-      .carousel-controls button:hover,
-      .carousel-controls button:focus-visible {
-        border-color: rgba(7, 95, 145, 0.45);
-        outline: none;
-      }
-
-      .dots {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-      }
-
-      .dots button {
-        width: 8px;
-        height: 8px;
-        border: 0;
-        border-radius: 999px;
-        background: #b7c7d7;
-        cursor: pointer;
-        padding: 0;
-      }
-
-      .dots button[aria-current="true"] {
-        width: 26px;
-        background: var(--brand);
-      }
-
-      .section {
-        padding: 72px 0;
-      }
-
-      .section-muted {
-        border-block: 1px solid var(--line);
-        background: rgba(238, 246, 251, 0.68);
-      }
-
-      .section-header {
-        max-width: 760px;
-        margin: 0 auto 34px;
-        text-align: center;
-      }
-
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        border: 1px solid rgba(201, 104, 24, 0.22);
-        border-radius: 999px;
-        background: rgba(201, 104, 24, 0.08);
-        color: var(--orange);
-        font-size: 12px;
-        font-weight: 950;
-        letter-spacing: 0.09em;
-        padding: 6px 10px;
-        text-transform: uppercase;
-      }
-
-      .section h2 {
-        margin: 12px 0 0;
-        font-size: clamp(30px, 4vw, 52px);
-        line-height: 1.05;
-        letter-spacing: 0;
-      }
-
-      .section-copy {
-        margin: 14px auto 0;
-        color: var(--muted);
-        font-size: 17px;
-      }
-
-      .trust-grid {
+      .tabs {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
+        gap: 8px;
+        margin-top: 16px;
       }
 
-      .trust-card,
-      .feature-card,
-      .module-card,
-      .step-card,
-      .roadmap-card,
-      .faq details {
-        border: 1px solid var(--line);
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.9);
-        box-shadow: 0 14px 32px rgba(18, 32, 51, 0.06);
+      .tab {
+        position: relative;
+        display: grid;
+        gap: 2px;
+        overflow: hidden;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        cursor: pointer;
+        padding: 14px 14px 16px;
+        text-align: left;
+        transition: background-color 200ms ease;
       }
 
-      .trust-card {
-        padding: 18px;
-        text-align: center;
+      .tab strong {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--muted);
+        transition: color 200ms ease;
       }
 
-      .trust-card strong {
-        display: block;
-        color: var(--brand-dark);
-        font-size: 22px;
-        line-height: 1.1;
-      }
-
-      .trust-card span {
-        display: block;
-        margin-top: 8px;
+      .tab span {
         color: var(--muted);
         font-size: 13px;
-        font-weight: 800;
+        line-height: 1.45;
       }
 
+      .tab::before,
+      .tab::after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        top: 0;
+        height: 2px;
+        border-radius: 2px;
+      }
+
+      .tab::before {
+        background: var(--line);
+      }
+
+      .tab::after {
+        background: var(--brand);
+        transform: scaleX(0);
+        transform-origin: left;
+      }
+
+      .tab[aria-selected="true"] strong {
+        color: var(--ink);
+      }
+
+      .tab[aria-selected="true"]::after {
+        transform: scaleX(1);
+      }
+
+      .tabs.is-playing .tab[aria-selected="true"]::after {
+        animation: tab-progress var(--slide-duration, 6s) linear forwards;
+      }
+
+      .tabs.is-paused .tab[aria-selected="true"]::after {
+        animation-play-state: paused;
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .tab:hover {
+          background: var(--surface-2);
+        }
+
+        .tab:hover strong {
+          color: var(--ink);
+        }
+      }
+
+      @keyframes tab-progress {
+        from {
+          transform: scaleX(0);
+        }
+        to {
+          transform: scaleX(1);
+        }
+      }
+
+      /* Stack strip */
+      .stack {
+        margin-top: 72px;
+        border-block: 1px solid var(--line);
+      }
+
+      .stack ul {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin: 0 auto;
+        padding: 0;
+        list-style: none;
+      }
+
+      .stack li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 22px 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .stack li + li {
+        padding-left: 24px;
+        border-left: 1px solid var(--line);
+      }
+
+      .stack li i {
+        font-size: 22px;
+        color: var(--brand);
+      }
+
+      .stack li b {
+        display: block;
+        color: var(--ink);
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      /* Sections */
+      .section {
+        padding: 120px 0;
+      }
+
+      .section-tint {
+        background: var(--surface-2);
+      }
+
+      .h2 {
+        font-size: clamp(32px, 3.6vw, 48px);
+      }
+
+      .section-head {
+        max-width: 640px;
+        margin-bottom: 48px;
+      }
+
+      .section-head p,
+      .copy {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 17px;
+        max-width: 60ch;
+      }
+
+      /* Quickstart */
       .quickstart {
         display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
-        gap: 22px;
-        align-items: stretch;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+        align-items: center;
+        gap: 64px;
+      }
+
+      .quickstart .actions {
+        margin-top: 32px;
       }
 
       .terminal {
         overflow: hidden;
-        border: 1px solid rgba(15, 29, 46, 0.18);
-        border-radius: 22px;
-        background: var(--code);
-        color: #eef8ff;
-        box-shadow: var(--shadow);
+        border-radius: var(--radius-lg);
+        background: var(--code-bg);
+        color: var(--code-ink);
+        box-shadow: var(--shadow-lg);
+        outline: 1px solid rgba(255, 255, 255, 0.06);
+        outline-offset: -1px;
       }
 
       .terminal-head {
@@ -566,371 +845,582 @@
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-        padding: 12px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 10px 10px 10px 16px;
+      }
+
+      .terminal-head .lights i {
+        background: rgba(255, 255, 255, 0.16);
       }
 
       .terminal-title {
-        color: #b9cee2;
+        color: var(--code-muted);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .copy-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 92px;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--code-ink);
+        cursor: pointer;
         font-size: 13px;
-        font-weight: 900;
+        font-weight: 500;
+        padding: 6px 10px;
+        transition:
+          transform 160ms var(--ease-out),
+          background-color 150ms ease;
+      }
+
+      .copy-btn:active {
+        transform: scale(0.96);
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .copy-btn:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+      }
+
+      .copy-btn .copy-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition:
+          opacity 180ms ease,
+          filter 180ms ease,
+          transform 180ms var(--ease-out);
+      }
+
+      .copy-btn.is-swapping .copy-label {
+        opacity: 0;
+        filter: blur(3px);
+        transform: scale(0.9);
       }
 
       pre {
         margin: 0;
         overflow-x: auto;
-        padding: 18px;
-        font-family:
-          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        padding: 20px 22px 24px;
         font-size: 14px;
-        line-height: 1.7;
+        line-height: 1.8;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
       }
 
-      .copy-btn {
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 900;
-        padding: 7px 10px;
+      pre .c {
+        color: var(--code-muted);
       }
 
-      .feature-grid {
+      pre .p {
+        color: #6fbcec;
+        user-select: none;
+      }
+
+      /* License */
+      .license {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 16px;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 64px;
+        align-items: start;
       }
 
-      .feature-card {
-        padding: 22px;
+      .license-title {
+        font-size: clamp(36px, 4.4vw, 60px);
+        letter-spacing: -0.04em;
       }
 
-      .icon {
+      .license-title span {
+        color: var(--muted);
+      }
+
+      .license .btn {
+        margin-top: 32px;
+      }
+
+      .pillars {
         display: grid;
-        place-items: center;
-        width: 46px;
-        height: 46px;
-        border-radius: 15px;
-        background: var(--surface-soft);
-        color: var(--brand-dark);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 40px 40px;
+        margin: 0;
       }
 
-      .feature-card h3,
-      .module-card h3,
-      .step-card h3,
-      .roadmap-card h3 {
-        margin: 15px 0 7px;
+      .pillars div {
+        border-top: 1px solid var(--line-strong);
+        padding-top: 20px;
+      }
+
+      .pillars dt {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .pillars dt i {
+        color: var(--brand);
         font-size: 20px;
       }
 
-      .feature-card p,
-      .module-card p,
-      .step-card p,
-      .roadmap-card p,
-      .faq p {
-        margin-bottom: 0;
+      .pillars dd {
+        margin: 8px 0 0;
         color: var(--muted);
       }
 
-      .video-card {
+      /* Demo */
+      .video-frame {
+        position: relative;
         overflow: hidden;
         border: 1px solid var(--line);
-        border-radius: 26px;
-        background: var(--surface);
-        box-shadow: var(--shadow);
+        border-radius: var(--radius-lg);
+        background: var(--code-bg);
+        box-shadow: var(--shadow-lg);
       }
 
-      .video-frame {
+      .video-frame video {
         width: 100%;
-        aspect-ratio: 16 / 9;
-        background: var(--code);
+        aspect-ratio: 16 / 10;
+        background: var(--code-bg);
       }
 
-      .video-meta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        border-top: 1px solid var(--line);
-        padding: 18px 20px;
-      }
-
-      .video-meta p {
-        margin-bottom: 0;
-        color: var(--muted);
-        font-weight: 750;
-      }
-
-      .modules {
+      /* Modules bento */
+      .bento {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-auto-rows: 260px;
         gap: 16px;
       }
 
-      .module-card {
+      .tile {
+        position: relative;
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
-        color: inherit;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--surface);
         cursor: zoom-in;
-        font: inherit;
+        padding: 0;
         text-align: left;
         transition:
-          transform 0.18s ease,
-          box-shadow 0.18s ease,
-          border-color 0.18s ease;
+          border-color 200ms ease,
+          box-shadow 300ms var(--ease-out),
+          transform 160ms var(--ease-out);
       }
 
-      button.module-card {
-        appearance: none;
+      .tile:active {
+        transform: scale(0.985);
+      }
+
+      .tile-media {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        background: var(--surface-2);
+      }
+
+      .tile-media img {
         width: 100%;
-        padding: 0;
-      }
-
-      .module-card:hover,
-      .module-card:focus-visible {
-        transform: translateY(-3px);
-        border-color: rgba(7, 95, 145, 0.34);
-        box-shadow: 0 22px 46px rgba(18, 32, 51, 0.11);
-        outline: none;
-      }
-
-      .module-card img {
-        width: 100%;
-        aspect-ratio: 16 / 9;
+        height: 100%;
         object-fit: cover;
         object-position: left top;
-        border-bottom: 1px solid var(--line);
+        transition: transform 600ms var(--ease-out);
       }
 
-      .module-card div {
-        padding: 18px;
+      .tile-body {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        border-top: 1px solid var(--line);
+        padding: 14px 16px 16px;
       }
 
-      .contribute {
+      .tile-title {
+        display: block;
+        font-weight: 600;
+        font-size: 17px;
+        letter-spacing: -0.015em;
+        line-height: 1.2;
+      }
+
+      .tile-body p {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .tile-icon {
+        flex: none;
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--surface-2);
+        color: var(--muted);
+        font-size: 16px;
+        transition:
+          background-color 200ms ease,
+          color 200ms ease;
       }
 
-      .step-card,
-      .roadmap-card {
-        padding: 20px;
+      .tile-xl {
+        grid-column: span 2;
+        grid-row: span 2;
       }
 
-      .step-number {
-        display: inline-flex;
-        align-items: center;
+      .tile-xl .tile-title {
+        font-size: 22px;
+      }
+
+      .tile-wide {
+        grid-column: span 2;
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .tile:hover {
+          border-color: var(--line-strong);
+          box-shadow: var(--shadow-lg);
+        }
+
+        .tile:hover .tile-media img {
+          transform: scale(1.025);
+        }
+
+        .tile:hover .tile-icon {
+          background: var(--brand);
+          color: var(--on-brand);
+        }
+      }
+
+      .bento-foot {
+        display: flex;
         justify-content: center;
-        width: 34px;
-        height: 34px;
-        border-radius: 999px;
-        background: var(--brand);
-        color: #ffffff;
-        font-weight: 950;
+        margin-top: 32px;
       }
 
-      .roadmap {
+      /* Contribute */
+      .steps {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
+        gap: 0;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: step;
       }
 
-      .status-pill {
-        display: inline-flex;
-        border-radius: 999px;
-        background: rgba(201, 104, 24, 0.1);
-        color: var(--orange);
-        font-size: 12px;
-        font-weight: 950;
-        padding: 5px 9px;
-      }
-
-      .faq {
-        display: grid;
-        gap: 10px;
-        max-width: 860px;
-        margin: 0 auto;
-      }
-
-      .faq details {
-        padding: 18px 20px;
-      }
-
-      .faq summary {
-        cursor: pointer;
-        font-weight: 950;
-      }
-
-      .faq p {
-        margin-top: 10px;
-      }
-
-      .final-cta {
-        overflow: hidden;
-        border-radius: 30px;
-        background:
-          linear-gradient(
-            135deg,
-            rgba(7, 95, 145, 0.96),
-            rgba(6, 63, 98, 0.98)
-          ),
-          var(--brand);
-        color: #ffffff;
-        padding: clamp(30px, 5vw, 52px);
+      .steps li {
         position: relative;
+        padding: 0 28px 0 0;
+        counter-increment: step;
       }
 
-      .final-cta > * {
+      .steps li::before {
+        content: counter(step);
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+        background: var(--bg);
+        color: var(--brand);
+        font-family: var(--mono);
+        font-size: 14px;
+        font-weight: 600;
         position: relative;
         z-index: 1;
       }
 
-      .final-cta::after {
+      .steps li::after {
         content: "";
         position: absolute;
-        right: -80px;
-        top: -80px;
-        width: 220px;
-        height: 220px;
-        border-radius: 999px;
-        border: 34px solid rgba(255, 255, 255, 0.08);
-      }
-
-      .final-cta::before {
-        content: "";
-        position: absolute;
-        inset: auto 42px 36px auto;
-        width: min(42vw, 420px);
+        top: 18px;
+        left: 36px;
+        right: 0;
         height: 1px;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          rgba(255, 255, 255, 0.35),
-          transparent
-        );
+        background: var(--line-strong);
       }
 
-      .final-cta h2 {
-        max-width: 760px;
-        margin: 0;
-        font-size: clamp(31px, 4vw, 56px);
-        line-height: 1.04;
+      .steps li:last-child::after {
+        display: none;
       }
 
-      .final-cta p {
-        max-width: 690px;
-        color: rgba(255, 255, 255, 0.82);
-        font-size: 17px;
-        margin: 14px 0 0;
+      .steps h3 {
+        margin-top: 20px;
+        font-size: 19px;
+        letter-spacing: -0.02em;
       }
 
-      .final-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 26px;
-      }
-
-      .portfolio-jump {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 28px;
-      }
-
-      .jump-node,
-      .jump-arrow {
-        display: inline-flex;
-        min-height: 34px;
-        align-items: center;
-        border-radius: 999px;
-        font-size: 13px;
-        font-weight: 950;
-      }
-
-      .jump-node {
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-        padding: 7px 11px;
-      }
-
-      .jump-arrow {
-        color: rgba(255, 255, 255, 0.72);
-      }
-
-      .btn-portfolio {
-        border-color: rgba(255, 255, 255, 0.42);
-        background: #ffffff;
-        color: var(--brand-dark);
-      }
-
-      .footer {
-        border-top: 1px solid var(--line);
+      .steps p {
+        margin-top: 8px;
         color: var(--muted);
-        padding: 30px 0;
+        font-size: 15px;
+      }
+
+      code.inline {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface-2);
+        color: var(--ink);
+        font-size: 0.88em;
+        padding: 1px 6px;
+      }
+
+      /* Roadmap */
+      .roadmap {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--surface);
+      }
+
+      .lane {
+        padding: 28px 32px 32px;
+      }
+
+      .lane + .lane {
+        border-left: 1px solid var(--line);
+      }
+
+      .lane-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+
+      .lane-label i {
+        font-size: 18px;
+        color: var(--brand);
+      }
+
+      .lane ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .lane li {
+        padding: 18px 0;
+      }
+
+      .lane li + li {
+        border-top: 1px solid var(--line);
+      }
+
+      .lane h3 {
+        font-size: 18px;
+        letter-spacing: -0.015em;
+      }
+
+      .lane p {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      /* FAQ */
+      .faq {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: 64px;
+        align-items: start;
+      }
+
+      .faq-list details {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .faq-list details:first-child {
+        border-top: 1px solid var(--line);
+      }
+
+      .faq-list summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        cursor: pointer;
+        list-style: none;
+        padding: 20px 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .faq-list summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .faq-list summary i {
+        flex: none;
+        color: var(--muted);
+        font-size: 18px;
+        transition: transform 220ms var(--ease-out);
+      }
+
+      .faq-list details[open] summary i {
+        transform: rotate(45deg);
+      }
+
+      .faq-list details p {
+        max-width: 60ch;
+        padding-bottom: 22px;
+        color: var(--muted);
+      }
+
+      .faq-list a {
+        color: var(--brand);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      /* Closing band */
+      .closing {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) auto;
+        align-items: end;
+        gap: 40px;
+        border-radius: 28px;
+        background: var(--brand);
+        color: var(--on-brand);
+        padding: clamp(32px, 5vw, 64px);
+      }
+
+      .closing h2 {
+        font-size: clamp(30px, 3.6vw, 48px);
+        max-width: 18ch;
+      }
+
+      .closing p {
+        margin-top: 16px;
+        max-width: 56ch;
+        color: color-mix(in srgb, var(--on-brand) 82%, var(--brand));
+        font-size: 17px;
+      }
+
+      .btn-invert {
+        border-color: var(--on-brand);
+        background: var(--on-brand);
+        color: var(--brand);
+      }
+
+      .btn-outline-invert {
+        border-color: color-mix(in srgb, var(--on-brand) 45%, var(--brand));
+        background: transparent;
+        color: var(--on-brand);
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .btn-outline-invert:hover {
+          border-color: var(--on-brand);
+          background: color-mix(in srgb, var(--on-brand) 10%, var(--brand));
+        }
+
+        .btn-invert:hover {
+          border-color: var(--on-brand);
+          background: color-mix(in srgb, var(--on-brand) 90%, var(--brand));
+        }
+      }
+
+      /* Footer */
+      .footer {
+        padding: 40px 0 48px;
+        color: var(--muted);
+        font-size: 14px;
       }
 
       .footer-inner {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         justify-content: space-between;
         gap: 16px;
+        border-top: 1px solid var(--line);
+        padding-top: 28px;
+      }
+
+      .footer nav {
+        display: flex;
+        gap: 20px;
       }
 
       .footer a {
-        font-weight: 850;
-        color: var(--brand-dark);
+        color: var(--ink);
+        font-weight: 500;
+        text-decoration: underline;
+        text-decoration-color: var(--line-strong);
+        text-underline-offset: 4px;
+        transition: text-decoration-color 150ms ease;
       }
 
-      .footer button {
-        border: 0;
-        background: transparent;
-        color: var(--brand-dark);
-        cursor: pointer;
-        font: inherit;
-        font-weight: 850;
+      @media (hover: hover) and (pointer: fine) {
+        .footer a:hover {
+          text-decoration-color: var(--brand);
+        }
+      }
+
+      /* Gallery */
+      .gallery {
+        width: min(1180px, calc(100% - 32px));
+        max-width: none;
+        max-height: calc(100dvh - 32px);
+        margin: auto;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--surface);
+        color: var(--ink);
         padding: 0;
+        box-shadow: 0 40px 120px rgba(0, 0, 0, 0.4);
+        opacity: 0;
+        transform: scale(0.97) translateY(8px);
+        transition:
+          opacity 200ms var(--ease-out),
+          transform 260ms var(--ease-out);
       }
 
-      body.gallery-open {
-        overflow: hidden;
+      .gallery.is-visible {
+        opacity: 1;
+        transform: none;
       }
 
-      .gallery-modal {
-        position: fixed;
-        inset: 0;
-        z-index: 100;
-        display: none;
-        place-items: center;
-        padding: 24px;
+      .gallery::backdrop {
+        background: rgba(6, 14, 22, 0);
+        backdrop-filter: blur(0);
+        transition:
+          background-color 200ms ease,
+          backdrop-filter 200ms ease;
       }
 
-      .gallery-modal.is-open {
+      .gallery.is-visible::backdrop {
+        background: rgba(6, 14, 22, 0.66);
+        backdrop-filter: blur(6px);
+      }
+
+      .gallery-inner {
         display: grid;
-      }
-
-      .gallery-backdrop {
-        position: absolute;
-        inset: 0;
-        background: rgba(6, 18, 32, 0.72);
-        backdrop-filter: blur(10px);
-      }
-
-      .gallery-dialog {
-        position: relative;
-        z-index: 1;
-        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
         grid-template-columns: minmax(0, 1fr);
-        width: min(1180px, 100%);
-        min-width: 0;
-        max-height: min(92dvh, 900px);
-        overflow: hidden;
-        border: 1px solid rgba(216, 228, 241, 0.28);
-        border-radius: 28px;
-        background: #ffffff;
-        box-shadow: 0 32px 90px rgba(0, 0, 0, 0.36);
+        max-height: calc(100dvh - 32px);
       }
 
       .gallery-header,
@@ -939,7 +1429,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 16px;
-        padding: 14px 16px;
+        padding: 12px 14px 12px 20px;
       }
 
       .gallery-header {
@@ -947,233 +1437,427 @@
       }
 
       .gallery-title {
-        margin: 0;
-        font-size: 20px;
+        font-size: 17px;
+        letter-spacing: -0.01em;
       }
 
       .gallery-counter {
+        margin-left: 10px;
         color: var(--muted);
+        font-family: var(--mono);
         font-size: 13px;
-        font-weight: 900;
+        font-variant-numeric: tabular-nums;
       }
 
-      .gallery-close,
-      .gallery-nav {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: #ffffff;
-        color: var(--brand-dark);
-        cursor: pointer;
-        font-weight: 950;
-        line-height: 1;
-        padding: 0;
-      }
-
-      .gallery-close {
+      .icon-btn {
+        display: grid;
+        place-items: center;
         width: 40px;
         height: 40px;
-        font-size: 24px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: var(--surface);
+        cursor: pointer;
+        font-size: 18px;
+        transition:
+          transform 160ms var(--ease-out),
+          background-color 150ms ease;
+      }
+
+      .icon-btn:active {
+        transform: scale(0.94);
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .icon-btn:hover {
+          background: var(--surface-2);
+        }
       }
 
       .gallery-stage {
         position: relative;
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         place-items: center;
-        min-width: 0;
         min-height: 0;
-        background: #edf4f9;
-        padding: 16px 70px;
+        background: var(--surface-2);
+        padding: 20px 72px;
       }
 
       .gallery-stage img {
+        min-width: 0;
+        max-width: 100%;
+        max-height: calc(100dvh - 220px);
         width: auto;
         height: auto;
-        max-width: 100%;
-        max-height: 66dvh;
         border: 1px solid var(--line);
-        border-radius: 18px;
-        background: #ffffff;
-        box-shadow: 0 18px 46px rgba(18, 32, 51, 0.13);
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+        transition:
+          opacity 220ms var(--ease-out),
+          filter 220ms var(--ease-out);
       }
 
-      .gallery-nav {
+      .gallery-stage img.is-loading {
+        opacity: 0.4;
+        filter: blur(4px);
+      }
+
+      .gallery-stage .icon-btn {
         position: absolute;
         top: 50%;
-        width: 46px;
-        height: 46px;
-        transform: translateY(-50%);
-        font-size: 28px;
-        line-height: 46px;
+        margin-top: -20px;
       }
 
-      .gallery-nav[data-gallery-prev] {
-        left: 14px;
+      .gallery-stage [data-gallery-prev] {
+        left: 16px;
       }
 
-      .gallery-nav[data-gallery-next] {
-        right: 14px;
+      .gallery-stage [data-gallery-next] {
+        right: 16px;
       }
 
       .gallery-footer {
         border-top: 1px solid var(--line);
+        padding: 10px 14px;
       }
 
       .gallery-thumbs {
         display: flex;
+        gap: 6px;
         min-width: 0;
-        gap: 8px;
         overflow-x: auto;
-        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+        scrollbar-width: thin;
+        scrollbar-color: var(--line-strong) transparent;
+        padding-bottom: 4px;
       }
 
       .gallery-thumbs button {
-        flex: 0 0 auto;
+        flex: none;
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: #ffffff;
+        background: var(--surface);
         color: var(--muted);
         cursor: pointer;
-        font-size: 12px;
-        font-weight: 900;
-        padding: 8px 11px;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 6px 12px;
+        scroll-snap-align: start;
+        transition:
+          background-color 150ms ease,
+          color 150ms ease,
+          border-color 150ms ease;
       }
 
       .gallery-thumbs button[aria-current="true"] {
-        border-color: var(--brand);
-        background: var(--brand);
-        color: #ffffff;
+        border-color: var(--ink);
+        background: var(--ink);
+        color: var(--bg);
       }
 
-      @keyframes word-in {
+      /* Entrance: one authored moment on load */
+      @media (prefers-reduced-motion: no-preference) {
+        .rise {
+          animation: rise 900ms var(--ease-out) both;
+          animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+        }
+
+        .showcase {
+          animation: reveal 1100ms var(--ease-out) both;
+          animation-delay: 320ms;
+        }
+
+        .reveal-on-scroll {
+          opacity: 0;
+          transform: translateY(16px);
+          transition:
+            opacity 700ms var(--ease-out),
+            transform 700ms var(--ease-out);
+          transition-delay: calc(var(--i, 0) * 60ms);
+        }
+
+        .reveal-on-scroll.is-in {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      @keyframes rise {
         from {
+          opacity: 0;
           transform: translateY(14px);
+          filter: blur(6px);
         }
-
         to {
-          transform: translateY(0);
+          opacity: 1;
+          transform: none;
+          filter: blur(0);
         }
       }
 
-      @media (max-width: 980px) {
-        .navbar {
-          align-items: flex-start;
-          flex-direction: column;
+      @keyframes reveal {
+        from {
+          opacity: 0;
+          transform: translateY(40px) scale(0.985);
+          clip-path: inset(0 0 18% 0 round 20px);
         }
-
-        .nav-links,
-        .nav-actions {
-          width: 100%;
-          justify-content: flex-start;
-        }
-
-        .trust-grid,
-        .feature-grid,
-        .modules,
-        .contribute,
-        .roadmap,
-        .quickstart {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        to {
+          opacity: 1;
+          transform: none;
+          clip-path: inset(-20% -20% -20% -20% round 20px);
         }
       }
 
-      @media (max-width: 680px) {
-        .container {
-          width: min(100% - 28px, var(--container));
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
         }
 
-        .nav-shell {
-          padding: 10px 0;
+        .slide,
+        .gallery,
+        .gallery::backdrop,
+        .tile-media img {
+          transition-duration: 0ms;
         }
 
-        .navbar {
-          border-radius: 18px;
+        .slide {
+          filter: none;
+          transform: none;
         }
+      }
 
+      /* Responsive */
+      @media (max-width: 1040px) {
         .nav-links {
           display: none;
         }
 
-        .nav-actions {
-          flex-direction: column;
-          align-items: stretch;
+        .menu-btn {
+          display: grid;
         }
 
-        .btn {
-          width: 100%;
+        .mobile-menu {
+          display: block;
+        }
+
+        .hero-top,
+        .quickstart,
+        .license,
+        .faq {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+
+        .hero-side {
+          padding-bottom: 0;
+        }
+
+        .stack ul {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stack li:nth-child(3) {
+          padding-left: 0;
+          border-left: 0;
+        }
+
+        .stack li:nth-child(n + 3) {
+          border-top: 1px solid var(--line);
+        }
+
+        .bento {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .tile-wide {
+          grid-column: span 1;
+        }
+
+        .steps {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          row-gap: 40px;
+        }
+
+        .steps li:nth-child(2)::after {
+          display: none;
+        }
+
+        .closing {
+          grid-template-columns: 1fr;
+          align-items: start;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .container {
+          width: calc(100% - 32px);
+        }
+
+        .navbar {
+          height: 60px;
         }
 
         .hero {
-          padding: 42px 0 34px;
+          padding-top: 40px;
         }
 
-        h1 {
-          font-size: 43px;
+        .hero h1 {
+          font-size: clamp(38px, 11vw, 52px);
         }
 
-        .rotating-word {
-          font-size: 0.78em;
+        .showcase {
+          margin-top: 40px;
         }
 
-        .carousel-panel,
-        .video-meta,
-        .gallery-footer,
-        .portfolio-jump,
-        .footer-inner {
-          align-items: stretch;
-          flex-direction: column;
+        .frame-url {
+          display: none;
         }
 
-        .jump-arrow {
-          justify-content: center;
-          min-height: 20px;
-          transform: rotate(90deg);
+        .tabs {
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          scroll-padding-inline: 16px;
+          scrollbar-width: none;
+          margin-inline: -16px;
+          padding-inline: 16px;
         }
 
-        .gallery-modal {
-          padding: 10px;
+        .tabs::-webkit-scrollbar {
+          display: none;
         }
 
-        .gallery-dialog {
-          border-radius: 20px;
-          max-height: 94dvh;
+        .tab {
+          flex: 0 0 72%;
+          scroll-snap-align: start;
         }
 
-        .gallery-stage {
-          padding: 12px 12px 64px;
+        .stack {
+          margin-top: 48px;
         }
 
-        .gallery-stage img {
-          max-height: 58dvh;
-        }
-
-        .gallery-nav {
-          top: auto;
-          bottom: 12px;
-          transform: none;
-        }
-
-        .gallery-nav[data-gallery-prev] {
-          left: calc(50% - 54px);
-        }
-
-        .gallery-nav[data-gallery-next] {
-          right: calc(50% - 54px);
-        }
-
-        .trust-grid,
-        .feature-grid,
-        .modules,
-        .contribute,
-        .roadmap,
-        .quickstart {
+        .stack ul {
           grid-template-columns: 1fr;
         }
 
+        .stack li,
+        .stack li + li {
+          padding: 16px 0;
+          border-left: 0;
+        }
+
+        .stack li + li {
+          border-top: 1px solid var(--line);
+        }
+
         .section {
-          padding: 52px 0;
+          padding: 80px 0;
+        }
+
+        .pillars {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+
+        .bento {
+          grid-template-columns: 1fr;
+          grid-auto-rows: auto;
+        }
+
+        .tile-xl,
+        .tile-wide {
+          grid-column: auto;
+          grid-row: auto;
+        }
+
+        .tile-media {
+          flex: none;
+          aspect-ratio: 16 / 10;
+        }
+
+        .steps {
+          grid-template-columns: 1fr;
+          row-gap: 0;
+        }
+
+        .steps li {
+          display: grid;
+          grid-template-columns: 36px 1fr;
+          column-gap: 16px;
+          padding: 0 0 32px;
+        }
+
+        .steps li::before {
+          grid-row: span 2;
+        }
+
+        .steps li::after,
+        .steps li:nth-child(2)::after {
+          display: block;
+          top: 36px;
+          bottom: 0;
+          left: 18px;
+          right: auto;
+          width: 1px;
+          height: auto;
+        }
+
+        .steps li:last-child::after {
+          display: none;
+        }
+
+        .steps h3 {
+          margin-top: 6px;
+        }
+
+        .roadmap {
+          grid-template-columns: 1fr;
+        }
+
+        .lane {
+          padding: 24px 20px;
+        }
+
+        .lane + .lane {
+          border-left: 0;
+          border-top: 1px solid var(--line);
+        }
+
+        .closing {
+          border-radius: 22px;
+        }
+
+        .gallery {
+          width: calc(100% - 16px);
+          max-height: calc(100dvh - 16px);
+          border-radius: 18px;
+        }
+
+        .gallery-inner {
+          max-height: calc(100dvh - 16px);
+        }
+
+        .gallery-stage {
+          padding: 12px 12px 68px;
+        }
+
+        .gallery-stage img {
+          max-height: calc(100dvh - 240px);
+        }
+
+        .gallery-stage .icon-btn {
+          top: auto;
+          bottom: 14px;
+          margin-top: 0;
+        }
+
+        .gallery-stage [data-gallery-prev] {
+          left: calc(50% - 48px);
+        }
+
+        .gallery-stage [data-gallery-next] {
+          right: calc(50% - 48px);
         }
       }
     </style>
@@ -1181,211 +1865,263 @@
   <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
 
-    <header class="nav-shell">
+    <header class="nav-shell" data-nav>
       <div class="container">
         <nav class="navbar" aria-label="Navegação principal">
-          <a class="brand" href="#inicio" aria-label="Hórus PDV"> Hórus PDV </a>
+          <a class="brand" href="#inicio" aria-label="Hórus PDV, início">
+            <img class="brand-mark" src="favicon.svg" width="30" height="30" alt="" />
+            Hórus PDV
+          </a>
 
           <div class="nav-links">
-            <a href="#demo">Demo</a>
-            <a href="#quickstart">Quick start</a>
+            <a href="#quickstart">Instalação</a>
             <a href="#opensource">Licença</a>
+            <a href="#demo">Demo</a>
             <a href="#modulos">Módulos</a>
             <a href="#contribuir">Contribuir</a>
             <a href="#roadmap">Roadmap</a>
           </div>
 
-          <div class="nav-actions">
+          <div class="nav-end">
             <a
               class="btn btn-primary"
               href="https://github.com/flaviooliveira-code/horus_pdv"
-              >Ir no GitHub</a
+              ><i class="ph ph-github-logo" aria-hidden="true"></i>Ver no
+              GitHub</a
             >
+            <button
+              class="menu-btn"
+              type="button"
+              aria-expanded="false"
+              aria-controls="mobile-menu"
+              aria-label="Abrir menu"
+              data-menu-toggle
+            >
+              <i class="ph ph-list" aria-hidden="true"></i>
+              <i class="ph ph-x" aria-hidden="true"></i>
+            </button>
           </div>
         </nav>
+      </div>
+
+      <div class="mobile-menu" id="mobile-menu" data-menu inert>
+        <ul class="container">
+          <li style="--i: 0"><a href="#quickstart">Instalação<i class="ph ph-arrow-right" aria-hidden="true"></i></a></li>
+          <li style="--i: 1"><a href="#opensource">Licença<i class="ph ph-arrow-right" aria-hidden="true"></i></a></li>
+          <li style="--i: 2"><a href="#demo">Demo<i class="ph ph-arrow-right" aria-hidden="true"></i></a></li>
+          <li style="--i: 3"><a href="#modulos">Módulos<i class="ph ph-arrow-right" aria-hidden="true"></i></a></li>
+          <li style="--i: 4"><a href="#contribuir">Contribuir<i class="ph ph-arrow-right" aria-hidden="true"></i></a></li>
+          <li style="--i: 5"><a href="#roadmap">Roadmap<i class="ph ph-arrow-right" aria-hidden="true"></i></a></li>
+        </ul>
       </div>
     </header>
 
     <main id="conteudo">
       <section class="hero" id="inicio">
-        <div class="container hero-inner">
-          <span class="badge"
-            ><span class="badge-dot"></span>PDV grátis para comércio</span
-          >
-          <h1>
-            PDV grátis para vender,
-            <span class="rotating-word" id="hero-word">gerenciar estoque</span>
-            e controlar cadastros.
-          </h1>
-          <p class="lead">
-            Hórus PDV reúne frente de caixa grátis, sistema de cadastro grátis
-            para clientes, fornecedores e produtos, controle de estoque,
-            vendas, relatórios e gestão avançada em uma base React + .NET.
-          </p>
+        <div class="container">
+          <div class="hero-top">
+            <h1 class="rise" style="--i: 0">
+              <span>
+                PDV grátis para
+                <span class="rotator"
+                  ><span class="rotator-word" data-rotator
+                    >abrir o caixa.</span
+                  ></span
+                >
+              </span>
+            </h1>
 
-          <div class="hero-actions">
-            <a
-              class="btn btn-primary"
-              href="https://github.com/flaviooliveira-code/horus_pdv"
-              >Ver no GitHub</a
-            >
-            <a class="btn btn-accent" href="#demo">Assistir demonstração</a>
-          </div>
-
-          <div class="proof-strip" aria-label="Destaques do projeto">
-            <span>MIT License</span>
-            <span>React 19 + Vite</span>
-            <span>ASP.NET Core .NET 8</span>
-            <span>SQL Server</span>
-            <!-- <span>Smoke test E2E</span> -->
-          </div>
-
-          <div class="hero-showcase">
-            <div class="hero-shadow" aria-hidden="true"></div>
-            <div
-              class="window carousel"
-              aria-label="Prévia das telas do Hórus PDV"
-            >
-              <div class="window-bar">
-                <spa class="traffic" aria-hidden="true"
-                  ><i></i><i></i><i></i
-                ></span>
-              </div>
-
-              <button
-                class="slide is-active"
-                type="button"
-                data-slide
-                data-gallery-open
-                data-gallery-index="1"
-              >
-                <img src="images/dashboard.png" alt="Dashboard do Hórus PDV" />
-              </button>
-              <button
-                class="slide"
-                type="button"
-                data-slide
-                data-gallery-open
-                data-gallery-index="6"
-              >
-                <img
-                  src="images/frente-caixa.png"
-                  alt="Frente de caixa do Hórus PDV"
-                />
-              </button>
-              <button
-                class="slide"
-                type="button"
-                data-slide
-                data-gallery-open
-                data-gallery-index="4"
-              >
-                <img
-                  src="images/produtos.png"
-                  alt="Cadastro de produtos do Hórus PDV"
-                />
-              </button>
-              <button
-                class="slide"
-                type="button"
-                data-slide
-                data-gallery-open
-                data-gallery-index="7"
-              >
-                <img
-                  src="images/historico-vendas.png"
-                  alt="Histórico de vendas do Hórus PDV"
-                />
-              </button>
-
-              <div class="carousel-panel">
-                <div>
-                  <strong id="slide-title">Dashboard operacional</strong>
-                  <span id="slide-description"
-                    >Visão geral, atalhos de operação e módulos do PDV.</span
-                  >
-                </div>
-                <div class="carousel-controls">
-                  <button type="button" data-prev aria-label="Tela anterior">
-                    ‹
-                  </button>
-                  <div
-                    class="dots"
-                    data-dots
-                    aria-label="Selecionar tela"
-                  ></div>
-                  <button type="button" data-next aria-label="Próxima tela">
-                    ›
-                  </button>
-                </div>
+            <div class="hero-side">
+              <p class="lead rise" style="--i: 1">
+                Frente de caixa grátis, sistema de cadastro grátis e controle de
+                estoque para pequenos comércios. Código aberto, licença MIT.
+              </p>
+              <div class="actions rise" style="--i: 2">
+                <a
+                  class="btn btn-primary"
+                  href="https://github.com/flaviooliveira-code/horus_pdv"
+                  ><i class="ph ph-github-logo" aria-hidden="true"></i>Ver no
+                  GitHub</a
+                >
+                <a class="btn" href="#demo"
+                  ><i class="ph ph-play-circle" aria-hidden="true"></i
+                  >Assistir demo</a
+                >
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section class="section section-muted" aria-label="Stack e status">
-        <div class="container trust-grid">
-          <article class="trust-card">
-            <strong>MIT</strong>
-            <span>Licença aberta</span>
-          </article>
-          <article class="trust-card">
-            <strong>.NET 8</strong>
-            <span>API ASP.NET Core</span>
-          </article>
-          <article class="trust-card">
-            <strong>React</strong>
-            <span>Frontend Vite</span>
-          </article>
-          <article class="trust-card">
-            <strong>SQL</strong>
-            <span>SQL Server local</span>
-          </article>
-          <!-- <article class="trust-card">
-            <strong>E2E</strong>
-            <span>Playwright smoke</span>
-          </article> -->
+          <div class="showcase">
+            <div class="frame">
+              <div class="frame-bar" aria-hidden="true">
+                <span class="lights"><i></i><i></i><i></i></span>
+                <span class="frame-url">localhost:5173</span>
+              </div>
+              <div class="stage" aria-roledescription="carrossel" aria-label="Telas do Hórus PDV">
+                <button
+                  class="slide is-active"
+                  type="button"
+                  id="slide-0"
+                  role="tabpanel"
+                  aria-labelledby="tab-0"
+                  data-slide
+                  data-gallery-open
+                  data-gallery-index="1"
+                >
+                  <img
+                    src="images/dashboard.webp"
+                    width="1440"
+                    height="900"
+                    alt="Dashboard do Hórus PDV"
+                    fetchpriority="high"
+                  />
+                </button>
+                <button
+                  class="slide"
+                  type="button"
+                  id="slide-1"
+                  role="tabpanel"
+                  aria-labelledby="tab-1"
+                  data-slide
+                  data-gallery-open
+                  data-gallery-index="6"
+                >
+                  <img
+                    src="images/frente-caixa.webp"
+                    width="1440"
+                    height="900"
+                    alt="Frente de caixa do Hórus PDV"
+                    loading="lazy"
+                  />
+                </button>
+                <button
+                  class="slide"
+                  type="button"
+                  id="slide-2"
+                  role="tabpanel"
+                  aria-labelledby="tab-2"
+                  data-slide
+                  data-gallery-open
+                  data-gallery-index="4"
+                >
+                  <img
+                    src="images/produtos.webp"
+                    width="1440"
+                    height="900"
+                    alt="Cadastro de produtos do Hórus PDV"
+                    loading="lazy"
+                  />
+                </button>
+                <button
+                  class="slide"
+                  type="button"
+                  id="slide-3"
+                  role="tabpanel"
+                  aria-labelledby="tab-3"
+                  data-slide
+                  data-gallery-open
+                  data-gallery-index="7"
+                >
+                  <img
+                    src="images/historico-vendas.webp"
+                    width="1440"
+                    height="900"
+                    alt="Histórico de vendas do Hórus PDV"
+                    loading="lazy"
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="Escolher tela" data-tabs>
+              <button class="tab" type="button" role="tab" id="tab-0" aria-controls="slide-0" aria-selected="true">
+                <strong>Dashboard</strong>
+                <span>Visão geral, atalhos e módulos do PDV.</span>
+              </button>
+              <button class="tab" type="button" role="tab" id="tab-1" aria-controls="slide-1" aria-selected="false" tabindex="-1">
+                <strong>Frente de caixa</strong>
+                <span>Carrinho, pagamento e baixa de estoque.</span>
+              </button>
+              <button class="tab" type="button" role="tab" id="tab-2" aria-controls="slide-2" aria-selected="false" tabindex="-1">
+                <strong>Produtos</strong>
+                <span>Cadastro com fornecedor, estoque e preço.</span>
+              </button>
+              <button class="tab" type="button" role="tab" id="tab-3" aria-controls="slide-3" aria-selected="false" tabindex="-1">
+                <strong>Histórico de vendas</strong>
+                <span>Valores, recibos e reimpressão.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack" aria-label="Stack e licença">
+          <ul class="container">
+            <li>
+              <i class="ph ph-scales" aria-hidden="true"></i>
+              <span><b>MIT</b>Licença aberta</span>
+            </li>
+            <li>
+              <i class="ph ph-atom" aria-hidden="true"></i>
+              <span><b>React 19 + Vite</b>Frontend</span>
+            </li>
+            <li>
+              <i class="ph ph-brackets-curly" aria-hidden="true"></i>
+              <span><b>ASP.NET Core .NET 8</b>API</span>
+            </li>
+            <li>
+              <i class="ph ph-database" aria-hidden="true"></i>
+              <span><b>SQL Server</b>Banco local</span>
+            </li>
+          </ul>
         </div>
       </section>
 
       <section class="section" id="quickstart">
         <div class="container quickstart">
           <div>
-            <span class="eyebrow">Quick start</span>
-            <h2>Clone, suba o SQL Server e rode a aplicação local.</h2>
-            <p class="section-copy">
-              O projeto foi organizado para ser auditável e simples de iniciar:
-              banco via Docker, API .NET e frontend Vite com variáveis de
-              ambiente por endpoint.
+            <h2 class="h2">Clone, suba o SQL Server e rode local.</h2>
+            <p class="copy">
+              Banco via Docker, API .NET e frontend Vite com variáveis de
+              ambiente por endpoint. Simples de iniciar e fácil de auditar.
             </p>
-            <div class="hero-actions" style="justify-content: flex-start">
-              <a
-                class="btn btn-primary"
-                href="https://github.com/flaviooliveira-code/horus_pdv"
-                >Clonar projeto</a
-              >
-              <a class="btn" href="#contribuir">Como contribuir</a>
+            <div class="actions">
+              <a class="btn" href="#contribuir"
+                >Como contribuir<i class="ph ph-arrow-right" aria-hidden="true"></i
+              ></a>
             </div>
           </div>
 
           <div class="terminal">
             <div class="terminal-head">
-              <span class="traffic" aria-hidden="true"
-                ><i></i><i></i><i></i
-              ></span>
-              <span class="terminal-title">terminal</span>
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="terminal-title">zsh</span>
               <button
                 class="copy-btn"
                 type="button"
                 data-copy="#quickstart-code"
+                aria-live="polite"
               >
-                Copiar
+                <span class="copy-label"
+                  ><i class="ph ph-copy" aria-hidden="true"></i>Copiar</span
+                >
               </button>
             </div>
-            <pre
-              id="quickstart-code"
-            ><code>git clone https://github.com/flaviooliveira-code/horus_pdv.git
+            <pre><code><span class="c"># clone</span>
+<span class="p">$ </span>git clone https://github.com/flaviooliveira-code/horus_pdv.git
+<span class="p">$ </span>cd horus_pdv
+
+<span class="c"># banco</span>
+<span class="p">$ </span>docker start sqlserver2025
+
+<span class="c"># api</span>
+<span class="p">$ </span>cd API/NETCORE
+<span class="p">$ </span>dotnet run --urls http://localhost:5260
+
+<span class="c"># frontend</span>
+<span class="p">$ </span>cd ../../FRONTEND
+<span class="p">$ </span>npm install
+<span class="p">$ </span>npm run dev</code></pre>
+            <textarea id="quickstart-code" hidden>git clone https://github.com/flaviooliveira-code/horus_pdv.git
 cd horus_pdv
 
 docker start sqlserver2025
@@ -1395,206 +2131,166 @@ dotnet run --urls http://localhost:5260
 
 cd ../../FRONTEND
 npm install
-npm run dev</code></pre>
+npm run dev</textarea>
           </div>
         </div>
       </section>
 
-      <section class="section section-muted" id="opensource">
-        <div class="container">
-          <div class="section-header">
-            <span class="eyebrow">Licença MIT</span>
-            <h2>Grátis para usar, estudar e adaptar.</h2>
+      <section class="section section-tint" id="opensource">
+        <div class="container license">
+          <div>
+            <h2 class="license-title">
+              Grátis para usar, estudar e adaptar.
+              <span>Licença MIT.</span>
+            </h2>
+            <a
+              class="btn"
+              href="https://github.com/flaviooliveira-code/horus_pdv/blob/main/LICENSE"
+              >Ler a licença<i class="ph ph-arrow-right" aria-hidden="true"></i
+            ></a>
           </div>
 
-          <div class="feature-grid">
-            <article class="feature-card">
-              <span class="icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M4 7h16M4 12h16M4 17h10"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                  />
-                </svg>
-              </span>
-              <h3>Transparente</h3>
-              <p>
+          <dl class="pillars">
+            <div class="reveal-on-scroll" style="--i: 0">
+              <dt><i class="ph ph-eye" aria-hidden="true"></i>Transparente</dt>
+              <dd>
                 Código, estrutura, scripts e smoke test ficam disponíveis no
                 repositório.
-              </p>
-            </article>
-            <article class="feature-card">
-              <span class="icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 3 20 7v5c0 4.8-3.2 7.5-8 9-4.8-1.5-8-4.2-8-9V7l8-4Z"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                  />
-                </svg>
-              </span>
-              <h3>Auditável</h3>
-              <p>
+              </dd>
+            </div>
+            <div class="reveal-on-scroll" style="--i: 1">
+              <dt><i class="ph ph-shield-check" aria-hidden="true"></i>Auditável</dt>
+              <dd>
                 Fluxos críticos de caixa, venda e estoque podem ser verificados
                 ponta a ponta.
-              </p>
-            </article>
-            <article class="feature-card">
-              <span class="icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M7 8h10M7 12h10M7 16h6M5 4h14v16H5z"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                  />
-                </svg>
-              </span>
-              <h3>Documentado</h3>
-              <p>
+              </dd>
+            </div>
+            <div class="reveal-on-scroll" style="--i: 2">
+              <dt><i class="ph ph-book-open-text" aria-hidden="true"></i>Documentado</dt>
+              <dd>
                 README, screenshots, vídeo demo e comandos reduzem atrito para
                 novos usuários.
-              </p>
-            </article>
-            <article class="feature-card">
-              <span class="icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 5v14M5 12h14M7.5 7.5l9 9M16.5 7.5l-9 9"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                  />
-                </svg>
-              </span>
-              <h3>Extensível</h3>
-              <p>
+              </dd>
+            </div>
+            <div class="reveal-on-scroll" style="--i: 3">
+              <dt><i class="ph ph-puzzle-piece" aria-hidden="true"></i>Extensível</dt>
+              <dd>
                 Base preparada para módulos fiscais, pagamentos integrados e
                 instaladores.
-              </p>
-            </article>
-          </div>
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
 
       <section class="section" id="demo">
         <div class="container">
-          <div class="section-header">
-            <span class="eyebrow">Demonstração</span>
-            <h2>Veja o sistema operando com API real.</h2>
-            <p class="section-copy">
-              A gravação percorre cadastro, login, CRUDs, gestão avançada,
-              abertura de caixa, venda, cupom, histórico e relatórios.
-            </p>
+          <div class="section-head">
+            <h2 class="h2">Veja o sistema operando com API real.</h2>
           </div>
 
-          <div class="video-card">
+          <div class="video-frame">
             <video
-              class="video-frame"
               controls
-              preload="metadata"
-              poster="images/dashboard.png"
+              preload="none"
+              playsinline
+              poster="images/dashboard.webp"
+              width="1440"
+              height="900"
             >
               <source src="videos/horus-pdv-demo.webm" type="video/webm" />
               Seu navegador não suporta vídeo HTML5.
             </video>
-            <div class="video-meta">
-              <a class="btn btn-primary" href="videos/horus-pdv-demo.webm"
-                >Abrir vídeo</a
-              >
-            </div>
           </div>
         </div>
       </section>
 
-      <section class="section section-muted" id="modulos">
+      <section class="section section-tint" id="modulos">
         <div class="container">
-          <div class="section-header">
-            <span class="eyebrow">Módulos</span>
-            <h2>Fluxos essenciais para operação de balcão.</h2>
-            <p class="section-copy">
-              Conheça a frente de caixa grátis, os cadastros, o controle de
-              estoque e os módulos de gestão do sistema.
+          <div class="section-head">
+            <h2 class="h2">Fluxos essenciais para a operação de balcão.</h2>
+            <p>
+              Frente de caixa grátis, cadastros, controle de estoque e módulos
+              de gestão. Clique em qualquer tela para ampliar.
             </p>
           </div>
 
-          <div class="modules">
-            <button
-              class="module-card"
-              type="button"
-              data-gallery-open
-              data-gallery-index="6"
-            >
-              <img src="images/frente-caixa.png" alt="Frente de caixa" />
-              <div>
-                <h3>Frente de Caixa</h3>
-                <p>Carrinho, pagamento, recibo e baixa de estoque.</p>
-              </div>
+          <div class="bento">
+            <button class="tile tile-xl reveal-on-scroll" style="--i: 0" type="button" data-gallery-open data-gallery-index="6">
+              <span class="tile-media"
+                ><img src="images/frente-caixa.webp" width="1440" height="900" alt="Frente de caixa" loading="lazy"
+              /></span>
+              <span class="tile-body">
+                <span>
+                  <strong class="tile-title">Frente de caixa</strong>
+                  <p>Frente de caixa grátis com carrinho, pagamento, recibo e atalhos de teclado.</p>
+                </span>
+                <span class="tile-icon" aria-hidden="true"><i class="ph ph-arrows-out-simple"></i></span>
+              </span>
             </button>
-            <button
-              class="module-card"
-              type="button"
-              data-gallery-open
-              data-gallery-index="4"
-            >
-              <img src="images/produtos.png" alt="Cadastro de produtos" />
-              <div>
-                <h3>Produtos</h3>
-                <p>Sistema de cadastro grátis para produtos, preços e estoque.</p>
-              </div>
+            <button class="tile tile-wide reveal-on-scroll" style="--i: 1" type="button" data-gallery-open data-gallery-index="4">
+              <span class="tile-media"
+                ><img src="images/produtos.webp" width="1440" height="900" alt="Cadastro de produtos" loading="lazy"
+              /></span>
+              <span class="tile-body">
+                <span>
+                  <strong class="tile-title">Produtos</strong>
+                  <p>Sistema de cadastro grátis para produtos, preços e controle de estoque.</p>
+                </span>
+                <span class="tile-icon" aria-hidden="true"><i class="ph ph-arrows-out-simple"></i></span>
+              </span>
             </button>
-            <button
-              class="module-card"
-              type="button"
-              data-gallery-open
-              data-gallery-index="12"
-            >
-              <img
-                src="images/abertura-fechamento.png"
-                alt="Abertura de caixa"
-              />
-              <div>
-                <h3>Caixa</h3>
-                <p>Abertura, fechamento e regra de bloqueio de venda.</p>
-              </div>
+            <button class="tile reveal-on-scroll" style="--i: 2" type="button" data-gallery-open data-gallery-index="12">
+              <span class="tile-media"
+                ><img src="images/abertura-fechamento.webp" width="1440" height="900" alt="Abertura de caixa" loading="lazy"
+              /></span>
+              <span class="tile-body">
+                <span>
+                  <strong class="tile-title">Caixa</strong>
+                  <p>Abertura, fechamento e bloqueio de venda.</p>
+                </span>
+              </span>
             </button>
-            <button
-              class="module-card"
-              type="button"
-              data-gallery-open
-              data-gallery-index="7"
-            >
-              <img
-                src="images/historico-vendas.png"
-                alt="Histórico de vendas"
-              />
-              <div>
-                <h3>Histórico</h3>
-                <p>Consulta, valores, recibo e reimpressão.</p>
-              </div>
+            <button class="tile reveal-on-scroll" style="--i: 3" type="button" data-gallery-open data-gallery-index="7">
+              <span class="tile-media"
+                ><img src="images/historico-vendas.webp" width="1440" height="900" alt="Histórico de vendas" loading="lazy"
+              /></span>
+              <span class="tile-body">
+                <span>
+                  <strong class="tile-title">Histórico</strong>
+                  <p>Consulta, recibo e reimpressão.</p>
+                </span>
+              </span>
             </button>
-            <button
-              class="module-card"
-              type="button"
-              data-gallery-open
-              data-gallery-index="17"
-            >
-              <img src="images/minha-empresa.png" alt="Minha empresa" />
-              <div>
-                <h3>Minha Empresa</h3>
-                <p>Dados comerciais e configuração de e-mail.</p>
-              </div>
+            <button class="tile tile-wide reveal-on-scroll" style="--i: 4" type="button" data-gallery-open data-gallery-index="17">
+              <span class="tile-media"
+                ><img src="images/minha-empresa.webp" width="1440" height="900" alt="Minha empresa" loading="lazy"
+              /></span>
+              <span class="tile-body">
+                <span>
+                  <strong class="tile-title">Minha empresa</strong>
+                  <p>Dados comerciais e configuração de e-mail.</p>
+                </span>
+                <span class="tile-icon" aria-hidden="true"><i class="ph ph-arrows-out-simple"></i></span>
+              </span>
             </button>
-            <button
-              class="module-card"
-              type="button"
-              data-gallery-open
-              data-gallery-index="15"
-            >
-              <img src="images/crm-fidelidade.png" alt="CRM e fidelidade" />
-              <div>
-                <h3>Gestão Avançada</h3>
-                <p>Compras, trocas, CRM, fidelidade e omnichannel.</p>
-              </div>
+            <button class="tile tile-wide reveal-on-scroll" style="--i: 5" type="button" data-gallery-open data-gallery-index="15">
+              <span class="tile-media"
+                ><img src="images/crm-fidelidade.webp" width="1440" height="900" alt="CRM e fidelidade" loading="lazy"
+              /></span>
+              <span class="tile-body">
+                <span>
+                  <strong class="tile-title">Gestão avançada</strong>
+                  <p>Compras, trocas, CRM, fidelidade e omnichannel.</p>
+                </span>
+                <span class="tile-icon" aria-hidden="true"><i class="ph ph-arrows-out-simple"></i></span>
+              </span>
+            </button>
+          </div>
+
+          <div class="bento-foot">
+            <button class="btn" type="button" data-gallery-open data-gallery-index="0">
+              <i class="ph ph-squares-four" aria-hidden="true"></i>Ver todas as 22 telas
             </button>
           </div>
         </div>
@@ -1602,116 +2298,138 @@ npm run dev</code></pre>
 
       <section class="section" id="contribuir">
         <div class="container">
-          <div class="section-header">
-            <span class="eyebrow">Contribuir</span>
-            <h2>Um fluxo simples para colaborar com o projeto.</h2>
-            <p class="section-copy">
-              Antes de abrir PR, rode o smoke test para validar cadastro, login,
-              navegação, CRUDs, caixa e venda.
+          <div class="section-head">
+            <h2 class="h2">Um fluxo simples para colaborar.</h2>
+            <p>
+              Antes de abrir PR, rode o smoke test para validar cadastro,
+              login, navegação, CRUDs, caixa e venda.
             </p>
           </div>
 
-          <div class="contribute">
-            <article class="step-card">
-              <span class="step-number">1</span>
+          <ol class="steps">
+            <li>
               <h3>Fork</h3>
               <p>Crie um fork do repositório e uma branch focada na mudança.</p>
-            </article>
-            <article class="step-card">
-              <span class="step-number">2</span>
+            </li>
+            <li>
               <h3>Instale</h3>
               <p>Suba SQL Server, API .NET e frontend React localmente.</p>
-            </article>
-            <article class="step-card">
-              <span class="step-number">3</span>
+            </li>
+            <li>
               <h3>Teste</h3>
-              <p>Execute `npm run smoke` no frontend antes de enviar.</p>
-            </article>
-            <article class="step-card">
-              <span class="step-number">4</span>
-              <h3>PR</h3>
-              <p>Abra pull request com resumo, prints e escopo bem definido.</p>
-            </article>
+              <p>Execute <code class="inline">npm run smoke</code> no frontend antes de enviar.</p>
+            </li>
+            <li>
+              <h3>Pull request</h3>
+              <p>Abra o PR com resumo, prints e escopo bem definido.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section section-tint" id="roadmap">
+        <div class="container">
+          <div class="section-head">
+            <h2 class="h2">Próximos passos do MVP gratuito.</h2>
+          </div>
+
+          <div class="roadmap">
+            <div class="lane">
+              <p class="lane-label">
+                <i class="ph ph-hammer" aria-hidden="true"></i>Em desenvolvimento
+              </p>
+              <ul>
+                <li>
+                  <h3>Fiscal NFC-e / NF-e</h3>
+                  <p>Camada fiscal, emissão, contingência e integração com certificados.</p>
+                </li>
+                <li>
+                  <h3>Pagamentos integrados</h3>
+                  <p>TEF, adquirentes, conciliação e retorno de transação.</p>
+                </li>
+              </ul>
+            </div>
+            <div class="lane">
+              <p class="lane-label">
+                <i class="ph ph-calendar-blank" aria-hidden="true"></i>Planejado
+              </p>
+              <ul>
+                <li>
+                  <h3>Instalador</h3>
+                  <p>Pacote de setup local para simplificar o uso em pequenas lojas.</p>
+                </li>
+                <li>
+                  <h3>Docs técnicas</h3>
+                  <p>Guias de arquitetura, endpoints, banco e contribuição.</p>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="section section-muted" id="roadmap">
-        <div class="container">
-          <div class="section-header">
-            <span class="eyebrow">Roadmap</span>
-            <h2>Próximos passos do MVP gratuito.</h2>
-          </div>
-
-          <div class="roadmap">
-            <article class="roadmap-card">
-              <span class="status-pill">Em desenvolvimento</span>
-              <h3>Fiscal NFC-e / NF-e</h3>
+      <section class="section" id="perguntas">
+        <div class="container faq">
+          <h2 class="h2">Perguntas frequentes</h2>
+          <div class="faq-list">
+            <details>
+              <summary>O Hórus PDV é grátis mesmo?<i class="ph ph-plus" aria-hidden="true"></i></summary>
               <p>
-                Camada fiscal, emissão, contingência e integração com
-                certificados.
+                Sim. O código está sob licença MIT: você pode usar, estudar,
+                modificar e usar comercialmente, sem mensalidade.
               </p>
-            </article>
-            <article class="roadmap-card">
-              <span class="status-pill">Em desenvolvimento</span>
-              <h3>Pagamentos integrados</h3>
-              <p>TEF, adquirentes, conciliação e retorno de transação.</p>
-            </article>
-            <article class="roadmap-card">
-              <span class="status-pill">Planejado</span>
-              <h3>Instalador</h3>
+            </details>
+            <details>
+              <summary>Serve para mercadinho, loja ou padaria?<i class="ph ph-plus" aria-hidden="true"></i></summary>
               <p>
-                Pacote de setup local para simplificar uso em pequenas lojas.
+                Foi pensado para comércio de balcão: frente de caixa, cadastro
+                de produtos, clientes e fornecedores, controle de estoque,
+                abertura e fechamento de caixa e relatórios de vendas.
               </p>
-            </article>
-            <article class="roadmap-card">
-              <span class="status-pill">Planejado</span>
-              <h3>Docs técnicas</h3>
-              <p>Guias de arquitetura, endpoints, banco e contribuição.</p>
-            </article>
+            </details>
+            <details>
+              <summary>Emite NFC-e ou NF-e?<i class="ph ph-plus" aria-hidden="true"></i></summary>
+              <p>
+                Ainda não. A camada fiscal (NFC-e / NF-e) está em
+                desenvolvimento e aparece no <a href="#roadmap">roadmap</a>.
+              </p>
+            </details>
+            <details>
+              <summary>O que preciso para instalar?<i class="ph ph-plus" aria-hidden="true"></i></summary>
+              <p>
+                SQL Server (via Docker), .NET 8 e Node.js. Os comandos estão na
+                seção <a href="#quickstart">Instalação</a>. Um instalador para
+                simplificar o uso em lojas está planejado.
+              </p>
+            </details>
           </div>
         </div>
       </section>
 
       <section class="section">
         <div class="container">
-          <div class="final-cta">
-            <h2>Conheça o desenvolvedor por trás do Hórus PDV.</h2>
-            <p>
-              O Hórus PDV faz parte do meu portfólio de sistemas, estudos
-              técnicos e produtos em evolução. No meu site pessoal você
-              encontra outros projetos, artigos sobre arquitetura, automação,
-              React, APIs e bastidores da construção dessas soluções.
-            </p>
-            <div class="final-actions">
+          <div class="closing">
+            <div>
+              <h2>Baixe, rode e adapte ao seu comércio.</h2>
+              <p>
+                Código aberto sob licença MIT, feito por Flávio Oliveira.
+              </p>
+            </div>
+            <div class="actions">
               <a
-                class="btn btn-portfolio"
-                href="https://flaviooliveira.dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                >Abrir portfólio</a
-              >
-              <a
-                class="btn btn-accent"
-                href="https://flaviooliveira.dev/#projects"
-                target="_blank"
-                rel="noopener noreferrer"
-                >Ver outros projetos</a
-              >
-              <a
-                class="btn"
+                class="btn btn-invert"
                 href="https://github.com/flaviooliveira-code/horus_pdv"
                 target="_blank"
                 rel="noopener noreferrer"
-                >Código-fonte</a
+                ><i class="ph ph-github-logo" aria-hidden="true"></i>Ver no GitHub</a
               >
-            </div>
-            <div class="portfolio-jump" aria-label="Caminho sugerido">
-              <span class="jump-node">Hórus PDV</span>
-              <span class="jump-arrow" aria-hidden="true">→</span>
-              <span class="jump-node">Portfólio</span>
-              <span class="jump-arrow" aria-hidden="true">→</span>
-              <span class="jump-node">Projetos e artigos</span>
+              <a
+                class="btn btn-outline-invert"
+                href="https://flaviooliveira.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                ><i class="ph ph-globe-simple" aria-hidden="true"></i>flaviooliveira.dev</a
+              >
             </div>
           </div>
         </div>
@@ -1720,337 +2438,348 @@ npm run dev</code></pre>
 
     <footer class="footer">
       <div class="container footer-inner">
-        <span>Hórus PDV - PDV grátis para frente de caixa e gestão.</span>
-        <span>
+        <span>Hórus PDV. PDV grátis para frente de caixa e gestão.</span>
+        <nav aria-label="Links do rodapé">
           <a
             href="https://github.com/flaviooliveira-code/horus_pdv"
             target="_blank"
             rel="noopener noreferrer"
             >Código-fonte</a
           >
-          ·
           <a
             href="https://flaviooliveira.dev"
             target="_blank"
             rel="noopener noreferrer"
-            >Portfólio</a
+            >flaviooliveira.dev</a
           >
-        </span>
+        </nav>
       </div>
     </footer>
 
-    <div
-      class="gallery-modal"
-      data-gallery-modal
-      aria-hidden="true"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Galeria de screenshots do Hórus PDV"
-    >
-      <div class="gallery-backdrop" data-gallery-close></div>
-      <section
-        class="gallery-dialog"
-        aria-label="Galeria de screenshots do Hórus PDV"
-      >
+    <dialog class="gallery" data-gallery aria-labelledby="gallery-title">
+      <div class="gallery-inner">
         <header class="gallery-header">
-          <div>
-            <h2 class="gallery-title" id="gallery-title">Dashboard</h2>
-            <span class="gallery-counter" data-gallery-counter>1 / 22</span>
-          </div>
-          <button
-            class="gallery-close"
-            type="button"
-            data-gallery-close
-            aria-label="Fechar galeria"
-          >
-            ×
+          <h2 class="gallery-title">
+            <span id="gallery-title">Dashboard</span
+            ><span class="gallery-counter" data-gallery-counter>2 / 22</span>
+          </h2>
+          <button class="icon-btn" type="button" data-gallery-close aria-label="Fechar galeria">
+            <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </header>
         <div class="gallery-stage">
-          <button
-            class="gallery-nav"
-            type="button"
-            data-gallery-prev
-            aria-label="Screenshot anterior"
-          >
-            ‹
+          <button class="icon-btn" type="button" data-gallery-prev aria-label="Tela anterior">
+            <i class="ph ph-caret-left" aria-hidden="true"></i>
           </button>
-          <img
-            data-gallery-image
-            src="images/dashboard.png"
-            alt="Dashboard do Hórus PDV"
-          />
-          <button
-            class="gallery-nav"
-            type="button"
-            data-gallery-next
-            aria-label="Próximo screenshot"
-          >
-            ›
+          <img data-gallery-image src="images/dashboard.webp" alt="Dashboard do Hórus PDV" width="1440" height="900" />
+          <button class="icon-btn" type="button" data-gallery-next aria-label="Próxima tela">
+            <i class="ph ph-caret-right" aria-hidden="true"></i>
           </button>
         </div>
         <footer class="gallery-footer">
-          <div
-            class="gallery-thumbs"
-            data-gallery-thumbs
-            aria-label="Selecionar screenshot"
-          ></div>
+          <div class="gallery-thumbs" data-gallery-thumbs aria-label="Selecionar tela"></div>
         </footer>
-      </section>
-    </div>
+      </div>
+    </dialog>
 
     <script>
-      const rotatingWords = [
-        "gerenciar estoque",
-        "abrir caixa",
-        "registrar vendas",
-        "evoluir em comunidade",
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      /* Sticky nav border once the page scrolls */
+      const nav = document.querySelector("[data-nav]");
+      const sentinel = document.createElement("div");
+      sentinel.style.cssText = "position:absolute;top:0;height:1px;width:1px";
+      document.body.prepend(sentinel);
+      new IntersectionObserver(([entry]) => {
+        nav.classList.toggle("is-stuck", !entry.isIntersecting);
+      }).observe(sentinel);
+
+      /* Mobile menu */
+      const menuToggle = document.querySelector("[data-menu-toggle]");
+      const menu = document.querySelector("[data-menu]");
+
+      function setMenu(open, { restoreFocus = false } = {}) {
+        menu.classList.toggle("is-open", open);
+        menu.inert = !open;
+        nav.classList.toggle("menu-open", open);
+        menuToggle.setAttribute("aria-expanded", String(open));
+        menuToggle.setAttribute("aria-label", open ? "Fechar menu" : "Abrir menu");
+        if (!open && restoreFocus) menuToggle.focus();
+      }
+
+      menuToggle.addEventListener("click", () =>
+        setMenu(menuToggle.getAttribute("aria-expanded") !== "true"),
+      );
+      menu.querySelectorAll("a").forEach((link) =>
+        link.addEventListener("click", () => setMenu(false)),
+      );
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && menu.classList.contains("is-open")) {
+          setMenu(false, { restoreFocus: true });
+        }
+      });
+      document.addEventListener("click", (event) => {
+        if (menu.classList.contains("is-open") && !nav.contains(event.target)) {
+          setMenu(false);
+        }
+      });
+      window.matchMedia("(min-width: 1041px)").addEventListener("change", (event) => {
+        if (event.matches) setMenu(false);
+      });
+
+      /* Rotating word in the headline */
+      const rotator = document.querySelector("[data-rotator]");
+      const words = [
+        "abrir o caixa.",
+        "registrar vendas.",
+        "controlar estoque.",
+        "cadastrar clientes.",
       ];
-      const heroWord = document.getElementById("hero-word");
       let wordIndex = 0;
-      window.setInterval(() => {
-        wordIndex = (wordIndex + 1) % rotatingWords.length;
-        heroWord.textContent = rotatingWords[wordIndex];
-        heroWord.style.animation = "none";
-        window.requestAnimationFrame(() => {
-          heroWord.style.animation = "";
-        });
-      }, 2800);
 
+      if (!reduceMotion) {
+        window.setInterval(async () => {
+          if (document.hidden) return;
+          const ease = "cubic-bezier(0.23, 1, 0.32, 1)";
+          await rotator.animate(
+            [
+              { opacity: 1, transform: "translateY(0)", filter: "blur(0)" },
+              { opacity: 0, transform: "translateY(-0.25em)", filter: "blur(8px)" },
+            ],
+            { duration: 220, easing: "ease-in", fill: "forwards" },
+          ).finished;
+          wordIndex = (wordIndex + 1) % words.length;
+          rotator.textContent = words[wordIndex];
+          rotator.animate(
+            [
+              { opacity: 0, transform: "translateY(0.3em)", filter: "blur(8px)" },
+              { opacity: 1, transform: "translateY(0)", filter: "blur(0)" },
+            ],
+            { duration: 520, easing: ease, fill: "forwards" },
+          );
+        }, 3200);
+      }
+
+      /* Screenshot carousel driven by tab progress */
       const slides = Array.from(document.querySelectorAll("[data-slide]"));
-      const dots = document.querySelector("[data-dots]");
-      const title = document.getElementById("slide-title");
-      const description = document.getElementById("slide-description");
-      const slideContent = [
-        [
-          "Dashboard operacional",
-          "Visão geral, atalhos de operação e módulos do PDV.",
-        ],
-        [
-          "Frente de caixa",
-          "Carrinho, pagamento, impressão prévia e baixa de estoque.",
-        ],
-        [
-          "Produtos",
-          "Cadastro conectado com fornecedor, estoque e preço de venda.",
-        ],
-        [
-          "Histórico de vendas",
-          "Consulta de vendas, valores, recibos e reimpressão.",
-        ],
-      ];
+      const tabList = document.querySelector("[data-tabs]");
+      const tabs = Array.from(tabList.querySelectorAll('[role="tab"]'));
       let slideIndex = 0;
-      let slideTimer;
 
-      function setSlide(nextIndex) {
-        slideIndex = (nextIndex + slides.length) % slides.length;
-        slides.forEach((slide, index) =>
-          slide.classList.toggle("is-active", index === slideIndex),
+      function setSlide(next, { focus = false } = {}) {
+        slideIndex = (next + slides.length) % slides.length;
+        slides.forEach((slide, i) =>
+          slide.classList.toggle("is-active", i === slideIndex),
         );
-        Array.from(dots.children).forEach((dot, index) => {
-          dot.setAttribute("aria-current", String(index === slideIndex));
+        tabs.forEach((tab, i) => {
+          const selected = i === slideIndex;
+          tab.setAttribute("aria-selected", String(selected));
+          tab.tabIndex = selected ? 0 : -1;
         });
-        title.textContent = slideContent[slideIndex][0];
-        description.textContent = slideContent[slideIndex][1];
+        if (focus) tabs[slideIndex].focus();
+        if (tabList.scrollWidth > tabList.clientWidth) {
+          tabList.scrollTo({
+            left:
+              tabList.scrollLeft +
+              tabs[slideIndex].getBoundingClientRect().left -
+              tabList.getBoundingClientRect().left -
+              16,
+            behavior: reduceMotion ? "auto" : "smooth",
+          });
+        }
       }
 
-      function restartSlideTimer() {
-        window.clearInterval(slideTimer);
-        slideTimer = window.setInterval(() => setSlide(slideIndex + 1), 5200);
+      function stopAutoplay() {
+        tabList.classList.remove("is-playing");
       }
 
-      slides.forEach((_, index) => {
-        const dot = document.createElement("button");
-        dot.type = "button";
-        dot.setAttribute("aria-label", `Mostrar tela ${index + 1}`);
-        dot.addEventListener("click", () => {
-          setSlide(index);
-          restartSlideTimer();
+      tabs.forEach((tab, i) => {
+        tab.addEventListener("click", () => {
+          stopAutoplay();
+          setSlide(i);
         });
-        dots.appendChild(dot);
+        tab.addEventListener("animationend", () => {
+          if (tabList.classList.contains("is-playing")) setSlide(slideIndex + 1);
+        });
       });
 
-      document.querySelector("[data-prev]").addEventListener("click", () => {
-        setSlide(slideIndex - 1);
-        restartSlideTimer();
+      tabList.addEventListener("keydown", (event) => {
+        const keys = { ArrowRight: 1, ArrowLeft: -1 };
+        if (!(event.key in keys)) return;
+        event.preventDefault();
+        stopAutoplay();
+        setSlide(slideIndex + keys[event.key], { focus: true });
       });
 
-      document.querySelector("[data-next]").addEventListener("click", () => {
-        setSlide(slideIndex + 1);
-        restartSlideTimer();
-      });
+      if (!reduceMotion) {
+        tabList.classList.add("is-playing");
+        const showcase = document.querySelector(".showcase");
+        const pause = () => tabList.classList.add("is-paused");
+        const resume = () => tabList.classList.remove("is-paused");
+        showcase.addEventListener("pointerenter", pause);
+        showcase.addEventListener("pointerleave", resume);
+        showcase.addEventListener("focusin", pause);
+        showcase.addEventListener("focusout", resume);
+        new IntersectionObserver(([entry]) => {
+          entry.isIntersecting ? resume() : pause();
+        }).observe(showcase);
+      }
 
+      /* Reveal-on-scroll for a few content groups */
+      const revealItems = document.querySelectorAll(".reveal-on-scroll");
+      if ("IntersectionObserver" in window && !reduceMotion) {
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              entry.target.classList.add("is-in");
+              io.unobserve(entry.target);
+            });
+          },
+          { rootMargin: "0px 0px -10% 0px" },
+        );
+        revealItems.forEach((el) => io.observe(el));
+      } else {
+        revealItems.forEach((el) => el.classList.add("is-in"));
+      }
+
+      /* Gallery */
       const galleryItems = [
-        ["Login", "images/login.png", "Tela de login do Hórus PDV"],
-        ["Dashboard", "images/dashboard.png", "Dashboard do Hórus PDV"],
-        [
-          "Clientes",
-          "images/clientes.png",
-          "Cadastro de clientes no Hórus PDV",
-        ],
-        [
-          "Fornecedores",
-          "images/fornecedores.png",
-          "Cadastro de fornecedores no Hórus PDV",
-        ],
-        [
-          "Produtos",
-          "images/produtos.png",
-          "Cadastro de produtos no Hórus PDV",
-        ],
-        ["Usuários", "images/usuarios.png", "Gestão de usuários no Hórus PDV"],
-        [
-          "Frente de Caixa",
-          "images/frente-caixa.png",
-          "Frente de caixa do Hórus PDV",
-        ],
-        [
-          "Histórico de Vendas",
-          "images/historico-vendas.png",
-          "Histórico de vendas do Hórus PDV",
-        ],
-        ["Relatórios", "images/relatorios.png", "Relatórios do Hórus PDV"],
-        ["Fiscal", "images/fiscal.png", "Módulo fiscal do Hórus PDV"],
-        [
-          "Pagamentos",
-          "images/pagamentos.png",
-          "Pagamentos integrados do Hórus PDV",
-        ],
-        [
-          "Estoque",
-          "images/estoque-inventario.png",
-          "Estoque e inventário do Hórus PDV",
-        ],
-        [
-          "Caixa",
-          "images/abertura-fechamento.png",
-          "Abertura e fechamento de caixa no Hórus PDV",
-        ],
-        [
-          "Compras",
-          "images/compras-reposicao.png",
-          "Compras e reposição no Hórus PDV",
-        ],
-        [
-          "Trocas",
-          "images/trocas-devolucoes.png",
-          "Trocas e devoluções no Hórus PDV",
-        ],
-        ["CRM", "images/crm-fidelidade.png", "CRM e fidelidade no Hórus PDV"],
-        ["Omnichannel", "images/omnichannel.png", "Omnichannel no Hórus PDV"],
-        [
-          "Minha Empresa",
-          "images/minha-empresa.png",
-          "Página Minha Empresa do Hórus PDV",
-        ],
-        [
-          "Licença",
-          "images/detalhes-licenca.png",
-          "Detalhes da licença do Hórus PDV",
-        ],
-        ["Sobre PDV", "images/sobre-pdv.png", "Página Sobre PDV do Hórus PDV"],
-        [
-          "Configurações",
-          "images/configuracoes.png",
-          "Configurações do Hórus PDV",
-        ],
-        [
-          "Perfil",
-          "images/editar-perfil.png",
-          "Perfil do usuário no Hórus PDV",
-        ],
+        ["Login", "images/login.webp", "Tela de login do Hórus PDV"],
+        ["Dashboard", "images/dashboard.webp", "Dashboard do Hórus PDV"],
+        ["Clientes", "images/clientes.webp", "Cadastro de clientes no Hórus PDV"],
+        ["Fornecedores", "images/fornecedores.webp", "Cadastro de fornecedores no Hórus PDV"],
+        ["Produtos", "images/produtos.webp", "Cadastro de produtos no Hórus PDV"],
+        ["Usuários", "images/usuarios.webp", "Gestão de usuários no Hórus PDV"],
+        ["Frente de Caixa", "images/frente-caixa.webp", "Frente de caixa do Hórus PDV"],
+        ["Histórico de Vendas", "images/historico-vendas.webp", "Histórico de vendas do Hórus PDV"],
+        ["Relatórios", "images/relatorios.webp", "Relatórios do Hórus PDV"],
+        ["Fiscal", "images/fiscal.webp", "Módulo fiscal do Hórus PDV"],
+        ["Pagamentos", "images/pagamentos.webp", "Pagamentos integrados do Hórus PDV"],
+        ["Estoque", "images/estoque-inventario.webp", "Estoque e inventário do Hórus PDV"],
+        ["Caixa", "images/abertura-fechamento.webp", "Abertura e fechamento de caixa no Hórus PDV"],
+        ["Compras", "images/compras-reposicao.webp", "Compras e reposição no Hórus PDV"],
+        ["Trocas", "images/trocas-devolucoes.webp", "Trocas e devoluções no Hórus PDV"],
+        ["CRM", "images/crm-fidelidade.webp", "CRM e fidelidade no Hórus PDV"],
+        ["Omnichannel", "images/omnichannel.webp", "Omnichannel no Hórus PDV"],
+        ["Minha Empresa", "images/minha-empresa.webp", "Página Minha Empresa do Hórus PDV"],
+        ["Licença", "images/detalhes-licenca.webp", "Detalhes da licença do Hórus PDV"],
+        ["Sobre PDV", "images/sobre-pdv.webp", "Página Sobre PDV do Hórus PDV"],
+        ["Configurações", "images/configuracoes.webp", "Configurações do Hórus PDV"],
+        ["Perfil", "images/editar-perfil.webp", "Perfil do usuário no Hórus PDV"],
       ];
-      const galleryModal = document.querySelector("[data-gallery-modal]");
-      const galleryImage = document.querySelector("[data-gallery-image]");
+      const gallery = document.querySelector("[data-gallery]");
+      const galleryImage = gallery.querySelector("[data-gallery-image]");
       const galleryTitle = document.getElementById("gallery-title");
-      const galleryCounter = document.querySelector("[data-gallery-counter]");
-      const galleryThumbs = document.querySelector("[data-gallery-thumbs]");
+      const galleryCounter = gallery.querySelector("[data-gallery-counter]");
+      const galleryThumbs = gallery.querySelector("[data-gallery-thumbs]");
       let galleryIndex = 0;
-      let galleryLastFocus = null;
 
-      function setGallery(nextIndex) {
-        galleryIndex = (nextIndex + galleryItems.length) % galleryItems.length;
+      function setGallery(next) {
+        galleryIndex = (next + galleryItems.length) % galleryItems.length;
         const [label, src, alt] = galleryItems[galleryIndex];
         galleryTitle.textContent = label;
-        galleryImage.src = src;
-        galleryImage.alt = alt;
         galleryCounter.textContent = `${galleryIndex + 1} / ${galleryItems.length}`;
-        Array.from(galleryThumbs.children).forEach((button, index) => {
-          button.setAttribute("aria-current", String(index === galleryIndex));
+        if (galleryImage.getAttribute("src") !== src) {
+          galleryImage.classList.add("is-loading");
+          galleryImage.src = src;
+        }
+        galleryImage.alt = alt;
+        Array.from(galleryThumbs.children).forEach((button, i) => {
+          const current = i === galleryIndex;
+          button.setAttribute("aria-current", String(current));
+          if (current) button.scrollIntoView({ block: "nearest", inline: "nearest" });
         });
       }
 
-      function openGallery(index = 1) {
-        galleryLastFocus = document.activeElement;
-        setGallery(index);
-        galleryModal.classList.add("is-open");
-        galleryModal.setAttribute("aria-hidden", "false");
-        document.body.classList.add("gallery-open");
-        document.querySelector(".gallery-close").focus();
-      }
+      galleryImage.addEventListener("load", () =>
+        galleryImage.classList.remove("is-loading"),
+      );
 
-      function closeGallery() {
-        galleryModal.classList.remove("is-open");
-        galleryModal.setAttribute("aria-hidden", "true");
-        document.body.classList.remove("gallery-open");
-        galleryLastFocus?.focus?.();
-      }
-
-      galleryItems.forEach((item, index) => {
+      galleryItems.forEach(([label], i) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = item[0];
-        button.addEventListener("click", () => setGallery(index));
+        button.textContent = label;
+        button.addEventListener("click", () => setGallery(i));
         galleryThumbs.appendChild(button);
       });
 
+      function openGallery(index) {
+        gallery.showModal();
+        setGallery(index);
+        document.body.style.overflow = "hidden";
+        requestAnimationFrame(() => gallery.classList.add("is-visible"));
+      }
+
+      function closeGallery() {
+        if (!gallery.open) return;
+        gallery.classList.remove("is-visible");
+        document.body.style.overflow = "";
+        const done = () => gallery.close();
+        if (reduceMotion) return done();
+        gallery.addEventListener("transitionend", done, { once: true });
+        window.setTimeout(() => gallery.open && done(), 320);
+      }
+
       document.querySelectorAll("[data-gallery-open]").forEach((button) => {
         button.addEventListener("click", () => {
-          const index = Number(
-            button.getAttribute("data-gallery-index") ?? slideIndex,
-          );
+          const index = Number(button.dataset.galleryIndex);
           openGallery(Number.isFinite(index) ? index : 0);
         });
       });
 
-      document.querySelectorAll("[data-gallery-close]").forEach((button) => {
-        button.addEventListener("click", closeGallery);
-      });
-
-      document
+      gallery
+        .querySelector("[data-gallery-close]")
+        .addEventListener("click", closeGallery);
+      gallery
         .querySelector("[data-gallery-prev]")
         .addEventListener("click", () => setGallery(galleryIndex - 1));
-      document
+      gallery
         .querySelector("[data-gallery-next]")
         .addEventListener("click", () => setGallery(galleryIndex + 1));
 
-      document.querySelectorAll("[data-copy]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const target = document.querySelector(
-            button.getAttribute("data-copy"),
-          );
-          const text = target?.innerText || "";
-          try {
-            await navigator.clipboard.writeText(text);
-            button.textContent = "Copiado";
-            window.setTimeout(() => {
-              button.textContent = "Copiar";
-            }, 1600);
-          } catch {
-            button.textContent = "Selecione o texto";
-          }
-        });
+      gallery.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeGallery();
       });
 
-      document.addEventListener("keydown", (event) => {
-        if (!galleryModal.classList.contains("is-open")) return;
-        if (event.key === "Escape") closeGallery();
+      gallery.addEventListener("click", (event) => {
+        if (event.target === gallery) closeGallery();
+      });
+
+      gallery.addEventListener("keydown", (event) => {
         if (event.key === "ArrowLeft") setGallery(galleryIndex - 1);
         if (event.key === "ArrowRight") setGallery(galleryIndex + 1);
       });
 
-      setSlide(0);
-      restartSlideTimer();
+      /* Copy quick start commands */
+      document.querySelectorAll("[data-copy]").forEach((button) => {
+        const label = button.querySelector(".copy-label");
+        const original = label.innerHTML;
+        let timer;
+
+        function swap(html) {
+          button.classList.add("is-swapping");
+          window.setTimeout(() => {
+            label.innerHTML = html;
+            button.classList.remove("is-swapping");
+          }, 140);
+        }
+
+        button.addEventListener("click", async () => {
+          const source = document.querySelector(button.dataset.copy);
+          try {
+            await navigator.clipboard.writeText(source.value.trim());
+            swap('<i class="ph ph-check" aria-hidden="true"></i>Copiado');
+          } catch {
+            swap('<i class="ph ph-warning" aria-hidden="true"></i>Falhou');
+          }
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => swap(original), 1800);
+        });
+      });
     </script>
   </body>
 </html>
