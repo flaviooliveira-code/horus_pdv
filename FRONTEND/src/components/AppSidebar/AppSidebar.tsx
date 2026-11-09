@@ -6,7 +6,6 @@
 import {
   Building2,
   BadgeDollarSign,
-  ChevronRight,
   CreditCard,
   FileText,
   History,
@@ -25,6 +24,7 @@ import {
   UsersRound,
   UserRoundPlus,
   WalletCards,
+  X,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import UserMenu from "./UserMenu";
@@ -88,6 +88,7 @@ function SidebarItem({
     <button
       type="button"
       onClick={onClick}
+      title={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={`w-full flex items-center gap-3 p-3 rounded-xl transition border text-left focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)] ${
         active
@@ -95,9 +96,12 @@ function SidebarItem({
           : "border-transparent hover:border-border-secondary hover:bg-accent/10 hover:text-text-primary"
       }`}
     >
-      <div className="text-accent">{icon}</div>
-      {!collapsed && <span className="flex-1 whitespace-nowrap">{label}</span>}
-      {!collapsed && <ChevronRight size={14} className="text-text-secondary" />}
+      <div className="text-accent" aria-hidden="true">{icon}</div>
+      {collapsed ? (
+        <span className="sr-only">{label}</span>
+      ) : (
+        <span className="flex-1 whitespace-nowrap">{label}</span>
+      )}
     </button>
   );
 }
@@ -170,14 +174,29 @@ export default function AppSidebar({
               className="p-2 rounded-lg hover:bg-accent/10 lg:hidden focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)]"
               aria-label="Fechar menu"
             >
-              <Menu size={20} className="text-accent" />
+              <X size={20} className="text-accent" />
             </button>
           </div>
         </div>
 
         <nav className="flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden px-2 py-3 text-sm font-medium">
           <div className="space-y-2">
-            <SidebarSectionTitle label="Principal" collapsed={collapsed} />
+            <button
+              type="button"
+              onClick={onOpenSalesInNewTab}
+              title={collapsed ? "Iniciar Vendas" : undefined}
+              aria-current={activePage === "vendas" ? "page" : undefined}
+              className={`btn-success flex h-12 w-full items-center gap-3 rounded-xl text-left font-semibold shadow-sm focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(46,191,244,0.22)] ${
+                collapsed ? "justify-center px-0" : "px-3"
+              }`}
+            >
+              <ShoppingCart size={20} aria-hidden="true" />
+              {collapsed ? (
+                <span className="sr-only">Iniciar Vendas</span>
+              ) : (
+                <span className="flex-1 whitespace-nowrap">Iniciar Vendas</span>
+              )}
+            </button>
 
             <SidebarItem
               icon={<House size={20} />}
@@ -185,6 +204,38 @@ export default function AppSidebar({
               active={activePage === "home"}
               collapsed={collapsed}
               onClick={() => handleChangePage("home")}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <SidebarSectionTitle label="Operação" collapsed={collapsed} />
+            <SidebarItem
+              icon={<Landmark size={20} />}
+              label="Abertura e Fechamento"
+              active={activePage === "caixa"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("caixa")}
+            />
+            <SidebarItem
+              icon={<History size={20} />}
+              label="Histórico de Vendas"
+              active={activePage === "historico-vendas"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("historico-vendas")}
+            />
+            <SidebarItem
+              icon={<Repeat2 size={20} />}
+              label="Trocas e Devoluções"
+              active={activePage === "devolucoes"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("devolucoes")}
+            />
+            <SidebarItem
+              icon={<FileText size={20} />}
+              label="Relatórios"
+              active={activePage === "relatorios"}
+              collapsed={collapsed}
+              onClick={() => handleChangePage("relatorios")}
             />
           </div>
 
@@ -221,32 +272,25 @@ export default function AppSidebar({
           </div>
 
           <div className="space-y-2">
-            <SidebarSectionTitle label="Operação" collapsed={collapsed} />
+            <SidebarSectionTitle label="Estoque e Compras" collapsed={collapsed} />
             <SidebarItem
-              icon={<History size={20} />}
-              label="Histórico de Vendas"
-              active={activePage === "historico-vendas"}
+              icon={<PackageCheck size={20} />}
+              label="Estoque e Inventário"
+              active={activePage === "estoque"}
               collapsed={collapsed}
-              onClick={() => handleChangePage("historico-vendas")}
+              onClick={() => handleChangePage("estoque")}
             />
             <SidebarItem
-              icon={<FileText size={20} />}
-              label="Relatórios"
-              active={activePage === "relatorios"}
+              icon={<BadgeDollarSign size={20} />}
+              label="Compras e Reposição"
+              active={activePage === "compras"}
               collapsed={collapsed}
-              onClick={() => handleChangePage("relatorios")}
-            />
-            <SidebarItem
-              icon={<ShoppingCart size={20} />}
-              label="Iniciar Vendas"
-              active={activePage === "vendas"}
-              collapsed={collapsed}
-              onClick={onOpenSalesInNewTab}
+              onClick={() => handleChangePage("compras")}
             />
           </div>
 
           <div className="space-y-2">
-            <SidebarSectionTitle label="Gestão Avançada" collapsed={collapsed} />
+            <SidebarSectionTitle label="Integrações" collapsed={collapsed} />
             <SidebarItem
               icon={<Receipt size={20} />}
               label="Fiscal NFC-e / NF-e"
@@ -260,34 +304,6 @@ export default function AppSidebar({
               active={activePage === "pagamentos"}
               collapsed={collapsed}
               onClick={() => handleChangePage("pagamentos")}
-            />
-            <SidebarItem
-              icon={<PackageCheck size={20} />}
-              label="Estoque e Inventário"
-              active={activePage === "estoque"}
-              collapsed={collapsed}
-              onClick={() => handleChangePage("estoque")}
-            />
-            <SidebarItem
-              icon={<Landmark size={20} />}
-              label="Abertura e Fechamento"
-              active={activePage === "caixa"}
-              collapsed={collapsed}
-              onClick={() => handleChangePage("caixa")}
-            />
-            <SidebarItem
-              icon={<BadgeDollarSign size={20} />}
-              label="Compras e Reposição"
-              active={activePage === "compras"}
-              collapsed={collapsed}
-              onClick={() => handleChangePage("compras")}
-            />
-            <SidebarItem
-              icon={<Repeat2 size={20} />}
-              label="Trocas e Devoluções"
-              active={activePage === "devolucoes"}
-              collapsed={collapsed}
-              onClick={() => handleChangePage("devolucoes")}
             />
             <SidebarItem
               icon={<UsersRound size={20} />}

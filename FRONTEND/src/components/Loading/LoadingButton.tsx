@@ -4,9 +4,9 @@
   * Entradas esperadas: recebe props nativas de botão, estado de carregamento e conteúdo visual.
 */
 import { LoaderCircle } from "lucide-react";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 
-type LoadingButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type LoadingButtonProps = ComponentPropsWithRef<"button"> & {
   isLoading?: boolean;
   loadingLabel?: ReactNode;
   children: ReactNode;
