@@ -12,6 +12,8 @@ public class VendaRequest
     public string PaymentType { get; set; } = string.Empty;
     public string TotalAmount { get; set; } = string.Empty;
     public string OperatorName { get; set; } = string.Empty;
+    /// <summary>Cobrança PIX paga pelo gateway; quando informada, a venda só é registrada se ela estiver paga.</summary>
+    public string PaymentChargeId { get; set; } = string.Empty;
     public List<VendaItemRequest> Items { get; set; } = [];
 }
 

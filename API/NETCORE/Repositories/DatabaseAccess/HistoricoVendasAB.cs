@@ -80,6 +80,11 @@ public class HistoricoVendasAB(Connection connection)
                 await saleCommand.ExecuteNonQueryAsync();
             }
 
+            if (!string.IsNullOrWhiteSpace(request.PaymentChargeId))
+            {
+                await VincularCobrancaAsync(db, transaction, companyId, request.PaymentChargeId.Trim(), saleNumber, totalAmount);
+            }
+
             var rows = new List<VendaHistoricoAD>();
             for (var index = 0; index < saleItems.Count; index += 1)
             {
@@ -127,6 +132,47 @@ public class HistoricoVendasAB(Connection connection)
         {
             await transaction.RollbackAsync();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Vincula a cobrança PIX à venda na mesma transação. Só aceita cobrança paga, da mesma empresa,
+    /// com o mesmo valor e ainda não usada; caso contrário a venda inteira é desfeita.
+    /// </summary>
+    private static async Task VincularCobrancaAsync(
+        SqlConnection db,
+        SqlTransaction transaction,
+        string companyId,
+        string chargeId,
+        string saleNumber,
+        string totalAmount)
+    {
+        var normalized = totalAmount.Replace("R$", string.Empty).Replace(".", string.Empty).Replace(',', '.').Trim();
+        if (!decimal.TryParse(normalized, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var total))
+        {
+            throw new InvalidOperationException("Total da venda inválido para conferir o PIX.");
+        }
+
+        await using var command = new SqlCommand(
+            """
+            UPDATE CobrancasPagamento
+               SET SaleNumber = @SaleNumber,
+                   UpdatedAt = SYSUTCDATETIME()
+             WHERE Id = @Id
+               AND CompanyId = @CompanyId
+               AND Status = N'PAID'
+               AND SaleNumber IS NULL
+               AND AmountCents = @AmountCents;
+            """,
+            db,
+            transaction);
+        command.Parameters.AddWithValue("@Id", chargeId);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
+        command.Parameters.AddWithValue("@SaleNumber", saleNumber);
+        command.Parameters.AddWithValue("@AmountCents", (long)Math.Round(total * 100m, MidpointRounding.AwayFromZero));
+        if (await command.ExecuteNonQueryAsync() == 0)
+        {
+            throw new InvalidOperationException("O PIX desta venda não está confirmado, tem outro valor ou já foi usado em outra venda.");
         }
     }
 

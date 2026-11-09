@@ -45,7 +45,7 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 | Banco de dados        | SQL Server conectado                    |
 | Smoke test E2E        | Implementado                            |
 | Fiscal NFC-e / NF-e   | Em desenvolvimento                      |
-| Pagamentos integrados | Gateways cadastráveis; cobrança pendente |
+| Pagamentos integrados | Gateways, PIX no caixa, boleto e webhooks |
 | Sistema legado (branch legacy) | Mantido como referência histórica       |
 
 ## Stack
@@ -84,6 +84,7 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 - Gestão avançada: estoque, abertura/fechamento, compras, trocas/devoluções, CRM/fidelidade e omnichannel.
 - Configuração SMTP por empresa.
 - Cadastro de gateways de pagamento (Asaas, Mercado Pago e PagBank) com validação de credencial.
+- PIX com QR Code na frente de caixa e boletos para clientes cadastrados, com confirmação por webhook ou consulta ao provedor.
 - Tour guiado por tela.
 - Temas light/dark.
 
@@ -292,6 +293,7 @@ VITE_EMPRESA_API_URL=http://localhost:5260/api/Empresa
 VITE_CAIXA_API_URL=http://localhost:5260/api/Caixa
 VITE_HISTORICO_VENDAS_API_URL=http://localhost:5260/api/HistoricoVendas
 VITE_GATEWAY_PAGAMENTO_API_URL=http://localhost:5260/api/GatewayPagamento
+VITE_COBRANCA_PAGAMENTO_API_URL=http://localhost:5260/api/CobrancaPagamento
 VITE_RECAPTCHA_SITE_KEY=
 </code></pre>
 
@@ -463,16 +465,49 @@ POST   /api/GatewayPagamento
 PUT    /api/GatewayPagamento/{id}
 DELETE /api/GatewayPagamento/{id}
 POST   /api/GatewayPagamento/{id}/validate
+
+GET    /api/CobrancaPagamento
+POST   /api/CobrancaPagamento
+GET    /api/CobrancaPagamento/{id}          # consulta e sincroniza com o provedor
+POST   /api/CobrancaPagamento/{id}/cancel
 </code></pre>
 
-Ainda não implementado: emissão de cobranças PIX/boleto na frente de caixa, recebimento de webhooks e conciliação automática.
+### Cobranças PIX e boleto
+
+- **Frente de caixa:** com PIX selecionado, "Gerar QR Code PIX" emite a cobrança no gateway padrão de PIX e mostra o QR Code e o copia e cola. O PDV consulta o pagamento a cada 3 segundos e registra a venda sozinho quando o PIX cai. Fechar o pagamento com um QR Code aberto pede para cancelar a cobrança. Sem gateway, "Confirmar PIX recebido" registra o PIX manual, como antes.
+- **Venda ligada ao PIX:** a API só aceita uma venda com `paymentChargeId` se a cobrança estiver paga, for da mesma empresa, tiver o mesmo valor e não estiver ligada a outra venda. Se não estiver, a venda e a baixa de estoque são desfeitas.
+- **Aba Cobranças:** lista os PIX e boletos emitidos (status, valor, vencimento, venda), emite boleto ou PIX para um cliente cadastrado e permite atualizar o status, copiar a linha digitável ou o copia e cola, abrir o boleto e cancelar.
+- **Dados do pagador:** Asaas e PagBank exigem CPF/CNPJ (no caixa, use "CPF na nota"). Mercado Pago e PagBank exigem e-mail; sem e-mail do cliente, a API usa o e-mail da empresa. O boleto do Mercado Pago e do PagBank exige o endereço completo do cliente.
+- **Validade:** o QR Code vale 30 minutos. O boleto vence nos dias definidos na regra do gateway, ou em 3 dias.
+- **Cancelamento:** no Asaas e no Mercado Pago, cancela também no provedor. No PagBank, a API de pedidos não cancela cobrança em aberto; ela é encerrada no Hórus PDV e expira sozinha. Cobrança paga não é cancelada (o estorno é feito no painel do provedor).
+
+### Webhooks
+
+`POST /api/Webhooks/{asaas|mercado-pago|pagbank}/{gatewayId}` é público e autentica cada aviso pela assinatura do provedor:
+
+| Provedor     | Autenticação                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| Asaas        | Header `asaas-access-token` igual ao segredo gerado ao cadastrar o webhook (Validar)              |
+| Mercado Pago | HMAC `x-signature` com a assinatura secreta do gateway, com tolerância de 5 minutos (opcional)     |
+| PagBank      | `x-authenticity-token` = `sha256(token + "-" + corpo)`                                            |
+
+O aviso nunca é usado como prova de pagamento: a API pega só o id e consulta o status no provedor.
+
+Para receber webhooks, configure a URL pública da API (HTTPS):
+
+<pre><code class="language-bash">Payments__WebhookPublicBaseUrl="https://api.seudominio.com.br"
+</code></pre>
+
+Com ela, Mercado Pago e PagBank recebem a URL de aviso em cada cobrança, e o Asaas tem o webhook da conta cadastrado ao clicar em **Validar**. Sem ela (por exemplo, rodando local), tudo funciona por consulta: o PDV acompanha o PIX e a aba Cobranças tem o botão **Status**.
+
+Ainda não implementado: estorno de cobrança paga, cartão/TEF e relatórios de conciliação (taxas e repasses).
 
 ## Módulos em Desenvolvimento
 
 Algumas áreas aparecem no menu para indicar a direção do produto, mas ainda não devem ser usadas em operação real:
 
 - Fiscal NFC-e / NF-e.
-- Pagamentos integrados: o cadastro de gateways funciona, mas a emissão de cobranças ainda não.
+- Pagamentos integrados: gateways, PIX e boleto funcionam; estorno e cartão/TEF ainda não.
 
 A página fiscal mostra estado visual de "Em desenvolvimento" até as integrações e homologações ficarem prontas.
 
@@ -495,7 +530,7 @@ Tabelas principais:
 - `CaixaSessoes`
 - `Vendas`, `VendaItens`
 - `ModulosMercado`, `ModuloMercadoRegistros`
-- `GatewaysPagamento`
+- `GatewaysPagamento`, `CobrancasPagamento`
 
 Script principal:
 
@@ -508,7 +543,7 @@ Script principal:
 - Expandir seeds e rotinas de migração manual.
 - Expandir testes automatizados.
 - Consolidar regras fiscais.
-- Emitir cobranças PIX/boleto pelos gateways cadastrados, receber webhooks e conciliar.
+- Estorno de cobranças pagas e relatórios de conciliação (taxas e repasses) por gateway.
 - Integrar TEF/adquirentes.
 - Melhorar documentação técnica da API.
 - Criar guias de deploy.

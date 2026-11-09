@@ -35,6 +35,7 @@ export type PaymentGatewayDto = {
   lastValidationMessage: string;
   createdAt: string;
   updatedAt: string;
+  webhookLastEventAt: string | null;
 };
 
 export type PaymentGatewayPayload = {

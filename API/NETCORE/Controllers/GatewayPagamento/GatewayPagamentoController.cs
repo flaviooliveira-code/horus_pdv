@@ -18,7 +18,9 @@ namespace HORUSPDV_API.Controllers.GatewayPagamento;
 [HorusAuthorizeRoles("administrador", "gerente")]
 public class GatewayPagamentoController(
     GatewayPagamentoAB gatewayAB,
-    HorusPaymentGatewayService gatewayService) : ControllerBase
+    HorusPaymentGatewayService gatewayService,
+    HorusPaymentChargeService chargeService,
+    HorusPaymentProviderClient providerClient) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Listar()
@@ -92,6 +94,11 @@ public class GatewayPagamentoController(
         if (current is null) return GatewayNotFound();
 
         var result = await gatewayService.ValidateConnectionAsync(current, cancellationToken);
+        if (result.Status == "OK")
+        {
+            result = result with { Message = $"{result.Message} {await SyncWebhookAsync(current, cancellationToken)}".Trim() };
+        }
+
         var saved = await gatewayAB.RegistrarValidacaoAsync(
             currentUser.CompanyId,
             current.Id,
@@ -116,6 +123,38 @@ public class GatewayPagamentoController(
         if (!removed) return GatewayNotFound();
 
         return Ok(new ApiResponse<object> { Success = true, Message = "Gateway removido com sucesso." });
+    }
+
+    /// <summary>
+    /// Mercado Pago e PagBank recebem a URL de aviso em cada cobrança; o Asaas usa um webhook de conta,
+    /// cadastrado aqui com um segredo gerado pela API. Sem URL pública, o PDV consulta o provedor.
+    /// </summary>
+    private async Task<string> SyncWebhookAsync(GatewayPagamentoAD gateway, CancellationToken cancellationToken)
+    {
+        var url = chargeService.WebhookUrl(gateway);
+        if (url is null)
+        {
+            return "Sem URL pública de webhook (Payments:WebhookPublicBaseUrl): o PDV confere os pagamentos consultando o provedor.";
+        }
+
+        if (gateway.Provider != HorusPaymentGatewayService.Asaas)
+        {
+            return "A URL de aviso vai junto de cada cobrança.";
+        }
+
+        var secret = string.IsNullOrWhiteSpace(gateway.WebhookSecret)
+            ? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant()
+            : gateway.WebhookSecret;
+        try
+        {
+            var webhookId = await providerClient.RegisterAsaasWebhookAsync(gateway, url, secret, cancellationToken);
+            await gatewayAB.RegistrarWebhookAsync(gateway.Id, webhookId, secret);
+            return "Webhook sincronizado no Asaas.";
+        }
+        catch (PaymentProviderException exception)
+        {
+            return $"Webhook não cadastrado: {exception.Message}";
+        }
     }
 
     private static string? Validate(GatewayPagamentoRequest request, GatewayPagamentoAD? current)
@@ -181,9 +220,16 @@ public class GatewayPagamentoController(
         var newToken = HorusPaymentGatewayService.NormalizeToken(source.AccessToken);
         var accessToken = newToken.Length > 0 ? newToken : sameProvider ? current!.AccessToken : string.Empty;
         var newWebhookSecret = source.WebhookSecret.Trim();
-        var webhookSecret = source.Provider != HorusPaymentGatewayService.MercadoPago
-            ? string.Empty
-            : newWebhookSecret.Length > 0 ? newWebhookSecret : sameProvider ? current!.WebhookSecret : string.Empty;
+        // Mercado Pago: segredo informado pelo usuário. Asaas: segredo gerado pela API ao cadastrar o
+        // webhook da conta (Validar), mantido nas edições. PagBank assina com o próprio token.
+        var webhookSecret = source.Provider switch
+        {
+            HorusPaymentGatewayService.MercadoPago => newWebhookSecret.Length > 0
+                ? newWebhookSecret
+                : sameProvider ? current!.WebhookSecret : string.Empty,
+            HorusPaymentGatewayService.Asaas => sameProvider ? current!.WebhookSecret : string.Empty,
+            _ => string.Empty
+        };
         var pixOnly = HorusPaymentGatewayService.SupportsPixOnly(source.Provider) && source.PixOnly;
 
         // Trocar credencial, provedor ou ambiente exige validar de novo.
@@ -249,7 +295,8 @@ public class GatewayPagamentoController(
         LastValidatedAt = source.LastValidatedAt?.ToString("O"),
         LastValidationMessage = source.LastValidationMessage,
         CreatedAt = source.CreatedAt.ToString("O"),
-        UpdatedAt = source.UpdatedAt.ToString("O")
+        UpdatedAt = source.UpdatedAt.ToString("O"),
+        WebhookLastEventAt = source.WebhookLastEventAt?.ToString("O")
     };
 
     private UnauthorizedObjectResult SessionNotFound<T>()

@@ -387,6 +387,47 @@ BEGIN
     CREATE INDEX IX_GatewaysPagamento_CompanyId ON GatewaysPagamento (CompanyId, Active);
 END;
 
+IF COL_LENGTH(N'GatewaysPagamento', N'WebhookProviderId') IS NULL
+BEGIN
+    ALTER TABLE GatewaysPagamento ADD WebhookProviderId NVARCHAR(100) NOT NULL CONSTRAINT DF_GatewaysPagamento_WebhookProviderId DEFAULT N'';
+    ALTER TABLE GatewaysPagamento ADD WebhookLastEventAt DATETIME2 NULL;
+END;
+
+IF OBJECT_ID(N'CobrancasPagamento', N'U') IS NULL
+BEGIN
+    CREATE TABLE CobrancasPagamento
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CobrancasPagamento PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL,
+        GatewayId NVARCHAR(40) NOT NULL,
+        Provider NVARCHAR(30) NOT NULL,
+        Method NVARCHAR(20) NOT NULL,
+        AmountCents BIGINT NOT NULL,
+        Description NVARCHAR(200) NOT NULL CONSTRAINT DF_CobrancasPagamento_Description DEFAULT N'',
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_CobrancasPagamento_Status DEFAULT N'PENDING',
+        ProviderStatus NVARCHAR(60) NOT NULL CONSTRAINT DF_CobrancasPagamento_ProviderStatus DEFAULT N'',
+        ProviderChargeId NVARCHAR(100) NOT NULL CONSTRAINT DF_CobrancasPagamento_ProviderChargeId DEFAULT N'',
+        PixCopyPaste NVARCHAR(MAX) NOT NULL CONSTRAINT DF_CobrancasPagamento_PixCopyPaste DEFAULT N'',
+        PixQrCodeImage NVARCHAR(MAX) NOT NULL CONSTRAINT DF_CobrancasPagamento_PixQrCodeImage DEFAULT N'',
+        BoletoUrl NVARCHAR(500) NOT NULL CONSTRAINT DF_CobrancasPagamento_BoletoUrl DEFAULT N'',
+        BoletoLine NVARCHAR(120) NOT NULL CONSTRAINT DF_CobrancasPagamento_BoletoLine DEFAULT N'',
+        PayerName NVARCHAR(180) NOT NULL CONSTRAINT DF_CobrancasPagamento_PayerName DEFAULT N'',
+        PayerDocument NVARCHAR(20) NOT NULL CONSTRAINT DF_CobrancasPagamento_PayerDocument DEFAULT N'',
+        PayerEmail NVARCHAR(180) NOT NULL CONSTRAINT DF_CobrancasPagamento_PayerEmail DEFAULT N'',
+        CustomerId NVARCHAR(40) NOT NULL CONSTRAINT DF_CobrancasPagamento_CustomerId DEFAULT N'',
+        SaleNumber NVARCHAR(30) NULL,
+        ExpiresAt DATETIME2 NULL,
+        PaidAt DATETIME2 NULL,
+        LastError NVARCHAR(500) NOT NULL CONSTRAINT DF_CobrancasPagamento_LastError DEFAULT N'',
+        CreatedBy NVARCHAR(180) NOT NULL CONSTRAINT DF_CobrancasPagamento_CreatedBy DEFAULT N'',
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_CobrancasPagamento_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt DATETIME2 NOT NULL CONSTRAINT DF_CobrancasPagamento_UpdatedAt DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_CobrancasPagamento_CompanyId ON CobrancasPagamento (CompanyId, CreatedAt DESC);
+    CREATE INDEX IX_CobrancasPagamento_ProviderChargeId ON CobrancasPagamento (GatewayId, ProviderChargeId);
+    CREATE UNIQUE INDEX UX_CobrancasPagamento_SaleNumber ON CobrancasPagamento (SaleNumber) WHERE SaleNumber IS NOT NULL;
+END;
+
 IF EXISTS (SELECT 1 FROM Usuarios WHERE Id = N'usr-001')
 BEGIN
     UPDATE Usuarios
