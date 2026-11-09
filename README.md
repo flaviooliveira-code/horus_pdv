@@ -25,6 +25,7 @@ Página inicial do projeto: https://flaviooliveira-code.github.io/horus_pdv/
 - [Validação Local](#validação-local)
 - [Autenticação e Segurança](#autenticação-e-segurança)
 - [Padrões de Interface](#padrões-de-interface)
+- [Pagamentos Integrados](#pagamentos-integrados)
 - [Módulos em Desenvolvimento](#módulos-em-desenvolvimento)
 - [Roadmap](#roadmap)
 - [Contribuindo](#contribuindo)
@@ -44,7 +45,7 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 | Banco de dados        | SQL Server conectado                    |
 | Smoke test E2E        | Implementado                            |
 | Fiscal NFC-e / NF-e   | Em desenvolvimento                      |
-| Pagamentos integrados | Em desenvolvimento                      |
+| Pagamentos integrados | Gateways cadastráveis; cobrança pendente |
 | Sistema legado (branch legacy) | Mantido como referência histórica       |
 
 ## Stack
@@ -82,6 +83,7 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 - Gestão de usuários.
 - Gestão avançada: estoque, abertura/fechamento, compras, trocas/devoluções, CRM/fidelidade e omnichannel.
 - Configuração SMTP por empresa.
+- Cadastro de gateways de pagamento (Asaas, Mercado Pago e PagBank) com validação de credencial.
 - Tour guiado por tela.
 - Temas light/dark.
 
@@ -289,6 +291,7 @@ VITE_FORNECEDOR_API_URL=http://localhost:5260/api/Fornecedor
 VITE_EMPRESA_API_URL=http://localhost:5260/api/Empresa
 VITE_CAIXA_API_URL=http://localhost:5260/api/Caixa
 VITE_HISTORICO_VENDAS_API_URL=http://localhost:5260/api/HistoricoVendas
+VITE_GATEWAY_PAGAMENTO_API_URL=http://localhost:5260/api/GatewayPagamento
 VITE_RECAPTCHA_SITE_KEY=
 </code></pre>
 
@@ -434,14 +437,44 @@ Uso:
 
 Não use checkbox cru para preferências como "ativar/desativar", "mostrar/ocultar", "enviar/não enviar" ou decisões equivalentes de `Sim/Não`.
 
+## Pagamentos Integrados
+
+Em **Integrações › Pagamentos Integrados**, administradores e gerentes conectam as contas de gateway que vão receber PIX e boleto.
+
+| Provedor     | Credencial                                           | Validação                                   |
+| ------------ | ---------------------------------------------------- | ------------------------------------------- |
+| Asaas        | API Key (Integrações › Chaves de API)                | Consulta o saldo da conta (`/v3/finance/balance`) |
+| Mercado Pago | Access Token (Suas integrações › Credenciais)        | Consulta a conta (`/users/me`)              |
+| PagBank      | Access Token (Minha conta › Integrações)             | Confere o formato; o token é validado na primeira cobrança |
+
+Como funciona:
+
+- Cada conta tem ambiente (Produção ou Sandbox), nome, status (Pendente, Validado, Erro ou Inativo) e regras do boleto (vencimento em dias, multa e juros ao mês).
+- A empresa tem no máximo um gateway padrão para PIX e um para boleto. Marcar outro como padrão tira o padrão do anterior.
+- "Somente PIX" vale para Mercado Pago e PagBank. O Asaas sempre emite boleto com PIX.
+- Credenciais são gravadas criptografadas com `Security:EncryptionKey` e a API devolve só a máscara (`abcd••••wxyz`). Para manter a chave salva na edição, deixe o campo em branco.
+- Trocar a credencial, o provedor ou o ambiente faz o status voltar a Pendente até nova validação.
+- A Public Key do Mercado Pago é recusada no lugar do Access Token.
+
+Endpoints (`/api/GatewayPagamento`):
+
+<pre><code class="language-text">GET    /api/GatewayPagamento
+POST   /api/GatewayPagamento
+PUT    /api/GatewayPagamento/{id}
+DELETE /api/GatewayPagamento/{id}
+POST   /api/GatewayPagamento/{id}/validate
+</code></pre>
+
+Ainda não implementado: emissão de cobranças PIX/boleto na frente de caixa, recebimento de webhooks e conciliação automática.
+
 ## Módulos em Desenvolvimento
 
 Algumas áreas aparecem no menu para indicar a direção do produto, mas ainda não devem ser usadas em operação real:
 
 - Fiscal NFC-e / NF-e.
-- Pagamentos integrados.
+- Pagamentos integrados: o cadastro de gateways funciona, mas a emissão de cobranças ainda não.
 
-Essas páginas mostram estado visual de "Em desenvolvimento" até as integrações e homologações ficarem prontas.
+A página fiscal mostra estado visual de "Em desenvolvimento" até as integrações e homologações ficarem prontas.
 
 ## Dados e Persistência
 
@@ -462,6 +495,7 @@ Tabelas principais:
 - `CaixaSessoes`
 - `Vendas`, `VendaItens`
 - `ModulosMercado`, `ModuloMercadoRegistros`
+- `GatewaysPagamento`
 
 Script principal:
 
@@ -474,7 +508,8 @@ Script principal:
 - Expandir seeds e rotinas de migração manual.
 - Expandir testes automatizados.
 - Consolidar regras fiscais.
-- Integrar TEF/provedores de pagamento.
+- Emitir cobranças PIX/boleto pelos gateways cadastrados, receber webhooks e conciliar.
+- Integrar TEF/adquirentes.
 - Melhorar documentação técnica da API.
 - Criar guias de deploy.
 
