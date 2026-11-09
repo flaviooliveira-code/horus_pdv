@@ -355,6 +355,38 @@ BEGIN
     ALTER TABLE ModuloMercadoRegistros ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_ModuloMercadoRegistros_CompanyId DEFAULT N'empresa-principal';
 END;
 
+IF OBJECT_ID(N'GatewaysPagamento', N'U') IS NULL
+BEGIN
+    CREATE TABLE GatewaysPagamento
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_GatewaysPagamento PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_GatewaysPagamento_CompanyId DEFAULT N'empresa-principal',
+        Provider NVARCHAR(30) NOT NULL,
+        Name NVARCHAR(120) NOT NULL,
+        Environment NVARCHAR(20) NOT NULL CONSTRAINT DF_GatewaysPagamento_Environment DEFAULT N'PRODUCTION',
+        Active BIT NOT NULL CONSTRAINT DF_GatewaysPagamento_Active DEFAULT 1,
+        DefaultPix BIT NOT NULL CONSTRAINT DF_GatewaysPagamento_DefaultPix DEFAULT 0,
+        DefaultBoleto BIT NOT NULL CONSTRAINT DF_GatewaysPagamento_DefaultBoleto DEFAULT 0,
+        PixOnly BIT NOT NULL CONSTRAINT DF_GatewaysPagamento_PixOnly DEFAULT 0,
+        GenerateBoletoPix BIT NOT NULL CONSTRAINT DF_GatewaysPagamento_GenerateBoletoPix DEFAULT 1,
+        AccessToken NVARCHAR(2000) NOT NULL CONSTRAINT DF_GatewaysPagamento_AccessToken DEFAULT N'',
+        AccessTokenMask NVARCHAR(40) NOT NULL CONSTRAINT DF_GatewaysPagamento_AccessTokenMask DEFAULT N'',
+        PublicKey NVARCHAR(200) NOT NULL CONSTRAINT DF_GatewaysPagamento_PublicKey DEFAULT N'',
+        WebhookSecret NVARCHAR(1000) NOT NULL CONSTRAINT DF_GatewaysPagamento_WebhookSecret DEFAULT N'',
+        WebhookSecretMask NVARCHAR(40) NOT NULL CONSTRAINT DF_GatewaysPagamento_WebhookSecretMask DEFAULT N'',
+        WebhookResponsibleEmail NVARCHAR(180) NOT NULL CONSTRAINT DF_GatewaysPagamento_WebhookResponsibleEmail DEFAULT N'',
+        BoletoDueDays INT NULL,
+        FinePercent DECIMAL(5, 2) NULL,
+        MonthlyInterestPercent DECIMAL(5, 2) NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_GatewaysPagamento_Status DEFAULT N'PENDING',
+        LastValidatedAt DATETIME2 NULL,
+        LastValidationMessage NVARCHAR(500) NOT NULL CONSTRAINT DF_GatewaysPagamento_LastValidationMessage DEFAULT N'',
+        CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_GatewaysPagamento_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt DATETIME2 NOT NULL CONSTRAINT DF_GatewaysPagamento_UpdatedAt DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_GatewaysPagamento_CompanyId ON GatewaysPagamento (CompanyId, Active);
+END;
+
 IF EXISTS (SELECT 1 FROM Usuarios WHERE Id = N'usr-001')
 BEGIN
     UPDATE Usuarios
