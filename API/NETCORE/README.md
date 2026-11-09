@@ -124,6 +124,18 @@ O middleware ainda aceita `Authorization: Bearer` para compatibilidade, mas o fl
 - `VendaItens`
 - `ModulosMercado`
 - `ModuloMercadoRegistros`
+- `GatewaysPagamento`
+
+## Gateways de Pagamento
+
+Em `Pagamentos Integrados`, administradores e gerentes cadastram contas de **Asaas**, **Mercado Pago** e **PagBank** (`/api/GatewayPagamento`), em Produção ou Sandbox.
+
+- O Access Token / API Key e a assinatura de webhook são gravados criptografados com `Security:EncryptionKey`. A API devolve só a máscara (`abcd••••wxyz`). Enviar a credencial em branco na edição mantém a salva.
+- `POST /api/GatewayPagamento/{id}/validate` testa a credencial no provedor, só com leitura: Asaas `GET /v3/finance/balance`, Mercado Pago `GET /users/me`. No PagBank, só o formato é conferido; o token é validado na primeira cobrança.
+- Cada empresa tem no máximo um gateway padrão para PIX e um para boleto. "Somente PIX" vale para Mercado Pago e PagBank.
+- `Payments:MercadoPagoApiBaseUrl` troca a URL da API do Mercado Pago (útil para testes).
+
+A emissão de cobranças e o recebimento de webhooks ainda não estão implementados.
 
 ## Organização dos Repositórios
 
