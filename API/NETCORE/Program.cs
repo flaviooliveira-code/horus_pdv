@@ -91,6 +91,7 @@ if (!app.Environment.IsDevelopment())
 app.UseRouting();
 app.UseMiddleware<HorusSecurityHeadersMiddleware>();
 app.UseCors("HorusPdvCorsPolicy");
+app.UseMiddleware<HorusCsrfProtectionMiddleware>((object)corsOrigins);
 app.UseMiddleware<HorusRequestTelemetryMiddleware>();
 app.UseMiddleware<HorusRequestBodyLimitMiddleware>();
 app.UseMiddleware<HorusRateLimitMiddleware>();
