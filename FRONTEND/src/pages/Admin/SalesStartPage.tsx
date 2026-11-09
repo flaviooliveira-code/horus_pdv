@@ -14,7 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { SearchableSelectField } from "@/components/Form";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import {
@@ -53,14 +53,34 @@ type CartItem = {
   unitPrice: number;
 };
 
-const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string }> = [
-  { value: "dinheiro", label: "Dinheiro" },
-  { value: "pix", label: "PIX" },
-  { value: "debito", label: "Cartão Débito" },
-  { value: "credito", label: "Cartão Crédito" },
+const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string; shortcut: string }> = [
+  { value: "dinheiro", label: "Dinheiro", shortcut: "1" },
+  { value: "pix", label: "PIX", shortcut: "2" },
+  { value: "debito", label: "Cartão Débito", shortcut: "3" },
+  { value: "credito", label: "Cartão Crédito", shortcut: "4" },
+];
+
+const KEYBOARD_SHORTCUTS: Array<{ key: string; label: string }> = [
+  { key: "F2", label: "Produto" },
+  { key: "F4", label: "Quantidade" },
+  { key: "Enter", label: "Adicionar" },
+  { key: "F8", label: "Cancelar" },
+  { key: "F12", label: "Pagamento" },
 ];
 
 const LAST_RECEIPT_STORAGE_KEY = "horus-pdv-last-receipt";
+const PENDING_CART_STORAGE_KEY = "horus-pdv-pending-cart";
+
+function readPendingCart(): CartItem[] {
+  try {
+    const stored = window.sessionStorage.getItem(PENDING_CART_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function formatDateTime(date: Date) {
   return {
@@ -100,7 +120,8 @@ export default function SalesStartPage({
   standalone = false,
   operatorName = "Operador",
 }: SalesStartPageProps) {
-  const { formatMoneyBr, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } = useInputMasks();
+  const { formatMoneyBr, maskCpf, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } =
+    useInputMasks();
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
@@ -114,12 +135,15 @@ export default function SalesStartPage({
   const [showProductOptions, setShowProductOptions] = useState(false);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
   const [quantityInput, setQuantityInput] = useState("1");
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(readPendingCart);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<PaymentType>("dinheiro");
   const [cpfNota, setCpfNota] = useState("");
   const [cashGiven, setCashGiven] = useState("");
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const cashGivenInputRef = useRef<HTMLInputElement | null>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const [lastReceipt, setLastReceipt] = useState<SaleReceipt | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<SaleReceipt | null>(null);
   const [printPreviewEnabled, setPrintPreviewEnabled] = useState(() =>
@@ -253,6 +277,41 @@ export default function SalesStartPage({
       window.removeEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      if (cart.length > 0) {
+        window.sessionStorage.setItem(PENDING_CART_STORAGE_KEY, JSON.stringify(cart));
+      } else {
+        window.sessionStorage.removeItem(PENDING_CART_STORAGE_KEY);
+      }
+    } catch {
+      // Sem sessionStorage a venda continua apenas em memória.
+    }
+  }, [cart]);
+
+  const restoredNoticeShownRef = useRef(false);
+  useEffect(() => {
+    if (restoredNoticeShownRef.current) return;
+    restoredNoticeShownRef.current = true;
+    const restored = readPendingCart();
+    if (restored.length > 0) {
+      Toast.info(`Venda em andamento restaurada (${restored.length} item(ns)).`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!checkoutOpen) return;
+    const timer = window.setTimeout(() => {
+      if (paymentType === "dinheiro") {
+        cashGivenInputRef.current?.select();
+        cashGivenInputRef.current?.focus();
+      } else {
+        confirmButtonRef.current?.focus();
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [checkoutOpen, paymentType]);
 
   useEffect(() => {
     if (!standalone) return;
@@ -392,11 +451,13 @@ export default function SalesStartPage({
   }, [cart.length, formatMoneyBr, loadCashStatus, subtotal]);
 
   const confirmPayment = async () => {
+    if (confirmingPayment) return;
     if (paymentType === "dinheiro" && cashGivenValue < subtotal) {
       Toast.error("Valor recebido menor que total.");
       return;
     }
 
+    setConfirmingPayment(true);
     try {
       const latestCashStatus = await loadCashStatus();
       if (!latestCashStatus?.canSell) {
@@ -449,8 +510,11 @@ export default function SalesStartPage({
       };
 
       setCheckoutOpen(false);
-      await loadProducts();
       saveLastReceipt(receipt);
+      // Atualiza o estoque em segundo plano para não atrasar o recibo.
+      loadProducts().catch(() => {
+        Toast.error("Não foi possível atualizar o estoque no PDV.");
+      });
       if (printPreviewEnabled) {
         setReceiptPreview(receipt);
       }
@@ -458,6 +522,8 @@ export default function SalesStartPage({
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao registrar venda.");
       return;
+    } finally {
+      setConfirmingPayment(false);
     }
 
     setCart([]);
@@ -505,6 +571,14 @@ export default function SalesStartPage({
       if (event.key === "Escape" && checkoutOpen) {
         event.preventDefault();
         setCheckoutOpen(false);
+      }
+      if (checkoutOpen && !isInput) {
+        // Teclas 1–4 escolhem a forma de pagamento quando o foco não está num campo de texto.
+        const option = PAYMENT_OPTIONS.find((item) => item.shortcut === event.key);
+        if (option) {
+          event.preventDefault();
+          setPaymentType(option.value);
+        }
       }
     };
 
@@ -802,6 +876,8 @@ export default function SalesStartPage({
                                   type="button"
                                   onClick={() => removeItem(item.id)}
                                   className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-primary text-white"
+                                  aria-label={`Remover ${item.name}`}
+                                  title="Remover item"
                                 >
                                   <Trash2 size={12} />
                                 </button>
@@ -817,7 +893,19 @@ export default function SalesStartPage({
             </div>
 
             <div className="md:sticky md:bottom-0 md:z-10 md:shadow-[0_-8px_18px_rgba(15,23,42,0.08)]">
-              <div className="border-t border-border-primary bg-bg-gray-theme px-3 py-1.5 text-sm text-text-primary">00 - Ajuda</div>
+              <div
+                className="hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-primary bg-bg-gray-theme px-3 py-1.5 text-xs text-text-secondary md:flex"
+                aria-label="Atalhos de teclado"
+              >
+                {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                  <span key={shortcut.key} className="inline-flex items-center gap-1.5">
+                    <kbd className="rounded-md border border-border-secondary bg-bg-light px-1.5 py-0.5 font-mono text-[11px] font-semibold text-text-primary">
+                      {shortcut.key}
+                    </kbd>
+                    {shortcut.label}
+                  </span>
+                ))}
+              </div>
 
               <div className="grid grid-cols-[1fr_160px] border-t border-border-primary md:grid-cols-[1fr_220px]">
                 <div className="bg-bg-gray-theme px-3 py-2 text-right text-sm font-semibold uppercase text-text-primary">
@@ -828,18 +916,19 @@ export default function SalesStartPage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-4">
                 <button
                   type="button"
                   onClick={cancelSale}
-                  className="btn-cancel h-11 w-full rounded-xl"
+                  disabled={cart.length === 0}
+                  className="btn-cancel h-12 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   ✖ CANCELAR (F8)
                 </button>
                 <button
                   type="button"
                   onClick={printLastSale}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
                 >
                   <Printer size={16} />
                   Imprimir última venda
@@ -847,8 +936,9 @@ export default function SalesStartPage({
                 <button
                   type="button"
                   onClick={openPayment}
-                  className="btn-success h-11 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-success h-14 w-full rounded-xl text-lg tracking-wide disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 sm:h-12"
                   disabled={!cashCanSell}
+                  title={cashCanSell ? undefined : cashLabel}
                 >
                   PAGAMENTO (F12)
                 </button>
@@ -871,78 +961,118 @@ export default function SalesStartPage({
 
       {checkoutOpen && (
         <div className="fixed inset-0 z-layer-modal flex items-end bg-black/45 md:items-center md:justify-center">
-          <div className="w-full rounded-t-2xl border border-border-primary bg-bg-light p-4 md:max-w-xl md:rounded-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkout-title"
+            className="w-full rounded-t-2xl border border-border-primary bg-bg-light p-4 md:max-w-xl md:rounded-2xl"
+          >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-text-primary">Pagamento</h2>
+              <h2 id="checkout-title" className="text-lg font-semibold text-text-primary">Pagamento</h2>
               <button
                 type="button"
                 onClick={() => setCheckoutOpen(false)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-primary text-text-secondary"
+                aria-label="Fechar pagamento (Esc)"
               >
                 <X size={14} />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">CPF na nota (opcional)</span>
-                <input
-                  value={cpfNota}
-                  onChange={(event) => setCpfNota(event.target.value)}
-                  className="input-field w-full"
-                  placeholder="Somente se cliente pedir"
-                />
-              </label>
-
-              <SearchableSelectField
-                label="Forma de pagamento"
-                value={paymentType}
-                options={PAYMENT_OPTIONS}
-                onChange={(nextValue) => setPaymentType(nextValue as PaymentType)}
-                getOptionValue={(option) => option.value}
-                getOptionLabel={(option) => option.label}
-                placeholder="Selecione a forma de pagamento"
-                emptyMessage="Forma de pagamento não encontrada."
-              />
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void confirmPayment();
+              }}
+            >
+              <fieldset>
+                <legend className="mb-1.5 block text-sm text-text-secondary">Forma de pagamento</legend>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {PAYMENT_OPTIONS.map((option) => {
+                    const selected = paymentType === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setPaymentType(option.value)}
+                        className={`flex h-14 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition ${
+                          selected
+                            ? "border-accent bg-accent text-text-light shadow-sm"
+                            : "border-border-secondary bg-bg-light text-text-primary hover:bg-hover-light"
+                        }`}
+                      >
+                        <span>{option.label}</span>
+                        <span className={`text-[11px] font-normal ${selected ? "text-text-light/80" : "text-text-tertiary"}`}>
+                          tecla {option.shortcut}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
 
               {paymentType === "dinheiro" && (
                 <label className="block">
                   <span className="mb-1.5 block text-sm text-text-secondary">Valor recebido</span>
                   <input
+                    ref={cashGivenInputRef}
                     value={cashGiven}
                     inputMode="numeric"
                     pattern="[0-9,.]*"
                     onBeforeInput={preventNonDigitBeforeInput}
                     onPaste={pasteCashGiven}
                     onChange={(event) => setCashGiven(maskMoneyBr(event.target.value))}
-                    className="input-field w-full"
+                    className="input-field w-full text-lg font-semibold"
                     placeholder="0,00"
                   />
                 </label>
               )}
 
-              <div className="rounded-xl border border-border-primary bg-bg-primary p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-text-secondary">Total</span>
-                  <span className="font-semibold text-text-primary">R$ {formatMoneyBr(subtotal)}</span>
+              <label className="block">
+                <span className="mb-1.5 block text-sm text-text-secondary">CPF na nota (opcional)</span>
+                <input
+                  value={cpfNota}
+                  inputMode="numeric"
+                  onChange={(event) => setCpfNota(maskCpf(event.target.value))}
+                  className="input-field w-full"
+                  placeholder="000.000.000-00"
+                />
+              </label>
+
+              <div className="rounded-xl border border-border-primary bg-bg-primary p-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-text-secondary">Total</span>
+                  <span className="font-display text-2xl font-bold text-text-primary">
+                    R$ {formatMoneyBr(subtotal)}
+                  </span>
                 </div>
                 {paymentType === "dinheiro" && (
-                  <div className="mt-1 flex items-center justify-between">
-                    <span className="text-text-secondary">Troco</span>
-                    <span className="font-semibold text-success">R$ {formatMoneyBr(changeValue)}</span>
+                  <div className="mt-2 flex items-baseline justify-between border-t border-border-primary pt-2">
+                    <span className="text-sm text-text-secondary">Troco</span>
+                    <span className="font-display text-3xl font-bold text-success">
+                      R$ {formatMoneyBr(changeValue)}
+                    </span>
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <button type="button" onClick={() => setCheckoutOpen(false)} className="btn-cancel">
-                Voltar
-              </button>
-              <button type="button" onClick={confirmPayment} className="btn-success">
-                Confirmar
-              </button>
-            </div>
+              <div className="grid gap-2 pt-1 sm:grid-cols-[1fr_2fr]">
+                <button type="button" onClick={() => setCheckoutOpen(false)} className="btn-cancel h-12">
+                  Voltar
+                </button>
+                <LoadingButton
+                  ref={confirmButtonRef}
+                  type="submit"
+                  isLoading={confirmingPayment}
+                  loadingLabel="Registrando..."
+                  className="btn-success inline-flex h-12 items-center justify-center gap-2 text-base"
+                >
+                  Confirmar
+                </LoadingButton>
+              </div>
+            </form>
           </div>
         </div>
       )}
