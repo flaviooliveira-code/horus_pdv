@@ -132,7 +132,7 @@ async function walkthroughCorePages(page: Page) {
     ["conta-de-usuario", "Usuários", "Gestão de contas e permissões"],
     ["configuracoes", "Configurações", "Preferências do PDV"],
     ["fiscal", "Fiscal NFC-e / NF-e", "Módulo fiscal marcado como em desenvolvimento"],
-    ["pagamentos", "Pagamentos Integrados", "Pagamentos integrados marcados como em desenvolvimento"],
+    ["pagamentos", "Pagamentos Integrados", "Gateways Asaas, Mercado Pago e PagBank para PIX e boleto"],
   ] as const;
 
   for (const [key, title, text] of pages) {
