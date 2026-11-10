@@ -60,6 +60,8 @@ public class HorusAuthMiddleware(RequestDelegate next)
                path.StartsWith("/api/Auth/forgot-password", StringComparison.OrdinalIgnoreCase) ||
                path.StartsWith("/api/Auth/reset-password", StringComparison.OrdinalIgnoreCase) ||
                path.StartsWith("/api/Auth/register", StringComparison.OrdinalIgnoreCase) ||
+               // Avisos dos provedores de pagamento: autenticados pela assinatura de cada provedor.
+               path.StartsWith("/api/Webhooks/", StringComparison.OrdinalIgnoreCase) ||
                (context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment() &&
                 path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase));
     }

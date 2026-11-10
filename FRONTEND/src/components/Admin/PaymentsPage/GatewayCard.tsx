@@ -69,6 +69,7 @@ export default function GatewayCard({
                 <DetailRow label="Public Key" value={gateway.publicKey || "-"} />
               ) : null}
               <DetailRow label="Última validação" value={formatDateTime(gateway.lastValidatedAt)} />
+              <DetailRow label="Último webhook" value={formatDateTime(gateway.webhookLastEventAt)} />
             </DetailPanel>
             <DetailPanel title="Uso">
               <DetailRow label="Modalidade" value={modality} />

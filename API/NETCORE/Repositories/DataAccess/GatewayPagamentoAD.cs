@@ -31,4 +31,6 @@ public class GatewayPagamentoAD
     public string LastValidationMessage { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public string WebhookProviderId { get; set; } = string.Empty;
+    public DateTime? WebhookLastEventAt { get; set; }
 }

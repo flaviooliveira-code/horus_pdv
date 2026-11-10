@@ -125,6 +125,7 @@ O middleware ainda aceita `Authorization: Bearer` para compatibilidade, mas o fl
 - `ModulosMercado`
 - `ModuloMercadoRegistros`
 - `GatewaysPagamento`
+- `CobrancasPagamento`
 
 ## Gateways de Pagamento
 
@@ -135,7 +136,14 @@ Em `Pagamentos Integrados`, administradores e gerentes cadastram contas de **Asa
 - Cada empresa tem no máximo um gateway padrão para PIX e um para boleto. "Somente PIX" vale para Mercado Pago e PagBank.
 - `Payments:MercadoPagoApiBaseUrl` troca a URL da API do Mercado Pago (útil para testes).
 
-A emissão de cobranças e o recebimento de webhooks ainda não estão implementados.
+### Cobranças e webhooks
+
+- `/api/CobrancaPagamento` emite PIX ou boleto no gateway padrão do método (ou no `gatewayId` informado), consulta (`GET /{id}` sincroniza com o provedor) e cancela (`POST /{id}/cancel`).
+- APIs usadas: Asaas `/v3/customers`, `/v3/payments`, `/pixQrCode` e `/identificationField`; Mercado Pago `/v1/payments` (`pix` e `bolbradesco`, com `X-Idempotency-Key`); PagBank `/orders` (`qr_codes` e `charges` com `BOLETO`).
+- A cobrança é gravada antes da chamada ao provedor, para continuar rastreável se a resposta se perder. Uma cobrança `PAID` nunca volta para outro status.
+- `POST /api/HistoricoVendas` aceita `paymentChargeId`: na mesma transação da venda, só liga a cobrança se ela estiver paga, tiver o mesmo valor e ainda não tiver venda.
+- `POST /api/Webhooks/{asaas|mercado-pago|pagbank}/{gatewayId}` é público (fora do `HorusAuthMiddleware`), autentica pela assinatura de cada provedor e consulta o status no provedor, sem confiar no corpo do aviso.
+- `Payments:WebhookPublicBaseUrl` (HTTPS) define a URL pública dos avisos. Sem ela, os pagamentos são confirmados por consulta.
 
 ## Organização dos Repositórios
 

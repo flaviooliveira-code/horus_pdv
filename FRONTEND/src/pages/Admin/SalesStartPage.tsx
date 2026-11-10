@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import LoadingButton from "@/components/Loading/LoadingButton";
+import PixChargePanel from "@/components/Admin/PixChargePanel";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import {
@@ -26,6 +27,10 @@ import ReceiptPreviewModal, {
   type SaleReceipt,
 } from "@/components/Admin/ReceiptPreviewModal";
 import { companyService, type CompanyDto } from "@/services/api/companyService";
+import {
+  paymentChargeService,
+  type PaymentChargeDto,
+} from "@/services/api/paymentChargeService";
 import { productService } from "@/services/api/productService";
 import { salesHistoryService } from "@/services/api/salesHistoryService";
 import { getPrintPreviewEnabled } from "@/utils/pdvPreferences";
@@ -68,6 +73,8 @@ const KEYBOARD_SHORTCUTS: Array<{ key: string; label: string }> = [
   { key: "F12", label: "Pagamento" },
 ];
 
+/** Intervalo de consulta do PIX enquanto o cliente paga. */
+const PIX_POLL_INTERVAL_MS = 3000;
 const LAST_RECEIPT_STORAGE_KEY = "horus-pdv-last-receipt";
 const PENDING_CART_STORAGE_KEY = "horus-pdv-pending-cart";
 
@@ -142,6 +149,10 @@ export default function SalesStartPage({
   const [cpfNota, setCpfNota] = useState("");
   const [cashGiven, setCashGiven] = useState("");
   const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [pixCharge, setPixCharge] = useState<PaymentChargeDto | null>(null);
+  const [generatingPix, setGeneratingPix] = useState(false);
+  const [cancellingPix, setCancellingPix] = useState(false);
+  const pixPending = pixCharge?.status === "PENDING";
   const cashGivenInputRef = useRef<HTMLInputElement | null>(null);
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const [lastReceipt, setLastReceipt] = useState<SaleReceipt | null>(null);
@@ -422,6 +433,7 @@ export default function SalesStartPage({
     setCart([]);
     setCpfNota("");
     setCashGiven("");
+    setPixCharge(null);
     setCheckoutOpen(false);
     Toast.info("Venda cancelada.");
   }, [cart.length, statusDialog]);
@@ -446,12 +458,71 @@ export default function SalesStartPage({
     }
 
     setPaymentType("dinheiro");
+    setPixCharge(null);
     setCashGiven(formatMoneyBr(subtotal));
     setCheckoutOpen(true);
   }, [cart.length, formatMoneyBr, loadCashStatus, subtotal]);
 
-  const confirmPayment = async () => {
+  const generatePix = async () => {
+    if (generatingPix) return;
+    setGeneratingPix(true);
+    try {
+      const result = await paymentChargeService.create({
+        method: "PIX",
+        amountCents: Math.round(subtotal * 100),
+        description: `Venda ${company?.fantasyName || "Hórus PDV"}`.slice(0, 120),
+        payerName: "Consumidor",
+        payerDocument: cpfNota,
+      });
+      setPixCharge(result.charge);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Não foi possível gerar o QR Code PIX.");
+    } finally {
+      setGeneratingPix(false);
+    }
+  };
+
+  /** Cancela o PIX pendente. Devolve false se o operador desistiu ou se o pagamento caiu no meio. */
+  const cancelPix = async (askFirst: boolean) => {
+    if (!pixCharge || pixCharge.status !== "PENDING") return true;
+    if (askFirst) {
+      const confirmed = await statusDialog.confirm(
+        "Há um QR Code PIX aguardando pagamento. Cancelar a cobrança?",
+        { confirmLabel: "Cancelar PIX", cancelLabel: "Manter" },
+      );
+      if (!confirmed) return false;
+    }
+
+    setCancellingPix(true);
+    try {
+      const result = await paymentChargeService.cancel(pixCharge.id);
+      setPixCharge(result.charge.status === "PENDING" ? result.charge : null);
+      Toast.info(result.message);
+      return true;
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Não foi possível cancelar o PIX.");
+      // O pagamento pode ter caído: atualiza para o polling finalizar a venda.
+      paymentChargeService.get(pixCharge.id).then(setPixCharge).catch(() => undefined);
+      return false;
+    } finally {
+      setCancellingPix(false);
+    }
+  };
+
+  const closeCheckout = async () => {
     if (confirmingPayment) return;
+    if (!(await cancelPix(true))) return;
+    setCheckoutOpen(false);
+  };
+
+  const confirmPayment = async (polledChargeId?: string) => {
+    if (confirmingPayment) return;
+    // Se o PIX já caiu e o registro falhou antes (ex.: estoque), a nova tentativa mantém o vínculo.
+    const paidChargeId = polledChargeId ?? (pixCharge?.status === "PAID" ? pixCharge.id : undefined);
+    if (paymentType === "pix" && pixPending && !paidChargeId) {
+      Toast.info("Aguardando o pagamento do PIX. Cancele o QR Code para registrar de outra forma.");
+      return;
+    }
     if (paymentType === "dinheiro" && cashGivenValue < subtotal) {
       Toast.error("Valor recebido menor que total.");
       return;
@@ -473,6 +544,7 @@ export default function SalesStartPage({
         paymentType,
         totalAmount: formatMoneyBr(subtotal),
         operatorName,
+        paymentChargeId: paymentType === "pix" ? paidChargeId : undefined,
         items: cart.map((item) => ({
           productCode: item.code,
           productName: item.name,
@@ -534,8 +606,45 @@ export default function SalesStartPage({
     setPaymentType("dinheiro");
     setCpfNota("");
     setCashGiven("");
+    setPixCharge(null);
     window.setTimeout(() => productInputRef.current?.focus(), 0);
   };
+
+  // Mantém a versão mais recente para o polling do PIX chamar sem reiniciar o intervalo a cada render.
+  const confirmPaymentRef = useRef(confirmPayment);
+  useEffect(() => {
+    confirmPaymentRef.current = confirmPayment;
+  });
+
+  const pendingChargeId = checkoutOpen && pixPending ? pixCharge?.id : undefined;
+  useEffect(() => {
+    if (!pendingChargeId) return undefined;
+    let stopped = false;
+    const intervalId = window.setInterval(() => {
+      paymentChargeService
+        .get(pendingChargeId)
+        .then((charge) => {
+          if (stopped) return;
+          setPixCharge(charge);
+          if (charge.status === "PAID") {
+            stopped = true;
+            void confirmPaymentRef.current(charge.id);
+          }
+        })
+        .catch(() => undefined);
+    }, PIX_POLL_INTERVAL_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [pendingChargeId]);
+
+  const closeCheckoutRef = useRef(closeCheckout);
+  const pixPendingRef = useRef(pixPending);
+  useEffect(() => {
+    closeCheckoutRef.current = closeCheckout;
+    pixPendingRef.current = pixPending;
+  });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -570,9 +679,9 @@ export default function SalesStartPage({
       }
       if (event.key === "Escape" && checkoutOpen) {
         event.preventDefault();
-        setCheckoutOpen(false);
+        void closeCheckoutRef.current();
       }
-      if (checkoutOpen && !isInput) {
+      if (checkoutOpen && !isInput && !pixPendingRef.current) {
         // Teclas 1–4 escolhem a forma de pagamento quando o foco não está num campo de texto.
         const option = PAYMENT_OPTIONS.find((item) => item.shortcut === event.key);
         if (option) {
@@ -965,13 +1074,13 @@ export default function SalesStartPage({
             role="dialog"
             aria-modal="true"
             aria-labelledby="checkout-title"
-            className="w-full rounded-t-2xl border border-border-primary bg-bg-light p-4 md:max-w-xl md:rounded-2xl"
+            className="max-h-[100dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-border-primary bg-bg-light p-4 md:max-h-[94dvh] md:max-w-xl md:rounded-2xl"
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="checkout-title" className="text-lg font-semibold text-text-primary">Pagamento</h2>
               <button
                 type="button"
-                onClick={() => setCheckoutOpen(false)}
+                onClick={() => void closeCheckout()}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-primary text-text-secondary"
                 aria-label="Fechar pagamento (Esc)"
               >
@@ -996,8 +1105,9 @@ export default function SalesStartPage({
                         key={option.value}
                         type="button"
                         aria-pressed={selected}
+                        disabled={pixPending && !selected}
                         onClick={() => setPaymentType(option.value)}
-                        className={`flex h-14 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition ${
+                        className={`flex h-14 flex-col disabled:cursor-not-allowed disabled:opacity-50 items-center justify-center rounded-xl border text-sm font-semibold transition ${
                           selected
                             ? "border-accent bg-accent text-text-light shadow-sm"
                             : "border-border-secondary bg-bg-light text-text-primary hover:bg-hover-light"
@@ -1034,12 +1144,23 @@ export default function SalesStartPage({
                 <span className="mb-1.5 block text-sm text-text-secondary">CPF na nota (opcional)</span>
                 <input
                   value={cpfNota}
+                  readOnly={pixPending}
                   inputMode="numeric"
                   onChange={(event) => setCpfNota(maskCpf(event.target.value))}
                   className="input-field w-full"
                   placeholder="000.000.000-00"
                 />
               </label>
+
+              {paymentType === "pix" && (
+                <PixChargePanel
+                  charge={pixCharge}
+                  generating={generatingPix}
+                  cancelling={cancellingPix}
+                  onGenerate={() => void generatePix()}
+                  onCancel={() => void cancelPix(false)}
+                />
+              )}
 
               <div className="rounded-xl border border-border-primary bg-bg-primary p-3">
                 <div className="flex items-baseline justify-between">
@@ -1059,7 +1180,7 @@ export default function SalesStartPage({
               </div>
 
               <div className="grid gap-2 pt-1 sm:grid-cols-[1fr_2fr]">
-                <button type="button" onClick={() => setCheckoutOpen(false)} className="btn-cancel h-12">
+                <button type="button" onClick={() => void closeCheckout()} className="btn-cancel h-12">
                   Voltar
                 </button>
                 <LoadingButton
@@ -1067,9 +1188,16 @@ export default function SalesStartPage({
                   type="submit"
                   isLoading={confirmingPayment}
                   loadingLabel="Registrando..."
-                  className="btn-success inline-flex h-12 items-center justify-center gap-2 text-base"
+                  disabled={paymentType === "pix" && pixPending}
+                  className="btn-success inline-flex h-12 items-center justify-center gap-2 text-base disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Confirmar
+                  {paymentType !== "pix"
+                    ? "Confirmar"
+                    : pixPending
+                      ? "Aguardando PIX..."
+                      : pixCharge?.status === "PAID"
+                        ? "Registrar venda"
+                        : "Confirmar PIX recebido"}
                 </LoadingButton>
               </div>
             </form>

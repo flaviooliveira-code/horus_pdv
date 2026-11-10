@@ -1,13 +1,15 @@
 /**
  * Arquivo: src/pages/Admin/PaymentsPage.tsx
- * Objetivo: gerencia os gateways de pagamento (Asaas, Mercado Pago e PagBank) usados nas cobranças PIX e boleto.
- * Entradas esperadas: não recebe props; integra API de gateways, drawer de cadastro e diálogos de confirmação.
+ * Objetivo: gerencia os gateways de pagamento (Asaas, Mercado Pago e PagBank) e as cobranças PIX/boleto emitidas por eles.
+ * Entradas esperadas: não recebe props; integra APIs de gateways e cobranças, drawers de cadastro e diálogos de confirmação.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CircleAlert, Landmark, Plus, QrCode, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
+import { CircleAlert, FileText, Landmark, Plus, QrCode, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import {
+  ChargeFormDrawer,
+  ChargesSection,
   DEFAULT_FORM,
   GatewayCard,
   GatewayFormDrawer,
@@ -22,9 +24,17 @@ import Skeleton from "@/components/Loading/Skeleton";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import PageLayout from "@/layout/PageLayout";
 import {
+  paymentChargeService,
+  type CreatePaymentChargePayload,
+  type PaymentChargeDto,
+} from "@/services/api/paymentChargeService";
+import { customerService, type CustomerDto } from "@/services/api/customerService";
+import {
   paymentGatewayService,
   type PaymentGatewayDto,
 } from "@/services/api/paymentGatewayService";
+
+type PaymentsTab = "gateways" | "cobrancas";
 
 export default function PaymentsPage() {
   const statusDialog = useStatusDialog();
@@ -36,6 +46,15 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false);
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [tab, setTab] = useState<PaymentsTab>("gateways");
+  const [charges, setCharges] = useState<PaymentChargeDto[]>([]);
+  const [chargesLoading, setChargesLoading] = useState(false);
+  const [chargesLoaded, setChargesLoaded] = useState(false);
+  const [customers, setCustomers] = useState<CustomerDto[]>([]);
+  const [chargeDrawerOpen, setChargeDrawerOpen] = useState(false);
+  const [creatingCharge, setCreatingCharge] = useState(false);
+  const [syncingChargeId, setSyncingChargeId] = useState<string | null>(null);
+  const [cancellingChargeId, setCancellingChargeId] = useState<string | null>(null);
 
   const editingGateway = useMemo(
     () => gateways.find((gateway) => gateway.id === editingId),
@@ -71,6 +90,90 @@ export default function PaymentsPage() {
   const refreshGateways = () => {
     setLoading(true);
     void loadGateways();
+  };
+
+  const loadCharges = () => {
+    setChargesLoading(true);
+    paymentChargeService
+      .list()
+      .then((rows) => {
+        setCharges(rows);
+        setChargesLoaded(true);
+      })
+      .catch((error: unknown) => {
+        Toast.error(error instanceof Error ? error.message : "Não foi possível carregar as cobranças.");
+      })
+      .finally(() => setChargesLoading(false));
+  };
+
+  const selectTab = (next: PaymentsTab) => {
+    setTab(next);
+    if (next === "cobrancas" && !chargesLoaded && !chargesLoading) loadCharges();
+  };
+
+  const replaceCharge = (next: PaymentChargeDto) =>
+    setCharges((current) => {
+      const exists = current.some((charge) => charge.id === next.id);
+      return exists
+        ? current.map((charge) => (charge.id === next.id ? next : charge))
+        : [next, ...current];
+    });
+
+  const openChargeDrawer = () => {
+    setChargeDrawerOpen(true);
+    if (!customers.length) {
+      customerService
+        .list()
+        .then((rows) => setCustomers(rows ?? []))
+        .catch(() => Toast.error("Não foi possível carregar os clientes."));
+    }
+  };
+
+  const createCharge = async (payload: CreatePaymentChargePayload) => {
+    setCreatingCharge(true);
+    try {
+      const result = await paymentChargeService.create(payload);
+      replaceCharge(result.charge);
+      Toast.success(result.message);
+      setChargeDrawerOpen(false);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Não foi possível emitir a cobrança.");
+      loadCharges();
+    } finally {
+      setCreatingCharge(false);
+    }
+  };
+
+  const syncCharge = async (charge: PaymentChargeDto) => {
+    setSyncingChargeId(charge.id);
+    try {
+      const updated = await paymentChargeService.get(charge.id);
+      replaceCharge(updated);
+      Toast.info(updated.status === "PAID" ? "Pagamento confirmado." : "Status atualizado.");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Não foi possível consultar a cobrança.");
+    } finally {
+      setSyncingChargeId(null);
+    }
+  };
+
+  const cancelCharge = async (charge: PaymentChargeDto) => {
+    const confirmed = await statusDialog.confirm(
+      `Cancelar a cobrança de ${(charge.amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} para ${charge.payerName}?`,
+      { confirmLabel: "Cancelar cobrança", cancelLabel: "Manter" },
+    );
+    if (!confirmed) return;
+
+    setCancellingChargeId(charge.id);
+    try {
+      const result = await paymentChargeService.cancel(charge.id);
+      replaceCharge(result.charge);
+      Toast.success(result.message);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Não foi possível cancelar a cobrança.");
+    } finally {
+      setCancellingChargeId(null);
+    }
   };
 
   const updateField = <K extends keyof GatewayFormState>(key: K, value: GatewayFormState[K]) => {
@@ -176,20 +279,23 @@ export default function PaymentsPage() {
           <div className="grid w-[calc(100vw-1.5rem)] max-w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
             <button
               type="button"
-              onClick={refreshGateways}
-              disabled={loading}
+              onClick={tab === "gateways" ? refreshGateways : loadCharges}
+              disabled={tab === "gateways" ? loading : chargesLoading}
               className="btn-outline-secondary inline-flex items-center justify-center gap-2"
             >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              <RefreshCw
+                size={16}
+                className={(tab === "gateways" ? loading : chargesLoading) ? "animate-spin" : ""}
+              />
               Atualizar
             </button>
             <button
               type="button"
-              onClick={openCreateDrawer}
+              onClick={tab === "gateways" ? openCreateDrawer : openChargeDrawer}
               className="btn-primary inline-flex items-center justify-center gap-2"
             >
               <Plus size={16} />
-              Novo gateway
+              {tab === "gateways" ? "Novo gateway" : "Nova cobrança"}
             </button>
           </div>
         }
@@ -224,19 +330,36 @@ export default function PaymentsPage() {
       </section>
 
       <section className="card overflow-hidden rounded-2xl">
-        <div className="flex items-center gap-3 border-b border-border-primary px-4 py-3 sm:px-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
-            <Landmark size={18} />
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-semibold text-text-primary">Contas de gateway</h2>
-            <p className="text-sm text-text-secondary">
-              Credenciais, status de validação e padrões de cobrança por conta.
-            </p>
-          </div>
+        <div
+          role="tablist"
+          aria-label="Seções de pagamentos"
+          className="flex gap-1 border-b border-border-primary px-2 pt-2 sm:px-3"
+        >
+          <TabButton
+            selected={tab === "gateways"}
+            icon={<Landmark size={16} />}
+            label="Gateways"
+            onClick={() => selectTab("gateways")}
+          />
+          <TabButton
+            selected={tab === "cobrancas"}
+            icon={<FileText size={16} />}
+            label="Cobranças"
+            onClick={() => selectTab("cobrancas")}
+          />
         </div>
 
-        {loading && !gateways.length ? (
+        {tab === "cobrancas" ? (
+          <ChargesSection
+            charges={charges}
+            loading={chargesLoading}
+            syncingId={syncingChargeId}
+            cancellingId={cancellingChargeId}
+            onCreate={openChargeDrawer}
+            onSync={(charge) => void syncCharge(charge)}
+            onCancel={(charge) => void cancelCharge(charge)}
+          />
+        ) : loading && !gateways.length ? (
           <div className="space-y-3 p-5" aria-busy="true">
             {Array.from({ length: 2 }).map((_, index) => (
               <Skeleton key={index} className="h-40" />
@@ -288,8 +411,45 @@ export default function PaymentsPage() {
         onClose={closeDrawer}
         onSave={() => void saveGateway()}
       />
+      <ChargeFormDrawer
+        key={chargeDrawerOpen ? "open" : "closed"}
+        open={chargeDrawerOpen}
+        customers={customers}
+        isSaving={creatingCharge}
+        onClose={() => !creatingCharge && setChargeDrawerOpen(false)}
+        onSave={(payload) => void createCharge(payload)}
+      />
       {statusDialog.Dialog}
     </PageLayout>
+  );
+}
+
+function TabButton({
+  selected,
+  icon,
+  label,
+  onClick,
+}: {
+  selected: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      className={`-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition ${
+        selected
+          ? "border-secondary text-secondary"
+          : "border-transparent text-text-secondary hover:text-text-primary"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

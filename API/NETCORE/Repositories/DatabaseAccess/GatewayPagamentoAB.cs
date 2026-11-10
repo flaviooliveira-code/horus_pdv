@@ -4,6 +4,7 @@
  * Entradas esperadas: recebe empresa da sessão e dados já validados pelo controller.
  */
 using HORUSPDV_API.Repositories.DataAccess;
+using HORUSPDV_API.Services.Pagamentos;
 using HORUSPDV_API.Services.Security;
 using Microsoft.Data.SqlClient;
 
@@ -16,7 +17,7 @@ public class GatewayPagamentoAB(Connection connection, HorusSecretProtector secr
         Id, CompanyId, Provider, Name, Environment, Active, DefaultPix, DefaultBoleto, PixOnly,
         GenerateBoletoPix, AccessToken, AccessTokenMask, PublicKey, WebhookSecret, WebhookSecretMask,
         WebhookResponsibleEmail, BoletoDueDays, FinePercent, MonthlyInterestPercent, Status,
-        LastValidatedAt, LastValidationMessage, CreatedAt, UpdatedAt
+        LastValidatedAt, LastValidationMessage, CreatedAt, UpdatedAt, WebhookProviderId, WebhookLastEventAt
         """;
 
     public async Task<List<GatewayPagamentoAD>> ListarAsync(string companyId)
@@ -58,6 +59,68 @@ public class GatewayPagamentoAB(Connection connection, HorusSecretProtector secr
         return await reader.ReadAsync() ? Map(reader) : null;
     }
 
+    /// <summary>Busca o gateway sem filtrar empresa: uso exclusivo do webhook público, que só conhece o id.</summary>
+    public async Task<GatewayPagamentoAD?> ObterParaWebhookAsync(string id)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await using var command = new SqlCommand(
+            $"SELECT {SelectColumns} FROM GatewaysPagamento WHERE Id = @Id;",
+            db);
+        command.Parameters.AddWithValue("@Id", id);
+        await using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? Map(reader) : null;
+    }
+
+    /// <summary>Gateway padrão ativo da empresa para o método (PIX ou BOLETO).</summary>
+    public async Task<GatewayPagamentoAD?> ObterPadraoAsync(string companyId, string method)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await using var command = new SqlCommand(
+            $"""
+            SELECT TOP 1 {SelectColumns}
+            FROM GatewaysPagamento
+            WHERE CompanyId = @CompanyId
+              AND Active = 1
+              AND ((@Method = N'PIX' AND DefaultPix = 1) OR (@Method = N'BOLETO' AND DefaultBoleto = 1))
+            ORDER BY UpdatedAt DESC;
+            """,
+            db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
+        command.Parameters.AddWithValue("@Method", method);
+        await using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? Map(reader) : null;
+    }
+
+    /// <summary>Guarda o id do webhook de conta (Asaas) e o segredo que o provedor devolve em cada evento.</summary>
+    public async Task RegistrarWebhookAsync(string id, string providerWebhookId, string webhookSecret)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            UPDATE GatewaysPagamento
+               SET WebhookProviderId = @WebhookProviderId,
+                   WebhookSecret = @WebhookSecret,
+                   WebhookSecretMask = @WebhookSecretMask
+             WHERE Id = @Id;
+            """,
+            db);
+        command.Parameters.AddWithValue("@Id", id);
+        command.Parameters.AddWithValue("@WebhookProviderId", providerWebhookId);
+        command.Parameters.AddWithValue("@WebhookSecret", secretProtector.Protect(webhookSecret));
+        command.Parameters.AddWithValue("@WebhookSecretMask", HorusPaymentGatewayService.MaskSecret(webhookSecret));
+        await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task MarcarEventoWebhookAsync(string id)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await using var command = new SqlCommand(
+            "UPDATE GatewaysPagamento SET WebhookLastEventAt = SYSUTCDATETIME() WHERE Id = @Id;",
+            db);
+        command.Parameters.AddWithValue("@Id", id);
+        await command.ExecuteNonQueryAsync();
+    }
+
     /// <summary>
     /// Insere ou atualiza o gateway e, na mesma transação, tira o padrão PIX/boleto
     /// dos outros gateways da empresa para manter um único padrão por modalidade.
@@ -82,7 +145,8 @@ public class GatewayPagamentoAB(Connection connection, HorusSecretProtector secr
               """
             : """
               UPDATE GatewaysPagamento
-                 SET Provider = @Provider,
+                 SET WebhookProviderId = CASE WHEN Provider <> @Provider THEN N'' ELSE WebhookProviderId END,
+                     Provider = @Provider,
                      Name = @Name,
                      Environment = @Environment,
                      Active = @Active,
@@ -219,7 +283,9 @@ public class GatewayPagamentoAB(Connection connection, HorusSecretProtector secr
         LastValidatedAt = ReadNullableDate(source, "LastValidatedAt"),
         LastValidationMessage = ReadString(source, "LastValidationMessage"),
         CreatedAt = ReadNullableDate(source, "CreatedAt") ?? DateTime.UtcNow,
-        UpdatedAt = ReadNullableDate(source, "UpdatedAt") ?? DateTime.UtcNow
+        UpdatedAt = ReadNullableDate(source, "UpdatedAt") ?? DateTime.UtcNow,
+        WebhookProviderId = ReadString(source, "WebhookProviderId"),
+        WebhookLastEventAt = ReadNullableDate(source, "WebhookLastEventAt")
     };
 
     private static string Truncate(string value, int maxLength)

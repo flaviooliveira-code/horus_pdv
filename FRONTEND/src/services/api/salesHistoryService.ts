@@ -29,6 +29,8 @@ export type RegisterSalePayload = {
   paymentType: string;
   totalAmount: string;
   operatorName: string;
+  /** Cobrança PIX paga pelo gateway; a API só registra a venda se ela estiver paga. */
+  paymentChargeId?: string;
   items: Array<{
     productCode: string;
     productName: string;
