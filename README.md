@@ -9,7 +9,7 @@ Hórus PDV é um PDV grátis para frente de caixa e gestão operacional de peque
 
 O projeto está em evolução ativa, com sistema de cadastro grátis para clientes, fornecedores e produtos, controle de estoque, vendas, caixa e relatórios. A base usa frontend em React, API em ASP.NET Core e persistência em SQL Server para os dados operacionais principais.
 
-Página inicial do projeto: https://flaviooliveira-code.github.io/horus_pdv/
+Página inicial do projeto: https://flaviooliveira.dev/horus-pdv/
 
 ## Sumário
 
@@ -92,118 +92,118 @@ Este repositório está em fase de desenvolvimento. O frontend já conversa com 
 
 Para visualizar em formato de slides, abra a página inicial e clique em qualquer screenshot:
 
-<pre><code class="language-text">https://flaviooliveira-code.github.io/horus_pdv/
+<pre><code class="language-text">https://flaviooliveira.dev/horus-pdv/
 </code></pre>
 
 <table>
   <tr>
     <td width="50%">
       <strong>Login</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/login.png" alt="Tela de login do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/login.png" alt="Tela de login do Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Dashboard</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/dashboard.png" alt="Dashboard do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/dashboard.png" alt="Dashboard do Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Clientes</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/clientes.png" alt="Cadastro de clientes no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/clientes.png" alt="Cadastro de clientes no Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Fornecedores</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/fornecedores.png" alt="Cadastro de fornecedores no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/fornecedores.png" alt="Cadastro de fornecedores no Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Produtos</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/produtos.png" alt="Cadastro de produtos no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/produtos.png" alt="Cadastro de produtos no Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Usuários</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/usuarios.png" alt="Gestão de usuários no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/usuarios.png" alt="Gestão de usuários no Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Frente de Caixa</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/frente-caixa.png" alt="Frente de caixa do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/frente-caixa.png" alt="Frente de caixa do Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Histórico de Vendas</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/historico-vendas.png" alt="Histórico de vendas do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/historico-vendas.png" alt="Histórico de vendas do Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Relatórios</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/relatorios.png" alt="Relatórios do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/relatorios.png" alt="Relatórios do Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Fiscal</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/fiscal.png" alt="Módulo fiscal do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/fiscal.png" alt="Módulo fiscal do Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Pagamentos Integrados</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/pagamentos.png" alt="Pagamentos integrados do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/pagamentos.png" alt="Pagamentos integrados do Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Estoque e Inventário</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/estoque-inventario.png" alt="Estoque e inventário do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/estoque-inventario.png" alt="Estoque e inventário do Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Abertura e Fechamento</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/abertura-fechamento.png" alt="Abertura e fechamento de caixa no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/abertura-fechamento.png" alt="Abertura e fechamento de caixa no Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Compras e Reposição</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/compras-reposicao.png" alt="Compras e reposição no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/compras-reposicao.png" alt="Compras e reposição no Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Trocas e Devoluções</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/trocas-devolucoes.png" alt="Trocas e devoluções no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/trocas-devolucoes.png" alt="Trocas e devoluções no Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>CRM e Fidelidade</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/crm-fidelidade.png" alt="CRM e fidelidade no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/crm-fidelidade.png" alt="CRM e fidelidade no Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Omnichannel</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/omnichannel.png" alt="Omnichannel no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/omnichannel.png" alt="Omnichannel no Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Minha Empresa</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/minha-empresa.png" alt="Página Minha Empresa do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/minha-empresa.png" alt="Página Minha Empresa do Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Detalhes da Licença</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/detalhes-licenca.png" alt="Detalhes da licença do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/detalhes-licenca.png" alt="Detalhes da licença do Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Sobre PDV</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/sobre-pdv.png" alt="Página Sobre PDV do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/sobre-pdv.png" alt="Página Sobre PDV do Hórus PDV" /></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <strong>Configurações</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/configuracoes.png" alt="Configurações do Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/configuracoes.png" alt="Configurações do Hórus PDV" /></a>
     </td>
     <td width="50%">
       <strong>Perfil</strong><br />
-      <a href="https://flaviooliveira-code.github.io/horus_pdv/"><img src="docs/images/editar-perfil.png" alt="Perfil do usuário no Hórus PDV" /></a>
+      <a href="https://flaviooliveira.dev/horus-pdv/"><img src="docs/images/editar-perfil.png" alt="Perfil do usuário no Hórus PDV" /></a>
     </td>
   </tr>
 </table>

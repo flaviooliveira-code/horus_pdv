@@ -2,6 +2,13 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
+    <script>
+      // A landing é servida em flaviooliveira.dev/horus-pdv/ (rewrite no site principal).
+      // Quem cair na URL antiga do GitHub Pages é levado para o endereço oficial.
+      if (location.hostname.endsWith("github.io")) {
+        location.replace("https://flaviooliveira.dev/horus-pdv/" + location.search + location.hash);
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
@@ -13,7 +20,7 @@
     />
     <link
       rel="canonical"
-      href="https://flaviooliveira-code.github.io/horus_pdv/"
+      href="https://flaviooliveira.dev/horus-pdv/"
     />
     <meta name="theme-color" content="#0369a1" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b1118" media="(prefers-color-scheme: dark)" />
@@ -28,15 +35,15 @@
     <meta property="og:site_name" content="Hórus PDV" />
     <meta property="og:title" content="PDV grátis e frente de caixa open source | Hórus PDV" />
     <meta property="og:description" content="PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade." />
-    <meta property="og:url" content="https://flaviooliveira-code.github.io/horus_pdv/" />
-    <meta property="og:image" content="https://flaviooliveira-code.github.io/horus_pdv/images/og-image.png" />
+    <meta property="og:url" content="https://flaviooliveira.dev/horus-pdv/" />
+    <meta property="og:image" content="https://flaviooliveira.dev/horus-pdv/images/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Hórus PDV: PDV grátis e frente de caixa, com o dashboard do sistema" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="PDV grátis e frente de caixa open source | Hórus PDV" />
     <meta name="twitter:description" content="PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade." />
-    <meta name="twitter:image" content="https://flaviooliveira-code.github.io/horus_pdv/images/og-image.png" />
+    <meta name="twitter:image" content="https://flaviooliveira.dev/horus-pdv/images/og-image.png" />
 
     <script type="application/ld+json">
 [
@@ -44,7 +51,7 @@
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "Hórus PDV",
-    "url": "https://flaviooliveira-code.github.io/horus_pdv/",
+    "url": "https://flaviooliveira.dev/horus-pdv/",
     "description": "PDV grátis e de código aberto para pequenos comércios: frente de caixa, sistema de cadastro grátis, controle de estoque, caixa e relatórios. Sem mensalidade.",
     "applicationCategory": "BusinessApplication",
     "applicationSubCategory": "Ponto de venda (PDV)",
@@ -57,11 +64,11 @@
       "price": "0",
       "priceCurrency": "BRL"
     },
-    "image": "https://flaviooliveira-code.github.io/horus_pdv/images/og-image.png",
+    "image": "https://flaviooliveira.dev/horus-pdv/images/og-image.png",
     "screenshot": [
-      "https://flaviooliveira-code.github.io/horus_pdv/images/frente-caixa.png",
-      "https://flaviooliveira-code.github.io/horus_pdv/images/dashboard.png",
-      "https://flaviooliveira-code.github.io/horus_pdv/images/produtos.png"
+      "https://flaviooliveira.dev/horus-pdv/images/frente-caixa.png",
+      "https://flaviooliveira.dev/horus-pdv/images/dashboard.png",
+      "https://flaviooliveira.dev/horus-pdv/images/produtos.png"
     ],
     "featureList": [
       "Frente de caixa",
@@ -85,8 +92,8 @@
     "@type": "VideoObject",
     "name": "Demonstração do Hórus PDV",
     "description": "Demonstração do Hórus PDV operando com API real: cadastro, login, abertura de caixa, venda, cupom, histórico e relatórios.",
-    "thumbnailUrl": "https://flaviooliveira-code.github.io/horus_pdv/images/dashboard.png",
-    "contentUrl": "https://flaviooliveira-code.github.io/horus_pdv/videos/horus-pdv-demo.webm",
+    "thumbnailUrl": "https://flaviooliveira.dev/horus-pdv/images/dashboard.png",
+    "contentUrl": "https://flaviooliveira.dev/horus-pdv/videos/horus-pdv-demo.webm",
     "uploadDate": "2026-05-08T14:16:54-03:00",
     "inLanguage": "pt-BR"
   }
