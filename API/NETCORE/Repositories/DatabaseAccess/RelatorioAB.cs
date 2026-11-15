@@ -177,12 +177,24 @@ public class RelatorioAB(Connection connection)
                 ("fechamento", item.ClosedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-"),
                 ("operador", item.OperatorName),
                 ("valorAbertura", FormatMoney(item.OpeningAmount)),
+                ("saldoEsperado", FormatMoney(item.ExpectedAmount > 0m ? item.ExpectedAmount : item.OpeningAmount)),
                 ("valorFechamento", FormatMoney(item.ClosingAmount)),
+                ("diferenca", FormatMoney(item.DifferenceAmount)),
+                ("conferencia", string.IsNullOrWhiteSpace(item.DifferenceStatus) ? "CONFERIDO" : item.DifferenceStatus),
                 ("status", item.ClosedAt is null ? "Aberto" : "Fechado")))
             .ToList();
 
         return Result(
-            Columns(("abertura", "Abertura"), ("fechamento", "Fechamento"), ("operador", "Operador"), ("valorAbertura", "Valor abertura"), ("valorFechamento", "Valor fechamento"), ("status", "Status")),
+            Columns(
+                ("abertura", "Abertura"),
+                ("fechamento", "Fechamento"),
+                ("operador", "Operador"),
+                ("valorAbertura", "Valor abertura"),
+                ("saldoEsperado", "Saldo esperado"),
+                ("valorFechamento", "Valor fechamento"),
+                ("diferenca", "Diferença"),
+                ("conferencia", "Conferência"),
+                ("status", "Status")),
             rows);
     }
 
@@ -251,14 +263,28 @@ public class RelatorioAB(Connection connection)
 
     private async Task<List<ReportCashRow>> ListarCaixasAsync(string companyId)
     {
+        const string schemaSql = """
+            IF COL_LENGTH(N'CaixaSessoes', N'ExpectedAmount') IS NULL
+                ALTER TABLE CaixaSessoes ADD ExpectedAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedAmount DEFAULT N'0,00';
+            IF COL_LENGTH(N'CaixaSessoes', N'DifferenceAmount') IS NULL
+                ALTER TABLE CaixaSessoes ADD DifferenceAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceAmount DEFAULT N'0,00';
+            IF COL_LENGTH(N'CaixaSessoes', N'DifferenceStatus') IS NULL
+                ALTER TABLE CaixaSessoes ADD DifferenceStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceStatus DEFAULT N'CONFERIDO';
+            """;
+
         const string sql = """
-            SELECT OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, OperatorName
+            SELECT OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, ExpectedAmount, DifferenceAmount, DifferenceStatus, OperatorName
             FROM CaixaSessoes
             WHERE CompanyId = @CompanyId
             ORDER BY OpenedAt DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
+        await using (var schemaCommand = new SqlCommand(schemaSql, db))
+        {
+            await schemaCommand.ExecuteNonQueryAsync();
+        }
+
         await using var command = new SqlCommand(sql, db);
         command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
@@ -270,6 +296,9 @@ public class RelatorioAB(Connection connection)
                 reader.IsDBNull(reader.GetOrdinal("ClosedAt")) ? null : reader.GetDateTimeOffset(reader.GetOrdinal("ClosedAt")),
                 ParseMoney(ReadString(reader, "OpeningAmount")),
                 ParseMoney(ReadString(reader, "ClosingAmount")),
+                ParseMoney(ReadString(reader, "ExpectedAmount")),
+                ParseMoney(ReadString(reader, "DifferenceAmount")),
+                ReadString(reader, "DifferenceStatus"),
                 ReadString(reader, "OperatorName")));
         }
 
@@ -441,5 +470,8 @@ public class RelatorioAB(Connection connection)
         DateTimeOffset? ClosedAt,
         decimal OpeningAmount,
         decimal ClosingAmount,
+        decimal ExpectedAmount,
+        decimal DifferenceAmount,
+        string DifferenceStatus,
         string OperatorName);
 }

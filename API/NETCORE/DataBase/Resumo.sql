@@ -233,6 +233,12 @@ BEGIN
         ClosedAt DATETIMEOFFSET NULL,
         OpeningAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_OpeningAmount DEFAULT N'0,00',
         ClosingAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ClosingAmount DEFAULT N'0,00',
+        ExpectedAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedAmount DEFAULT N'0,00',
+        DifferenceAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceAmount DEFAULT N'0,00',
+        DifferenceStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceStatus DEFAULT N'CONFERIDO',
+        TotalCashSales NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalCashSales DEFAULT N'0,00',
+        TotalSupplies NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSupplies DEFAULT N'0,00',
+        TotalWithdrawals NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalWithdrawals DEFAULT N'0,00',
         OperatorId NVARCHAR(40) NOT NULL,
         OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaSessoes_OperatorName DEFAULT N'',
         ClosedById NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaSessoes_ClosedById DEFAULT N'',
@@ -248,12 +254,62 @@ BEGIN
     ALTER TABLE CaixaSessoes ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaSessoes_CompanyId DEFAULT N'empresa-principal';
 END;
 
+IF COL_LENGTH(N'CaixaSessoes', N'ExpectedAmount') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD ExpectedAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedAmount DEFAULT N'0,00';
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'DifferenceAmount') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD DifferenceAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceAmount DEFAULT N'0,00';
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'DifferenceStatus') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD DifferenceStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceStatus DEFAULT N'CONFERIDO';
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'TotalCashSales') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD TotalCashSales NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalCashSales DEFAULT N'0,00';
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSupplies') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD TotalSupplies NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSupplies DEFAULT N'0,00';
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'TotalWithdrawals') IS NULL
+BEGIN
+    ALTER TABLE CaixaSessoes ADD TotalWithdrawals NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalWithdrawals DEFAULT N'0,00';
+END;
+
+IF OBJECT_ID(N'CaixaMovimentacoes', N'U') IS NULL
+BEGIN
+    CREATE TABLE CaixaMovimentacoes
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaMovimentacoes PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CompanyId DEFAULT N'empresa-principal',
+        CaixaSessaoId NVARCHAR(40) NOT NULL,
+        Tipo NVARCHAR(30) NOT NULL,
+        FormaPagamento NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_FormaPagamento DEFAULT N'Dinheiro',
+        Valor NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Valor DEFAULT N'0,00',
+        Descricao NVARCHAR(500) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Descricao DEFAULT N'',
+        OperatorId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_OperatorId DEFAULT N'',
+        OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_OperatorName DEFAULT N'',
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CreatedAt DEFAULT SYSDATETIMEOFFSET()
+    );
+    CREATE INDEX IX_CaixaMovimentacoes_CaixaSessaoId_CreatedAt ON CaixaMovimentacoes (CaixaSessaoId, CreatedAt DESC);
+    CREATE INDEX IX_CaixaMovimentacoes_CompanyId_CreatedAt ON CaixaMovimentacoes (CompanyId, CreatedAt DESC);
+END;
+
 IF OBJECT_ID(N'Vendas', N'U') IS NULL
 BEGIN
     CREATE TABLE Vendas
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Vendas PRIMARY KEY,
         CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Vendas_CompanyId DEFAULT N'empresa-principal',
+        CaixaSessaoId NVARCHAR(40) NULL,
         SaleNumber NVARCHAR(30) NOT NULL,
         CustomerName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_CustomerName DEFAULT N'Consumidor',
         CustomerCpf NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_CustomerCpf DEFAULT N'-',
@@ -268,6 +324,11 @@ END;
 IF COL_LENGTH(N'Vendas', N'CompanyId') IS NULL
 BEGIN
     ALTER TABLE Vendas ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Vendas_CompanyId DEFAULT N'empresa-principal';
+END;
+
+IF COL_LENGTH(N'Vendas', N'CaixaSessaoId') IS NULL
+BEGIN
+    ALTER TABLE Vendas ADD CaixaSessaoId NVARCHAR(40) NULL;
 END;
 
 IF COL_LENGTH(N'Vendas', N'PaymentType') IS NULL

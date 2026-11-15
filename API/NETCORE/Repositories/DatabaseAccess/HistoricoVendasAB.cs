@@ -273,9 +273,58 @@ public class HistoricoVendasAB(Connection connection)
         SaleDate = reader.GetDateTimeOffset(reader.GetOrdinal("SaleDate")).LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss")
     };
 
+    private static async Task<string?> ObterSessaoCaixaAbertaIdAsync(SqlConnection db, SqlTransaction transaction, string companyId)
+    {
+        await using var command = new SqlCommand(
+            """
+            SELECT TOP (1) Id
+            FROM CaixaSessoes
+            WHERE CompanyId = @CompanyId AND ClosedAt IS NULL
+            ORDER BY OpenedAt DESC;
+            """,
+            db,
+            transaction);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
+        var result = await command.ExecuteScalarAsync();
+        return result is null || result == DBNull.Value ? null : Convert.ToString(result);
+    }
+
+    private static async Task RegistrarMovimentacaoVendaAsync(
+        SqlConnection db,
+        SqlTransaction transaction,
+        string companyId,
+        string sessionId,
+        string saleNumber,
+        string paymentType,
+        string totalAmount,
+        string operatorName,
+        DateTimeOffset saleDate)
+    {
+        await using var command = new SqlCommand(
+            """
+            INSERT INTO CaixaMovimentacoes
+                (Id, CompanyId, CaixaSessaoId, Tipo, FormaPagamento, Valor, Descricao, OperatorId, OperatorName, CreatedAt)
+            VALUES
+                (@Id, @CompanyId, @CaixaSessaoId, N'VENDA', @FormaPagamento, @Valor, @Descricao, N'', @OperatorName, @CreatedAt);
+            """,
+            db,
+            transaction);
+        command.Parameters.AddWithValue("@Id", $"mov-sale-{saleNumber}-{Guid.NewGuid():N}"[..36]);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
+        command.Parameters.AddWithValue("@CaixaSessaoId", sessionId);
+        command.Parameters.AddWithValue("@FormaPagamento", paymentType);
+        command.Parameters.AddWithValue("@Valor", totalAmount);
+        command.Parameters.AddWithValue("@Descricao", $"Venda #{saleNumber} ({paymentType})");
+        command.Parameters.AddWithValue("@OperatorName", operatorName);
+        command.Parameters.AddWithValue("@CreatedAt", saleDate);
+        await command.ExecuteNonQueryAsync();
+    }
+
     private static async Task EnsurePrintColumnsAsync(SqlConnection db)
     {
         const string schemaSql = """
+            IF COL_LENGTH('Vendas', 'CaixaSessaoId') IS NULL
+                ALTER TABLE Vendas ADD CaixaSessaoId NVARCHAR(40) NULL;
             IF COL_LENGTH('Vendas', 'PaymentType') IS NULL
                 ALTER TABLE Vendas ADD PaymentType NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_PaymentType DEFAULT N'-';
             IF COL_LENGTH('Vendas', 'TotalAmount') IS NULL
@@ -286,6 +335,24 @@ public class HistoricoVendasAB(Connection connection)
                 ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
             IF COL_LENGTH('VendaItens', 'ItemTotal') IS NULL
                 ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
+            IF OBJECT_ID(N'CaixaMovimentacoes', N'U') IS NULL
+            BEGIN
+                CREATE TABLE CaixaMovimentacoes
+                (
+                    Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaMovimentacoes PRIMARY KEY,
+                    CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CompanyId DEFAULT N'empresa-principal',
+                    CaixaSessaoId NVARCHAR(40) NOT NULL,
+                    Tipo NVARCHAR(30) NOT NULL,
+                    FormaPagamento NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_FormaPagamento DEFAULT N'Dinheiro',
+                    Valor NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Valor DEFAULT N'0,00',
+                    Descricao NVARCHAR(500) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Descricao DEFAULT N'',
+                    OperatorId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_OperatorId DEFAULT N'',
+                    OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_OperatorName DEFAULT N'',
+                    CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CreatedAt DEFAULT SYSDATETIMEOFFSET()
+                );
+                CREATE INDEX IX_CaixaMovimentacoes_CaixaSessaoId_CreatedAt ON CaixaMovimentacoes (CaixaSessaoId, CreatedAt DESC);
+                CREATE INDEX IX_CaixaMovimentacoes_CompanyId_CreatedAt ON CaixaMovimentacoes (CompanyId, CreatedAt DESC);
+            END;
             """;
 
         const string backfillSql = """
