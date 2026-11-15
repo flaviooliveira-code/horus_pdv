@@ -8,6 +8,9 @@ import { apiRequest } from "./apiClient";
 const PRODUTO_API_URL =
   import.meta.env.VITE_PRODUTO_API_URL ?? "http://localhost:5260/api/Produto";
 
+const PRODUTO_IMPORTACAO_API_URL =
+  import.meta.env.VITE_PRODUTO_IMPORTACAO_API_URL ?? "http://localhost:5260/api/ProdutoImportacao";
+
 export type ProductDto = {
   id: string;
   productImageUrl: string;
@@ -23,6 +26,41 @@ export type ProductDto = {
 };
 
 export type ProductPayload = Omit<ProductDto, "id">;
+
+export type ProductConflictMode = "atualizar" | "ignorar";
+
+export type ProductImportRowPayload = {
+  rowNumber: number;
+  productCode: string;
+  productName: string;
+  productSupplier: string;
+  productDescription: string;
+  productQnt: string;
+  productUnitPrice: string;
+  productSalePrice: string;
+};
+
+export type ProductImportRowStatusDto = {
+  rowNumber: number;
+  productCode: string;
+  productName: string;
+  action: "CRIAR" | "ATUALIZAR" | "IGNORAR" | "ERRO";
+  isValid: boolean;
+  errors: string[];
+  parsedQuantity: number;
+  parsedUnitCost: number;
+  parsedSalePrice: number;
+};
+
+export type ProductImportBatchResultDto = {
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+  createdCount: number;
+  updatedCount: number;
+  ignoredCount: number;
+  rows: ProductImportRowStatusDto[];
+};
 
 export const productService = {
   async list() {
@@ -46,4 +84,25 @@ export const productService = {
   async remove(id: string) {
     await apiRequest<object>(`${PRODUTO_API_URL}/${id}`, { method: "DELETE" });
   },
+  async validateImportBatch(items: ProductImportRowPayload[], conflictMode: ProductConflictMode) {
+    const response = await apiRequest<ProductImportBatchResultDto>(
+      `${PRODUTO_IMPORTACAO_API_URL}/validar`,
+      {
+        method: "POST",
+        body: JSON.stringify({ conflictMode, items }),
+      },
+    );
+    return response.data;
+  },
+  async importBatch(items: ProductImportRowPayload[], conflictMode: ProductConflictMode) {
+    const response = await apiRequest<ProductImportBatchResultDto>(
+      `${PRODUTO_IMPORTACAO_API_URL}/importar`,
+      {
+        method: "POST",
+        body: JSON.stringify({ conflictMode, items }),
+      },
+    );
+    return response.data;
+  },
 };
+

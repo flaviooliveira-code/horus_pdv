@@ -287,6 +287,7 @@ BEGIN
         ProductName NVARCHAR(180) NOT NULL,
         Quantity INT NOT NULL,
         UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00',
+        UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00',
         ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00',
         CONSTRAINT FK_VendaItens_Vendas FOREIGN KEY (VendaId) REFERENCES Vendas (Id) ON DELETE CASCADE
     );
@@ -295,8 +296,30 @@ END;
 
 IF COL_LENGTH(N'VendaItens', N'UnitPrice') IS NULL
     ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
+IF COL_LENGTH(N'VendaItens', N'UnitCostPrice') IS NULL
+    ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
 IF COL_LENGTH(N'VendaItens', N'ItemTotal') IS NULL
     ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
+
+IF OBJECT_ID(N'DespesasOperacionais', N'U') IS NULL
+BEGIN
+    CREATE TABLE DespesasOperacionais
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_DespesasOperacionais PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_DespesasOperacionais_CompanyId DEFAULT N'empresa-principal',
+        Description NVARCHAR(220) NOT NULL,
+        Category NVARCHAR(80) NOT NULL CONSTRAINT DF_DespesasOperacionais_Category DEFAULT N'Operacional',
+        Amount NVARCHAR(30) NOT NULL CONSTRAINT DF_DespesasOperacionais_Amount DEFAULT N'0,00',
+        CompetenceDate DATE NOT NULL,
+        DueDate DATE NOT NULL,
+        PaidDate DATE NULL,
+        Status NVARCHAR(30) NOT NULL CONSTRAINT DF_DespesasOperacionais_Status DEFAULT N'Pendente',
+        PaymentMethod NVARCHAR(40) NOT NULL CONSTRAINT DF_DespesasOperacionais_PaymentMethod DEFAULT N'PIX',
+        Observation NVARCHAR(500) NOT NULL CONSTRAINT DF_DespesasOperacionais_Observation DEFAULT N'',
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_DespesasOperacionais_CreatedAt DEFAULT SYSDATETIMEOFFSET()
+    );
+    CREATE INDEX IX_DespesasOperacionais_CompanyId_CompetenceDate ON DespesasOperacionais (CompanyId, CompetenceDate DESC);
+END;
 
 GO
 
@@ -306,6 +329,13 @@ UPDATE i
   INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
  WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
     OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
+
+UPDATE i
+   SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
+  FROM VendaItens i
+  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+ WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
+    OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
 UPDATE i
    SET ItemTotal = FORMAT(

@@ -93,9 +93,9 @@ public class HistoricoVendasAB(Connection connection)
                 await using var itemCommand = new SqlCommand(
                     """
                     INSERT INTO VendaItens
-                        (Id, VendaId, ProductCode, ProductName, Quantity, UnitPrice, ItemTotal)
+                        (Id, VendaId, ProductCode, ProductName, Quantity, UnitPrice, UnitCostPrice, ItemTotal)
                     VALUES
-                        (@Id, @VendaId, @ProductCode, @ProductName, @Quantity, @UnitPrice, @ItemTotal);
+                        (@Id, @VendaId, @ProductCode, @ProductName, @Quantity, @UnitPrice, @UnitCostPrice, @ItemTotal);
                     """,
                     db,
                     transaction);
@@ -105,6 +105,7 @@ public class HistoricoVendasAB(Connection connection)
                 itemCommand.Parameters.AddWithValue("@ProductName", item.ProductName);
                 itemCommand.Parameters.AddWithValue("@Quantity", item.Quantity);
                 itemCommand.Parameters.AddWithValue("@UnitPrice", item.UnitPrice);
+                itemCommand.Parameters.AddWithValue("@UnitCostPrice", string.IsNullOrWhiteSpace(item.UnitCostPrice) ? "0,00" : item.UnitCostPrice);
                 itemCommand.Parameters.AddWithValue("@ItemTotal", CalculateTotal(item.UnitPrice, item.Quantity));
                 await itemCommand.ExecuteNonQueryAsync();
 
@@ -229,6 +230,7 @@ public class HistoricoVendasAB(Connection connection)
             var currentStock = ParseInt(ReadString(reader, "ProductQnt"));
             var unitPrice = ReadString(reader, "ProductUnitPrice");
             var salePrice = ReadString(reader, "ProductSalePrice");
+            item.UnitCostPrice = string.IsNullOrWhiteSpace(unitPrice) ? "0,00" : unitPrice;
             item.UnitPrice = string.IsNullOrWhiteSpace(salePrice) ? unitPrice : salePrice;
             await reader.CloseAsync();
 
@@ -284,6 +286,8 @@ public class HistoricoVendasAB(Connection connection)
                 ALTER TABLE Vendas ADD OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_OperatorName DEFAULT N'Operador';
             IF COL_LENGTH('VendaItens', 'UnitPrice') IS NULL
                 ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
+            IF COL_LENGTH('VendaItens', 'UnitCostPrice') IS NULL
+                ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
             IF COL_LENGTH('VendaItens', 'ItemTotal') IS NULL
                 ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
             """;
@@ -295,6 +299,13 @@ public class HistoricoVendasAB(Connection connection)
               INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
              WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
                 OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
+
+            UPDATE i
+               SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
+              FROM VendaItens i
+              INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+             WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
+                OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
             UPDATE i
                SET ItemTotal = FORMAT(
@@ -352,6 +363,7 @@ public class HistoricoVendasAB(Connection connection)
         public string ProductCode { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
         public string UnitPrice { get; set; } = string.Empty;
+        public string UnitCostPrice { get; set; } = "0,00";
         public int Quantity { get; set; }
     }
 }
