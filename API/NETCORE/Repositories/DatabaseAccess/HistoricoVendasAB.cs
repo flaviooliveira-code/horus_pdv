@@ -287,7 +287,18 @@ public class HistoricoVendasAB(Connection connection)
             IF COL_LENGTH('VendaItens', 'UnitPrice') IS NULL
                 ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
             IF COL_LENGTH('VendaItens', 'UnitCostPrice') IS NULL
+            BEGIN
                 ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
+
+                -- Backfill inicial seguro executado uma única vez na criação da coluna para preservar o snapshot histórico
+                UPDATE i
+                   SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
+                  FROM VendaItens i
+                  INNER JOIN Vendas v ON v.Id = i.VendaId
+                  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode AND p.CompanyId = v.CompanyId
+                 WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
+                    OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
+            END;
             IF COL_LENGTH('VendaItens', 'ItemTotal') IS NULL
                 ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
             """;
@@ -296,16 +307,10 @@ public class HistoricoVendasAB(Connection connection)
             UPDATE i
                SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
               FROM VendaItens i
-              INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+              INNER JOIN Vendas v ON v.Id = i.VendaId
+              INNER JOIN Produtos p ON p.ProductCode = i.ProductCode AND p.CompanyId = v.CompanyId
              WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
                 OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
-
-            UPDATE i
-               SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
-              FROM VendaItens i
-              INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
-             WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
-                OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
             UPDATE i
                SET ItemTotal = FORMAT(

@@ -14,6 +14,7 @@ namespace HORUSPDV_API.Controllers.Despesas;
 
 [ApiController]
 [Route("api/[controller]")]
+[HorusAuthorizeRoles("administrador", "gerente")]
 public class DespesasController(Connection connection) : ControllerBase
 {
     [HttpGet]
