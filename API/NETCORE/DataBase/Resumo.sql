@@ -326,14 +326,16 @@ GO
 UPDATE i
    SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
   FROM VendaItens i
-  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+  INNER JOIN Vendas v ON v.Id = i.VendaId
+  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode AND p.CompanyId = v.CompanyId
  WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
     OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
 UPDATE i
    SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
   FROM VendaItens i
-  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+  INNER JOIN Vendas v ON v.Id = i.VendaId
+  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode AND p.CompanyId = v.CompanyId
  WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
     OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
