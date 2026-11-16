@@ -287,13 +287,13 @@ html[data-theme="dark"] .pdv-high-visibility .bg-accent\/10 {
 }
 
 .pdv-high-visibility .pdv-last-scanned-name {
-  font-size: clamp(2.85rem, 4vw, 3.75rem);
+  font-size: clamp(2.85rem, 4.3vw, 3.75rem);
   line-height: 1.08;
   font-weight: 800;
 }
 
 .pdv-high-visibility .pdv-last-scanned-math {
-  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+  font-size: clamp(1.875rem, 2.85vw, 2.375rem);
   line-height: 1.25;
   font-weight: 700;
 }

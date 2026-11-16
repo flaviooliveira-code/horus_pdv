@@ -525,23 +525,30 @@ export default function SalesStartPage({
     );
   }, [customerDisplayState]);
 
+  const highVisibilityRef = useRef(highVisibilityEnabled);
+  const scannerAutoFocusRef = useRef(scannerAutoFocusEnabled);
+  useEffect(() => {
+    highVisibilityRef.current = highVisibilityEnabled;
+  }, [highVisibilityEnabled]);
+  useEffect(() => {
+    scannerAutoFocusRef.current = scannerAutoFocusEnabled;
+  }, [scannerAutoFocusEnabled]);
+
   const toggleHighVisibility = useCallback(() => {
-    setHighVisibilityEnabledState((current) => {
-      const next = !current;
-      setHighVisibilityEnabled(next);
-      return next;
-    });
+    const next = !highVisibilityRef.current;
+    highVisibilityRef.current = next;
+    setHighVisibilityEnabledState(next);
+    setHighVisibilityEnabled(next);
   }, []);
 
   const toggleScannerAutoFocus = useCallback(() => {
-    setScannerAutoFocusEnabledState((current) => {
-      const next = !current;
-      setScannerAutoFocusEnabled(next);
-      if (next) {
-        focusProductInput();
-      }
-      return next;
-    });
+    const next = !scannerAutoFocusRef.current;
+    scannerAutoFocusRef.current = next;
+    setScannerAutoFocusEnabledState(next);
+    setScannerAutoFocusEnabled(next);
+    if (next) {
+      focusProductInput();
+    }
   }, [focusProductInput]);
 
   const openCustomerDisplayWindow = () => {

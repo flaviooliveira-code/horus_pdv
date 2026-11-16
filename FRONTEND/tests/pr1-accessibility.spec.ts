@@ -93,7 +93,7 @@ const MOCK_CASH_STATUS = {
 };
 
 async function installApiMocks(page: Page) {
-  await page.route("**/api/**", async (route) => {
+  await page.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const request = route.request();
     const origin = request.headers()["origin"] ?? "http://127.0.0.1:4173";
     const corsHeaders = {
@@ -143,6 +143,10 @@ async function seedAuthenticatedSession(
 ) {
   await page.addInitScript(
     ({ user, activePage, theme, highVisibility }) => {
+      if (window.sessionStorage.getItem("__pr1_test_seeded") === "1") {
+        return;
+      }
+      window.sessionStorage.setItem("__pr1_test_seeded", "1");
       window.localStorage.setItem("horuspdv.auth.user", JSON.stringify(user));
       window.localStorage.setItem("horuspdv.auth.remember", "1");
       window.localStorage.setItem("horuspdv.activePage", activePage);
