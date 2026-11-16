@@ -1,9 +1,10 @@
 /**
  * Arquivo: API/NETCORE/Services/Caixa/HorusCaixaService.cs
- * Objetivo: centraliza regras de negócio de abertura, fechamento cego, sangria, suprimento e balanço diário de caixa.
- * Entradas esperadas: recebe requisições já validadas pelos controladores e aplica consistência operacional do domínio.
+ * Objetivo: centraliza regras de negócio assíncronas de abertura, sangria, suprimento, fechamento cego, espelho Z e balanço diário.
+ * Entradas esperadas: recebe requisições validadas pelos controladores e aplica consistência operacional do domínio.
  */
 using System.Globalization;
+using System.Text;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Repositories.DatabaseAccess;
@@ -11,21 +12,34 @@ using HORUSPDV_API.Services.Security;
 
 namespace HORUSPDV_API.Services.Caixa;
 
-public class HorusCaixaService(CaixaAB caixaAB)
+public class HorusCaixaService(ICaixaRepository caixaRepository)
 {
     private static readonly TimeSpan MaxOpenPeriod = TimeSpan.FromHours(24);
-    private static readonly CultureInfo PtBr = new("pt-BR");
-
-    public CaixaStatusDto GetStatus(string companyId, DateTimeOffset? reference = null)
-        => BuildStatus(companyId, reference ?? DateTimeOffset.Now);
-
-    public CaixaStatusDto Abrir(AbrirCaixaRequest request, AuthenticatedUser currentUser)
+    private static readonly HashSet<string> SupervisoryRoles = new(StringComparer.OrdinalIgnoreCase)
     {
+        "administrador",
+        "gerente",
+        "financeiro"
+    };
+
+    public async Task<CaixaStatusDto> GetStatusAsync(
+        string companyId,
+        string userRole = "",
+        DateTimeOffset? reference = null)
+        => await BuildStatusAsync(companyId, userRole, reference ?? DateTimeOffset.Now);
+
+    public async Task<CaixaStatusDto> AbrirAsync(AbrirCaixaRequest request, AuthenticatedUser currentUser)
+    {
+        if (request.OpeningAmount < 0m)
+        {
+            throw new InvalidOperationException("Valor inicial do caixa não pode ser negativo.");
+        }
+
         var now = DateTimeOffset.Now;
-        var openSession = caixaAB.ObterSessaoAbertaAsync(currentUser.CompanyId).GetAwaiter().GetResult();
+        var openSession = await caixaRepository.ObterSessaoAbertaAsync(currentUser.CompanyId);
         if (openSession is not null)
         {
-            var status = BuildStatus(currentUser.CompanyId, now);
+            var status = await BuildStatusAsync(currentUser.CompanyId, currentUser.Role, now);
             if (status.CanSell)
             {
                 throw new InvalidOperationException("Já existe um caixa aberto para venda.");
@@ -35,444 +49,335 @@ public class HorusCaixaService(CaixaAB caixaAB)
                 "Existe um caixa aberto fora do período permitido. Feche o caixa atual antes de abrir um novo.");
         }
 
-        var openingDecimal = ParseMoney(request.OpeningAmount);
-        if (openingDecimal < 0m)
-        {
-            throw new InvalidOperationException("O valor inicial do caixa não pode ser negativo.");
-        }
+        var openingDecimal = Math.Round(request.OpeningAmount, 2, MidpointRounding.AwayFromZero);
+        var sessionId = $"cx-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{Guid.NewGuid().ToString("N")[..6]}";
+        await caixaRepository.AbrirAsync(
+            sessionId,
+            currentUser.CompanyId,
+            now,
+            PtBrMoneyParser.FormatPtBr(openingDecimal),
+            currentUser.Id,
+            currentUser.Name,
+            openingDecimal);
 
-        var normalizedOpening = FormatMoney(openingDecimal);
-        var sessionId = $"cx-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-
-        caixaAB.AbrirAsync(
-                sessionId,
-                currentUser.CompanyId,
-                now,
-                normalizedOpening,
-                currentUser.Id,
-                currentUser.Name)
-            .GetAwaiter()
-            .GetResult();
-
-        caixaAB.RegistrarMovimentacaoAsync(new CaixaMovimentacaoAD
-            {
-                Id = $"mov-open-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                CompanyId = currentUser.CompanyId,
-                CaixaSessaoId = sessionId,
-                Tipo = "ABERTURA",
-                FormaPagamento = "Dinheiro",
-                Valor = normalizedOpening,
-                Descricao = "Fundo de troco inicial na abertura do caixa",
-                OperatorId = currentUser.Id,
-                OperatorName = currentUser.Name,
-                CreatedAt = now
-            })
-            .GetAwaiter()
-            .GetResult();
-
-        return BuildStatus(currentUser.CompanyId, now);
+        return await BuildStatusAsync(currentUser.CompanyId, currentUser.Role, now);
     }
 
-    public CaixaStatusDto RegistrarSangria(SangriaCaixaRequest request, AuthenticatedUser currentUser)
-        => RegistrarMovimentacao(
-            new CaixaMovimentacaoRequest
-            {
-                Tipo = "SANGRIA",
-                Valor = request.Amount,
-                Descricao = request.Reason,
-                FormaPagamento = "Dinheiro"
-            },
-            currentUser);
-
-    public CaixaStatusDto RegistrarSuprimento(SuprimentoCaixaRequest request, AuthenticatedUser currentUser)
-        => RegistrarMovimentacao(
-            new CaixaMovimentacaoRequest
-            {
-                Tipo = "SUPRIMENTO",
-                Valor = request.Amount,
-                Descricao = request.Reason,
-                FormaPagamento = "Dinheiro"
-            },
-            currentUser);
-
-    public CaixaStatusDto RegistrarMovimentacao(CaixaMovimentacaoRequest request, AuthenticatedUser currentUser)
+    public async Task<CaixaMovimentacaoDto> RegistrarSangriaAsync(
+        CaixaMovimentacaoRequest request,
+        AuthenticatedUser currentUser)
     {
         var now = DateTimeOffset.Now;
-        var openSession = caixaAB.ObterSessaoAbertaAsync(currentUser.CompanyId).GetAwaiter().GetResult();
-        if (openSession is null)
+        var openSession = await RequireActiveValidOpenSessionAsync(
+            currentUser.CompanyId,
+            now,
+            "Não existe caixa aberto para registrar sangria.");
+
+        if (request.Amount <= 0m)
         {
-            throw new InvalidOperationException("Não existe caixa aberto para registrar movimentação.");
+            throw new InvalidOperationException("O valor da sangria deve ser maior que zero.");
         }
 
-        var tipo = NormalizeMovementType(request.Tipo);
-        var amount = ParseMoney(request.Valor);
-        if (amount <= 0m)
+        var description = (request.Description ?? string.Empty).Trim();
+        if (description.Length < 3)
         {
-            throw new InvalidOperationException("O valor da movimentação deve ser maior que zero.");
+            throw new InvalidOperationException("Informe uma descrição com pelo menos 3 caracteres para a sangria.");
         }
 
-        var descricao = (request.Descricao ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(descricao))
+        var amount = Math.Round(request.Amount, 2, MidpointRounding.AwayFromZero);
+        var movements = await caixaRepository.ListarMovimentacoesPorSessaoAsync(currentUser.CompanyId, openSession.Id);
+        var salesSummary = await caixaRepository.ObterResumoVendasPorSessaoAsync(currentUser.CompanyId, openSession.Id);
+        var metrics = ComputeLiveMetrics(openSession, movements, salesSummary);
+
+        if (amount > metrics.ExpectedCashAmount)
         {
-            descricao = tipo == "SANGRIA" ? "Sangria de caixa" : "Suprimento de caixa";
+            throw new InvalidOperationException(
+                $"Saldo em dinheiro insuficiente para sangria. Disponível na gaveta: R$ {PtBrMoneyParser.FormatPtBr(metrics.ExpectedCashAmount)}.");
         }
 
-        if (tipo == "SANGRIA")
+        var movement = new CaixaMovimentacaoAD
         {
-            var sales = caixaAB.ListarVendasSessaoAsync(currentUser.CompanyId, openSession.Id, openSession.OpenedAt, null)
-                .GetAwaiter()
-                .GetResult();
-            var movements = caixaAB.ListarMovimentacoesAsync(currentUser.CompanyId, openSession.Id)
-                .GetAwaiter()
-                .GetResult();
-            var currentBalance = CalcularBalancoSessao(openSession, sales, movements, null);
-            var availableCash = ParseMoney(currentBalance.ExpectedCashAmount);
-            if (amount > availableCash)
-            {
-                throw new InvalidOperationException(
-                    $"Saldo em dinheiro insuficiente para sangria. Disponível em gaveta: R$ {currentBalance.ExpectedCashAmount}.");
-            }
-        }
+            Id = $"mov-{Guid.NewGuid():N}"[..36],
+            CompanyId = currentUser.CompanyId,
+            CaixaSessaoId = openSession.Id,
+            Tipo = "SANGRIA",
+            FormaPagamento = "dinheiro",
+            Valor = amount,
+            Descricao = description,
+            SaleNumber = null,
+            UsuarioId = currentUser.Id,
+            UsuarioName = currentUser.Name,
+            DataHora = now
+        };
 
-        var normalizedAmount = FormatMoney(amount);
-        caixaAB.RegistrarMovimentacaoAsync(new CaixaMovimentacaoAD
-            {
-                Id = $"mov-{tipo.ToLowerInvariant()}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                CompanyId = currentUser.CompanyId,
-                CaixaSessaoId = openSession.Id,
-                Tipo = tipo,
-                FormaPagamento = "Dinheiro",
-                Valor = normalizedAmount,
-                Descricao = descricao,
-                OperatorId = currentUser.Id,
-                OperatorName = currentUser.Name,
-                CreatedAt = now
-            })
-            .GetAwaiter()
-            .GetResult();
-
-        return BuildStatus(currentUser.CompanyId, now);
+        await caixaRepository.RegistrarMovimentacaoAsync(movement);
+        return ToMovementDto(movement);
     }
 
-    public CaixaStatusDto Fechar(FecharCaixaRequest request, AuthenticatedUser currentUser)
+    public async Task<CaixaMovimentacaoDto> RegistrarSuprimentoAsync(
+        CaixaMovimentacaoRequest request,
+        AuthenticatedUser currentUser)
     {
         var now = DateTimeOffset.Now;
-        var openSession = caixaAB.ObterSessaoAbertaAsync(currentUser.CompanyId).GetAwaiter().GetResult();
+        var openSession = await RequireActiveValidOpenSessionAsync(
+            currentUser.CompanyId,
+            now,
+            "Não existe caixa aberto para registrar suprimento.");
+
+        if (request.Amount <= 0m)
+        {
+            throw new InvalidOperationException("O valor do suprimento deve ser maior que zero.");
+        }
+
+        var description = string.IsNullOrWhiteSpace(request.Description)
+            ? "Suprimento de caixa"
+            : request.Description.Trim();
+        var amount = Math.Round(request.Amount, 2, MidpointRounding.AwayFromZero);
+
+        var movement = new CaixaMovimentacaoAD
+        {
+            Id = $"mov-{Guid.NewGuid():N}"[..36],
+            CompanyId = currentUser.CompanyId,
+            CaixaSessaoId = openSession.Id,
+            Tipo = "SUPRIMENTO",
+            FormaPagamento = "dinheiro",
+            Valor = amount,
+            Descricao = description,
+            SaleNumber = null,
+            UsuarioId = currentUser.Id,
+            UsuarioName = currentUser.Name,
+            DataHora = now
+        };
+
+        await caixaRepository.RegistrarMovimentacaoAsync(movement);
+        return ToMovementDto(movement);
+    }
+
+    public async Task<CaixaSessionSummaryDto> FecharAsync(
+        FecharCaixaRequest request,
+        AuthenticatedUser currentUser)
+    {
+        if (request.ClosingAmount < 0m)
+        {
+            throw new InvalidOperationException("Valor de fechamento não pode ser negativo.");
+        }
+
+        if (request.CountedPixAmount < 0m || request.CountedDebitAmount < 0m || request.CountedCreditAmount < 0m)
+        {
+            throw new InvalidOperationException("Valores conferidos por forma de pagamento não podem ser negativos.");
+        }
+
+        var now = DateTimeOffset.Now;
+        var openSession = await caixaRepository.ObterSessaoAbertaAsync(currentUser.CompanyId);
         if (openSession is null)
         {
             throw new InvalidOperationException("Não existe caixa aberto para fechamento.");
         }
 
-        var closingDecimal = ParseMoney(request.ClosingAmount);
-        if (closingDecimal < 0m)
-        {
-            throw new InvalidOperationException("O valor de fechamento não pode ser negativo.");
-        }
+        var movements = await caixaRepository.ListarMovimentacoesPorSessaoAsync(currentUser.CompanyId, openSession.Id);
+        var salesSummary = await caixaRepository.ObterResumoVendasPorSessaoAsync(currentUser.CompanyId, openSession.Id);
+        var metrics = ComputeLiveMetrics(openSession, movements, salesSummary);
 
-        var sales = caixaAB.ListarVendasSessaoAsync(currentUser.CompanyId, openSession.Id, openSession.OpenedAt, now)
-            .GetAwaiter()
-            .GetResult();
-        var movements = caixaAB.ListarMovimentacoesAsync(currentUser.CompanyId, openSession.Id)
-            .GetAwaiter()
-            .GetResult();
-
-        var normalizedClosing = FormatMoney(closingDecimal);
-        var balance = CalcularBalancoSessao(openSession, sales, movements, normalizedClosing);
+        var countedCash = Math.Round(request.ClosingAmount, 2, MidpointRounding.AwayFromZero);
+        var cashDifference = Math.Round(countedCash - metrics.ExpectedCashAmount, 2, MidpointRounding.AwayFromZero);
         var note = (request.Note ?? string.Empty).Trim();
+        var closingFormatted = PtBrMoneyParser.FormatPtBr(countedCash);
 
-        caixaAB.FecharAsync(
-                openSession.Id,
-                currentUser.CompanyId,
-                now,
-                normalizedClosing,
-                currentUser.Id,
-                currentUser.Name,
-                note,
-                balance.ExpectedCashAmount,
-                balance.DifferenceAmount,
-                balance.DifferenceStatus,
-                balance.TotalCashSales,
-                balance.TotalSupplies,
-                balance.TotalWithdrawals)
-            .GetAwaiter()
-            .GetResult();
-
-        caixaAB.RegistrarMovimentacaoAsync(new CaixaMovimentacaoAD
-            {
-                Id = $"mov-close-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                CompanyId = currentUser.CompanyId,
-                CaixaSessaoId = openSession.Id,
-                Tipo = "FECHAMENTO",
-                FormaPagamento = "Dinheiro",
-                Valor = normalizedClosing,
-                Descricao = string.IsNullOrWhiteSpace(note)
-                    ? $"Fechamento de caixa ({balance.DifferenceStatus}: dif. R$ {balance.DifferenceAmount})"
-                    : $"Fechamento: {note} ({balance.DifferenceStatus}: dif. R$ {balance.DifferenceAmount})",
-                OperatorId = currentUser.Id,
-                OperatorName = currentUser.Name,
-                CreatedAt = now
-            })
-            .GetAwaiter()
-            .GetResult();
-
-        return BuildStatus(currentUser.CompanyId, now);
-    }
-
-    public List<CaixaMovimentacaoDto> ListarMovimentacoes(string companyId, string? sessionId = null)
-    {
-        var targetSessionId = sessionId;
-        if (string.IsNullOrWhiteSpace(targetSessionId))
+        var audit = new CaixaSessionAuditAD
         {
-            var sessions = caixaAB.ListarSessoesAsync(companyId).GetAwaiter().GetResult();
-            targetSessionId = sessions.FirstOrDefault(s => s.ClosedAt is null)?.Id ?? sessions.FirstOrDefault()?.Id;
-        }
+            ExpectedCashAmount = metrics.ExpectedCashAmount,
+            CountedCashAmount = countedCash,
+            CashDifference = cashDifference,
+            SalesCashTotal = metrics.SalesCashTotal,
+            SalesPixTotal = metrics.SalesPixTotal,
+            SalesDebitTotal = metrics.SalesDebitTotal,
+            SalesCreditTotal = metrics.SalesCreditTotal,
+            TotalSuprimentos = metrics.TotalSuprimentos,
+            TotalSangrias = metrics.TotalSangrias,
+            SalesCount = metrics.SalesCount,
+            BlindClosing = request.BlindClosing
+        };
 
-        var movements = caixaAB.ListarMovimentacoesAsync(companyId, targetSessionId).GetAwaiter().GetResult();
-        return movements.Select(ToMovementDto).ToList();
-    }
+        await caixaRepository.FecharAsync(
+            openSession.Id,
+            currentUser.CompanyId,
+            now,
+            closingFormatted,
+            currentUser.Id,
+            currentUser.Name,
+            note,
+            audit);
 
-    public CaixaBalancoDiarioDto? ObterBalancoSessao(string companyId, string? sessionId = null)
-    {
-        var sessions = caixaAB.ListarSessoesAsync(companyId).GetAwaiter().GetResult();
-        var target = string.IsNullOrWhiteSpace(sessionId)
-            ? sessions.FirstOrDefault(s => s.ClosedAt is null) ?? sessions.FirstOrDefault()
-            : sessions.FirstOrDefault(s => string.Equals(s.Id, sessionId, StringComparison.OrdinalIgnoreCase));
+        openSession.ClosedAt = now;
+        openSession.ClosingAmount = closingFormatted;
+        openSession.ClosedByName = currentUser.Name;
+        openSession.Note = note;
+        openSession.ExpectedCashAmount = audit.ExpectedCashAmount;
+        openSession.CountedCashAmount = audit.CountedCashAmount;
+        openSession.CashDifference = audit.CashDifference;
+        openSession.SalesCashTotal = audit.SalesCashTotal;
+        openSession.SalesPixTotal = audit.SalesPixTotal;
+        openSession.SalesDebitTotal = audit.SalesDebitTotal;
+        openSession.SalesCreditTotal = audit.SalesCreditTotal;
+        openSession.TotalSuprimentos = audit.TotalSuprimentos;
+        openSession.TotalSangrias = audit.TotalSangrias;
+        openSession.SalesCount = audit.SalesCount;
+        openSession.BlindClosing = audit.BlindClosing;
 
-        if (target is null) return null;
-
-        var sales = caixaAB.ListarVendasSessaoAsync(companyId, target.Id, target.OpenedAt, target.ClosedAt)
-            .GetAwaiter()
-            .GetResult();
-        var movements = caixaAB.ListarMovimentacoesAsync(companyId, target.Id)
-            .GetAwaiter()
-            .GetResult();
-
-        return CalcularBalancoSessao(
-            target,
-            sales,
+        return BuildSessionSummaryDto(
+            openSession,
             movements,
-            target.ClosedAt.HasValue ? target.ClosingAmount : null);
+            metrics.CashReturns,
+            now,
+            request.CountedPixAmount,
+            request.CountedDebitAmount,
+            request.CountedCreditAmount);
     }
 
-    public void EnsureVendaPermitida(string companyId)
+    public async Task EnsureVendaPermitidaAsync(string companyId)
     {
-        var status = BuildStatus(companyId, DateTimeOffset.Now);
-        if (status.CanSell) return;
+        var status = await BuildStatusAsync(companyId, "administrador", DateTimeOffset.Now);
+        if (status.CanSell)
+        {
+            return;
+        }
 
         throw new InvalidOperationException(status.BlockReason);
     }
 
-    public static CaixaBalancoDiarioDto CalcularBalancoSessao(
-        CaixaSessionAD session,
-        IEnumerable<CaixaVendaResumoAD> sales,
-        IEnumerable<CaixaMovimentacaoAD> movements,
-        string? countedClosingAmount)
+    public async Task<CaixaSessionSummaryDto> GetSessionSummaryAsync(
+        string companyId,
+        string sessionId,
+        string userRole)
     {
-        var salesList = sales?.ToList() ?? [];
-        var movementsList = movements?.ToList() ?? [];
-
-        var openingDecimal = ParseMoney(session.OpeningAmount);
-        var suppliesDecimal = movementsList
-            .Where(m => string.Equals(m.Tipo, "SUPRIMENTO", StringComparison.OrdinalIgnoreCase))
-            .Sum(m => ParseMoney(m.Valor));
-        var withdrawalsDecimal = movementsList
-            .Where(m => string.Equals(m.Tipo, "SANGRIA", StringComparison.OrdinalIgnoreCase))
-            .Sum(m => ParseMoney(m.Valor));
-
-        var cashSalesDecimal = 0m;
-        var pixSalesDecimal = 0m;
-        var debitSalesDecimal = 0m;
-        var creditSalesDecimal = 0m;
-        var otherSalesDecimal = 0m;
-
-        var breakdownMap = new Dictionary<string, (int Count, decimal Total)>(StringComparer.OrdinalIgnoreCase)
+        var session = await caixaRepository.ObterSessaoPorIdAsync(companyId, sessionId);
+        if (session is null)
         {
-            ["Dinheiro"] = (0, 0m),
-            ["PIX"] = (0, 0m),
-            ["Cartão de Débito"] = (0, 0m),
-            ["Cartão de Crédito"] = (0, 0m)
-        };
-
-        foreach (var sale in salesList)
-        {
-            var amount = ParseMoney(sale.TotalAmount);
-            var category = ClassifyPaymentMethod(sale.PaymentType);
-            switch (category)
-            {
-                case "Dinheiro":
-                    cashSalesDecimal += amount;
-                    break;
-                case "PIX":
-                    pixSalesDecimal += amount;
-                    break;
-                case "Cartão de Débito":
-                    debitSalesDecimal += amount;
-                    break;
-                case "Cartão de Crédito":
-                    creditSalesDecimal += amount;
-                    break;
-                default:
-                    otherSalesDecimal += amount;
-                    break;
-            }
-
-            if (!breakdownMap.TryGetValue(category, out var current))
-            {
-                current = (0, 0m);
-            }
-
-            breakdownMap[category] = (current.Count + 1, current.Total + amount);
+            throw new InvalidOperationException("Sessão de caixa não encontrada.");
         }
 
-        // Fallback para sessões já fechadas sem linhas detalhadas se houver TotalCashSales salvo
-        if (salesList.Count == 0 && ParseMoney(session.TotalCashSales) > 0m)
+        if (session.ClosedAt is null && !IsSupervisor(userRole))
         {
-            cashSalesDecimal = ParseMoney(session.TotalCashSales);
-            breakdownMap["Dinheiro"] = (1, cashSalesDecimal);
+            throw new UnauthorizedAccessException(
+                "Fechamento cego ativo: o resumo detalhado da sessão aberta é restrito a supervisores.");
         }
 
-        if (movementsList.Count == 0)
+        var now = DateTimeOffset.Now;
+        var movements = await caixaRepository.ListarMovimentacoesPorSessaoAsync(companyId, session.Id);
+
+        if (session.ClosedAt is null)
         {
-            if (ParseMoney(session.TotalSupplies) > 0m) suppliesDecimal = ParseMoney(session.TotalSupplies);
-            if (ParseMoney(session.TotalWithdrawals) > 0m) withdrawalsDecimal = ParseMoney(session.TotalWithdrawals);
+            var salesSummary = await caixaRepository.ObterResumoVendasPorSessaoAsync(companyId, session.Id);
+            var metrics = ComputeLiveMetrics(session, movements, salesSummary);
+            ApplyLiveMetrics(session, metrics);
+            return BuildSessionSummaryDto(session, movements, metrics.CashReturns, now);
         }
 
-        var totalSalesAmount = cashSalesDecimal + pixSalesDecimal + debitSalesDecimal + creditSalesDecimal + otherSalesDecimal;
-        var totalSalesCount = salesList.Count;
-        var averageTicket = totalSalesCount > 0
-            ? Math.Round(totalSalesAmount / totalSalesCount, 2, MidpointRounding.AwayFromZero)
-            : 0m;
+        var cashReturns = ComputeCashReturns(movements);
+        return BuildSessionSummaryDto(session, movements, cashReturns, now);
+    }
 
-        var expectedCash = Math.Max(0m, openingDecimal + cashSalesDecimal + suppliesDecimal - withdrawalsDecimal);
-
-        var hasCounted = !string.IsNullOrWhiteSpace(countedClosingAmount) || session.ClosedAt.HasValue;
-        var countedDecimal = hasCounted
-            ? ParseMoney(countedClosingAmount ?? session.ClosingAmount)
-            : expectedCash;
-
-        var differenceDecimal = hasCounted ? countedDecimal - expectedCash : 0m;
-        var differenceStatus = ClassifyDifference(differenceDecimal);
-
-        var paymentBreakdown = breakdownMap
-            .Where(kv => kv.Value.Count > 0 || kv.Key is "Dinheiro" or "PIX" or "Cartão de Débito" or "Cartão de Crédito")
-            .Select(kv => new CaixaFormaPagamentoResumoDto
-            {
-                FormaPagamento = kv.Key,
-                QuantidadeVendas = kv.Value.Count,
-                TotalVendido = FormatMoney(kv.Value.Total),
-                Percentual = totalSalesAmount > 0m
-                    ? Math.Round(kv.Value.Total / totalSalesAmount * 100m, 2, MidpointRounding.AwayFromZero)
-                    : 0m
-            })
+    public async Task<DailyBalanceDto> GetDailyBalanceAsync(string companyId, DateOnly date)
+    {
+        var now = DateTimeOffset.Now;
+        var allSessions = await caixaRepository.ListarSessoesAsync(companyId);
+        var targetDate = date.ToDateTime(TimeOnly.MinValue).Date;
+        var daySessions = allSessions
+            .Where(session => session.OpenedAt.Date == targetDate)
+            .OrderBy(session => session.OpenedAt)
             .ToList();
 
-        return new CaixaBalancoDiarioDto
+        var sessionIds = daySessions.Select(session => session.Id).ToList();
+        var allMovements = await caixaRepository.ListarMovimentacoesPorSessoesAsync(companyId, sessionIds);
+        var movementsBySession = allMovements
+            .GroupBy(mov => mov.CaixaSessaoId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        var summaries = new List<CaixaSessionSummaryDto>();
+        foreach (var session in daySessions)
         {
-            CaixaSessaoId = session.Id,
-            Status = session.ClosedAt is null ? "Aberto" : "Fechado",
-            OpenedAt = session.OpenedAt.ToString("o"),
-            ClosedAt = session.ClosedAt?.ToString("o"),
-            OperatorName = session.OperatorName,
-            OpeningAmount = FormatMoney(openingDecimal),
-            TotalCashSales = FormatMoney(cashSalesDecimal),
-            TotalPixSales = FormatMoney(pixSalesDecimal),
-            TotalDebitSales = FormatMoney(debitSalesDecimal),
-            TotalCreditSales = FormatMoney(creditSalesDecimal),
-            TotalOtherSales = FormatMoney(otherSalesDecimal),
-            TotalSalesAmount = FormatMoney(totalSalesAmount),
-            TotalSalesCount = totalSalesCount,
-            AverageTicket = FormatMoney(averageTicket),
-            TotalSupplies = FormatMoney(suppliesDecimal),
-            TotalWithdrawals = FormatMoney(withdrawalsDecimal),
-            ExpectedCashAmount = FormatMoney(expectedCash),
-            CountedCashAmount = hasCounted ? FormatMoney(countedDecimal) : null,
-            DifferenceAmount = FormatMoney(differenceDecimal),
-            DifferenceStatus = differenceStatus,
-            PaymentBreakdown = paymentBreakdown
+            var movements = movementsBySession.TryGetValue(session.Id, out var list) ? list : [];
+            decimal cashReturns;
+            if (session.ClosedAt is null)
+            {
+                var salesSummary = await caixaRepository.ObterResumoVendasPorSessaoAsync(companyId, session.Id);
+                var metrics = ComputeLiveMetrics(session, movements, salesSummary);
+                ApplyLiveMetrics(session, metrics);
+                cashReturns = metrics.CashReturns;
+            }
+            else
+            {
+                cashReturns = ComputeCashReturns(movements);
+            }
+
+            summaries.Add(BuildSessionSummaryDto(session, movements, cashReturns, now));
+        }
+
+        var totalSalesAmount = Math.Round(summaries.Sum(item => item.TotalSalesAmount), 2, MidpointRounding.AwayFromZero);
+        var salesCount = summaries.Sum(item => item.SalesCount);
+
+        return new DailyBalanceDto
+        {
+            Date = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            SessionsCount = summaries.Count,
+            OpenSessionsCount = summaries.Count(item => item.ClosedAt is null),
+            ClosedSessionsCount = summaries.Count(item => item.ClosedAt is not null),
+            TotalOpeningAmount = Math.Round(summaries.Sum(item => item.OpeningAmountDecimal), 2, MidpointRounding.AwayFromZero),
+            TotalExpectedCashAmount = Math.Round(summaries.Sum(item => item.ExpectedCashAmount), 2, MidpointRounding.AwayFromZero),
+            TotalCountedCashAmount = Math.Round(summaries.Sum(item => item.CountedCashAmount), 2, MidpointRounding.AwayFromZero),
+            TotalCashDifference = Math.Round(summaries.Sum(item => item.CashDifference), 2, MidpointRounding.AwayFromZero),
+            TotalSuprimentos = Math.Round(summaries.Sum(item => item.TotalSuprimentos), 2, MidpointRounding.AwayFromZero),
+            TotalSangrias = Math.Round(summaries.Sum(item => item.TotalSangrias), 2, MidpointRounding.AwayFromZero),
+            TotalCashReturns = Math.Round(summaries.Sum(item => item.CashReturns), 2, MidpointRounding.AwayFromZero),
+            SalesCashTotal = Math.Round(summaries.Sum(item => item.SalesCashTotal), 2, MidpointRounding.AwayFromZero),
+            SalesPixTotal = Math.Round(summaries.Sum(item => item.SalesPixTotal), 2, MidpointRounding.AwayFromZero),
+            SalesDebitTotal = Math.Round(summaries.Sum(item => item.SalesDebitTotal), 2, MidpointRounding.AwayFromZero),
+            SalesCreditTotal = Math.Round(summaries.Sum(item => item.SalesCreditTotal), 2, MidpointRounding.AwayFromZero),
+            TotalSalesAmount = totalSalesAmount,
+            SalesCount = salesCount,
+            TicketMedio = salesCount > 0
+                ? Math.Round(totalSalesAmount / salesCount, 2, MidpointRounding.AwayFromZero)
+                : 0m,
+            Sessions = summaries
         };
     }
 
-    public static string ClassifyPaymentMethod(string? rawPaymentType)
+    public static string NormalizePaymentMethod(string? value)
     {
-        var normalized = (rawPaymentType ?? string.Empty).Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(normalized) || normalized == "-" || normalized.Contains("dinheiro") || normalized.Contains("especie") || normalized.Contains("espécie"))
+        if (string.IsNullOrWhiteSpace(value))
         {
-            return "Dinheiro";
+            return "outros";
         }
 
-        if (normalized.Contains("pix"))
-        {
-            return "PIX";
-        }
-
-        if (normalized.Contains("debito") || normalized.Contains("débito"))
-        {
-            return "Cartão de Débito";
-        }
-
-        if (normalized.Contains("credito") || normalized.Contains("crédito") || normalized.Contains("cartao") || normalized.Contains("cartão"))
-        {
-            return "Cartão de Crédito";
-        }
-
-        return rawPaymentType!.Trim();
-    }
-
-    public static string ClassifyDifference(decimal difference)
-    {
-        var rounded = Math.Round(difference, 2, MidpointRounding.AwayFromZero);
-        if (rounded > 0m) return "SOBRA";
-        if (rounded < 0m) return "QUEBRA";
-        return "CONFERIDO";
-    }
-
-    public static string NormalizeMovementType(string? rawType)
-    {
-        var normalized = (rawType ?? string.Empty).Trim().ToUpperInvariant();
-        return normalized switch
-        {
-            "SANGRIA" => "SANGRIA",
-            "SUPRIMENTO" => "SUPRIMENTO",
-            _ => throw new InvalidOperationException("Tipo de movimentação inválido. Informe SANGRIA ou SUPRIMENTO.")
-        };
-    }
-
-    public static decimal ParseMoney(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return 0m;
-        var cleaned = value
-            .Replace("R$", string.Empty, StringComparison.OrdinalIgnoreCase)
+        var normalized = value
+            .Normalize(NormalizationForm.FormD)
+            .Where(ch => CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+            .Aggregate(string.Empty, (current, ch) => current + ch)
+            .ToLowerInvariant()
             .Trim();
 
-        if (cleaned.Contains(','))
-        {
-            cleaned = cleaned.Replace(".", string.Empty).Replace(',', '.');
-        }
-
-        return decimal.TryParse(cleaned, NumberStyles.Number | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed)
-            ? Math.Round(parsed, 2, MidpointRounding.AwayFromZero)
-            : 0m;
+        if (normalized.Contains("pix")) return "pix";
+        if (normalized.Contains("debito") || normalized.Contains("debit")) return "debito";
+        if (normalized.Contains("credito") || normalized.Contains("credit")) return "credito";
+        if (normalized.Contains("dinheiro") || normalized.Contains("cash")) return "dinheiro";
+        return "outros";
     }
 
-    public static string FormatMoney(decimal value)
-        => Math.Round(value, 2, MidpointRounding.AwayFromZero).ToString("N2", PtBr);
-
-    private CaixaStatusDto BuildStatus(string companyId, DateTimeOffset now)
+    private async Task<CaixaStatusDto> BuildStatusAsync(string companyId, string userRole, DateTimeOffset now)
     {
-        var sessions = caixaAB.ListarSessoesAsync(companyId).GetAwaiter().GetResult();
+        var sessions = await caixaRepository.ListarSessoesAsync(companyId);
         var openSession = sessions.FirstOrDefault(item => item.ClosedAt is null);
         var lastSession = openSession ?? sessions.FirstOrDefault();
         var canSell = false;
         var blockReason = "Abra o caixa do dia antes de iniciar vendas.";
         var state = "fechado";
+        var supervisor = IsSupervisor(userRole);
+        List<CaixaMovimentacaoDto> currentMovements = [];
 
         if (openSession is not null)
         {
-            var openedToday = openSession.OpenedAt.Date == now.Date;
-            var withinPeriod = now - openSession.OpenedAt <= MaxOpenPeriod;
-
-            // Regra de negócio do PDV: venda só é permitida com caixa aberto no dia atual e por até 24 horas.
-            if (openedToday && withinPeriod)
+            var (valid, reason) = EvaluateOpenSession(openSession, now);
+            if (valid)
             {
                 canSell = true;
                 blockReason = "";
@@ -481,42 +386,25 @@ public class HorusCaixaService(CaixaAB caixaAB)
             else
             {
                 state = "expirado";
-                blockReason = !openedToday
-                    ? "O caixa aberto pertence a outro dia. Feche o caixa atual e abra o caixa do dia."
-                    : "O caixa aberto ultrapassou 24 horas. Feche o caixa atual e abra um novo.";
+                blockReason = reason;
             }
-        }
 
-        var referenceSession = openSession ?? lastSession;
-        CaixaBalancoDiarioDto? currentBalance = null;
-        List<CaixaMovimentacaoDto> movements = [];
-
-        if (referenceSession is not null)
-        {
-            var sessionSales = caixaAB.ListarVendasSessaoAsync(
-                    companyId,
-                    referenceSession.Id,
-                    referenceSession.OpenedAt,
-                    referenceSession.ClosedAt)
-                .GetAwaiter()
-                .GetResult();
-            var sessionMovements = caixaAB.ListarMovimentacoesAsync(companyId, referenceSession.Id)
-                .GetAwaiter()
-                .GetResult();
-
-            currentBalance = CalcularBalancoSessao(
-                referenceSession,
-                sessionSales,
-                sessionMovements,
-                referenceSession.ClosedAt.HasValue ? referenceSession.ClosingAmount : null);
-            movements = sessionMovements.Select(ToMovementDto).ToList();
-
-            if (openSession is not null && ReferenceEquals(referenceSession, openSession))
+            var movements = await caixaRepository.ListarMovimentacoesPorSessaoAsync(companyId, openSession.Id);
+            if (supervisor)
             {
-                openSession.ExpectedAmount = currentBalance.ExpectedCashAmount;
-                openSession.TotalCashSales = currentBalance.TotalCashSales;
-                openSession.TotalSupplies = currentBalance.TotalSupplies;
-                openSession.TotalWithdrawals = currentBalance.TotalWithdrawals;
+                var salesSummary = await caixaRepository.ObterResumoVendasPorSessaoAsync(companyId, openSession.Id);
+                var metrics = ComputeLiveMetrics(openSession, movements, salesSummary);
+                ApplyLiveMetrics(openSession, metrics);
+                currentMovements = movements.Select(ToMovementDto).ToList();
+            }
+            else
+            {
+                // Fechamento cego: oculta vendas e saldo esperado do atendente enquanto a sessão estiver aberta.
+                currentMovements = movements
+                    .Where(mov => !string.Equals(mov.Tipo, "VENDA", StringComparison.OrdinalIgnoreCase)
+                                  && !string.Equals(mov.Tipo, "DEVOLUCAO", StringComparison.OrdinalIgnoreCase))
+                    .Select(ToMovementDto)
+                    .ToList();
             }
         }
 
@@ -526,21 +414,115 @@ public class HorusCaixaService(CaixaAB caixaAB)
             CanSell = canSell,
             BlockReason = blockReason,
             ServerNow = now.ToString("o"),
-            CurrentSession = openSession is null ? null : ToDto(openSession, now),
-            LastSession = lastSession is null ? null : ToDto(lastSession, now),
-            CurrentBalance = currentBalance,
-            Movements = movements,
-            History = sessions.Take(12).Select(item => ToDto(item, now)).ToList()
+            CurrentSession = openSession is null ? null : ToSessionDto(openSession, now, supervisor),
+            LastSession = lastSession is null ? null : ToSessionDto(lastSession, now, supervisor),
+            History = sessions.Take(12).Select(item => ToSessionDto(item, now, supervisor)).ToList(),
+            CurrentMovements = currentMovements
         };
     }
 
-    private static CaixaSessionDto ToDto(CaixaSessionAD source, DateTimeOffset now)
+    private async Task<CaixaSessionAD> RequireActiveValidOpenSessionAsync(
+        string companyId,
+        DateTimeOffset now,
+        string missingMessage)
+    {
+        var openSession = await caixaRepository.ObterSessaoAbertaAsync(companyId);
+        if (openSession is null)
+        {
+            throw new InvalidOperationException(missingMessage);
+        }
+
+        var (valid, reason) = EvaluateOpenSession(openSession, now);
+        if (!valid)
+        {
+            throw new InvalidOperationException(reason);
+        }
+
+        return openSession;
+    }
+
+    private static (bool Valid, string Reason) EvaluateOpenSession(CaixaSessionAD openSession, DateTimeOffset now)
+    {
+        var openedToday = openSession.OpenedAt.Date == now.Date;
+        var withinPeriod = now - openSession.OpenedAt <= MaxOpenPeriod;
+
+        if (openedToday && withinPeriod)
+        {
+            return (true, string.Empty);
+        }
+
+        return (false, !openedToday
+            ? "O caixa aberto pertence a outro dia. Feche o caixa atual e abra o caixa do dia."
+            : "O caixa aberto ultrapassou 24 horas. Feche o caixa atual e abra um novo.");
+    }
+
+    private static bool IsSupervisor(string? userRole)
+        => !string.IsNullOrWhiteSpace(userRole) && SupervisoryRoles.Contains(userRole.Trim());
+
+    private static decimal ComputeCashReturns(IEnumerable<CaixaMovimentacaoAD> movements)
+        => Math.Round(
+            movements
+                .Where(m => string.Equals(m.Tipo, "DEVOLUCAO", StringComparison.OrdinalIgnoreCase)
+                            && NormalizePaymentMethod(m.FormaPagamento) == "dinheiro")
+                .Sum(m => m.Valor),
+            2,
+            MidpointRounding.AwayFromZero);
+
+    private static LiveSessionMetrics ComputeLiveMetrics(
+        CaixaSessionAD session,
+        IReadOnlyCollection<CaixaMovimentacaoAD> movements,
+        CaixaSalesSummaryAD salesSummary)
+    {
+        PtBrMoneyParser.TryParse(session.OpeningAmount, out var openingAmount);
+        var totalSuprimentos = Math.Round(
+            movements.Where(m => string.Equals(m.Tipo, "SUPRIMENTO", StringComparison.OrdinalIgnoreCase)).Sum(m => m.Valor),
+            2,
+            MidpointRounding.AwayFromZero);
+        var totalSangrias = Math.Round(
+            movements.Where(m => string.Equals(m.Tipo, "SANGRIA", StringComparison.OrdinalIgnoreCase)).Sum(m => m.Valor),
+            2,
+            MidpointRounding.AwayFromZero);
+        var cashReturns = ComputeCashReturns(movements);
+
+        var salesCash = Math.Round(salesSummary.SalesCashTotal, 2, MidpointRounding.AwayFromZero);
+        var salesPix = Math.Round(salesSummary.SalesPixTotal, 2, MidpointRounding.AwayFromZero);
+        var salesDebit = Math.Round(salesSummary.SalesDebitTotal, 2, MidpointRounding.AwayFromZero);
+        var salesCredit = Math.Round(salesSummary.SalesCreditTotal, 2, MidpointRounding.AwayFromZero);
+
+        var expectedCash = Math.Round(
+            openingAmount + salesCash + totalSuprimentos - totalSangrias - cashReturns,
+            2,
+            MidpointRounding.AwayFromZero);
+
+        return new LiveSessionMetrics(
+            expectedCash,
+            salesCash,
+            salesPix,
+            salesDebit,
+            salesCredit,
+            totalSuprimentos,
+            totalSangrias,
+            cashReturns,
+            salesSummary.SalesCount);
+    }
+
+    private static void ApplyLiveMetrics(CaixaSessionAD session, LiveSessionMetrics metrics)
+    {
+        session.ExpectedCashAmount = metrics.ExpectedCashAmount;
+        session.SalesCashTotal = metrics.SalesCashTotal;
+        session.SalesPixTotal = metrics.SalesPixTotal;
+        session.SalesDebitTotal = metrics.SalesDebitTotal;
+        session.SalesCreditTotal = metrics.SalesCreditTotal;
+        session.TotalSuprimentos = metrics.TotalSuprimentos;
+        session.TotalSangrias = metrics.TotalSangrias;
+        session.SalesCount = metrics.SalesCount;
+    }
+
+    private static CaixaSessionDto ToSessionDto(CaixaSessionAD source, DateTimeOffset now, bool isSupervisor)
     {
         var closedAt = source.ClosedAt;
         var elapsed = (closedAt ?? now) - source.OpenedAt;
-        var expected = string.IsNullOrWhiteSpace(source.ExpectedAmount) || source.ExpectedAmount == "0,00"
-            ? source.OpeningAmount
-            : source.ExpectedAmount;
+        var redactOpenAudit = closedAt is null && !isSupervisor;
 
         return new CaixaSessionDto
         {
@@ -550,31 +532,112 @@ public class HorusCaixaService(CaixaAB caixaAB)
             ClosedAt = closedAt?.ToString("o"),
             OpeningAmount = source.OpeningAmount,
             ClosingAmount = source.ClosingAmount,
-            ExpectedAmount = expected,
-            DifferenceAmount = string.IsNullOrWhiteSpace(source.DifferenceAmount) ? "0,00" : source.DifferenceAmount,
-            DifferenceStatus = string.IsNullOrWhiteSpace(source.DifferenceStatus) ? "CONFERIDO" : source.DifferenceStatus,
-            TotalCashSales = string.IsNullOrWhiteSpace(source.TotalCashSales) ? "0,00" : source.TotalCashSales,
-            TotalSupplies = string.IsNullOrWhiteSpace(source.TotalSupplies) ? "0,00" : source.TotalSupplies,
-            TotalWithdrawals = string.IsNullOrWhiteSpace(source.TotalWithdrawals) ? "0,00" : source.TotalWithdrawals,
             OperatorName = source.OperatorName,
             ClosedByName = source.ClosedByName,
             Note = source.Note,
-            ElapsedMinutes = Math.Max(0, (int)Math.Floor(elapsed.TotalMinutes))
+            ElapsedMinutes = Math.Max(0, (int)Math.Floor(elapsed.TotalMinutes)),
+            ExpectedCashAmount = redactOpenAudit ? null : source.ExpectedCashAmount,
+            CountedCashAmount = redactOpenAudit ? null : source.CountedCashAmount,
+            CashDifference = redactOpenAudit ? null : source.CashDifference,
+            SalesCashTotal = redactOpenAudit ? null : source.SalesCashTotal,
+            SalesPixTotal = redactOpenAudit ? null : source.SalesPixTotal,
+            SalesDebitTotal = redactOpenAudit ? null : source.SalesDebitTotal,
+            SalesCreditTotal = redactOpenAudit ? null : source.SalesCreditTotal,
+            TotalSuprimentos = redactOpenAudit ? null : source.TotalSuprimentos,
+            TotalSangrias = redactOpenAudit ? null : source.TotalSangrias,
+            SalesCount = redactOpenAudit ? null : source.SalesCount,
+            BlindClosing = source.BlindClosing
+        };
+    }
+
+    private static CaixaSessionSummaryDto BuildSessionSummaryDto(
+        CaixaSessionAD source,
+        IEnumerable<CaixaMovimentacaoAD> movements,
+        decimal cashReturns,
+        DateTimeOffset now,
+        decimal? countedPixAmount = null,
+        decimal? countedDebitAmount = null,
+        decimal? countedCreditAmount = null)
+    {
+        PtBrMoneyParser.TryParse(source.OpeningAmount, out var openingDecimal);
+        var closedAt = source.ClosedAt;
+        var elapsed = (closedAt ?? now) - source.OpenedAt;
+        var totalSalesAmount = Math.Round(
+            source.SalesCashTotal + source.SalesPixTotal + source.SalesDebitTotal + source.SalesCreditTotal,
+            2,
+            MidpointRounding.AwayFromZero);
+        var ticketMedio = source.SalesCount > 0
+            ? Math.Round(totalSalesAmount / source.SalesCount, 2, MidpointRounding.AwayFromZero)
+            : 0m;
+
+        var differenceStatus = closedAt is null
+            ? "ABERTO"
+            : source.CashDifference == 0m
+                ? "EXATO"
+                : source.CashDifference > 0m
+                    ? "SOBRA"
+                    : "QUEBRA";
+
+        return new CaixaSessionSummaryDto
+        {
+            Id = source.Id,
+            Status = closedAt is null ? "Aberto" : "Fechado",
+            OpenedAt = source.OpenedAt.ToString("o"),
+            ClosedAt = closedAt?.ToString("o"),
+            OpeningAmount = source.OpeningAmount,
+            ClosingAmount = source.ClosingAmount,
+            OpeningAmountDecimal = openingDecimal,
+            OperatorName = source.OperatorName,
+            ClosedByName = source.ClosedByName,
+            Note = source.Note,
+            ElapsedMinutes = Math.Max(0, (int)Math.Floor(elapsed.TotalMinutes)),
+            BlindClosing = source.BlindClosing,
+            ExpectedCashAmount = source.ExpectedCashAmount,
+            CountedCashAmount = source.CountedCashAmount,
+            CashDifference = source.CashDifference,
+            DifferenceStatus = differenceStatus,
+            SalesCashTotal = source.SalesCashTotal,
+            SalesPixTotal = source.SalesPixTotal,
+            SalesDebitTotal = source.SalesDebitTotal,
+            SalesCreditTotal = source.SalesCreditTotal,
+            CountedPixAmount = countedPixAmount.HasValue ? Math.Round(countedPixAmount.Value, 2, MidpointRounding.AwayFromZero) : null,
+            CountedDebitAmount = countedDebitAmount.HasValue ? Math.Round(countedDebitAmount.Value, 2, MidpointRounding.AwayFromZero) : null,
+            CountedCreditAmount = countedCreditAmount.HasValue ? Math.Round(countedCreditAmount.Value, 2, MidpointRounding.AwayFromZero) : null,
+            TotalSalesAmount = totalSalesAmount,
+            SalesCount = source.SalesCount,
+            TicketMedio = ticketMedio,
+            TotalSuprimentos = source.TotalSuprimentos,
+            TotalSangrias = source.TotalSangrias,
+            CashReturns = cashReturns,
+            Movements = movements.Select(ToMovementDto).ToList()
         };
     }
 
     private static CaixaMovimentacaoDto ToMovementDto(CaixaMovimentacaoAD source) => new()
     {
         Id = source.Id,
+        CompanyId = source.CompanyId,
         CaixaSessaoId = source.CaixaSessaoId,
         Tipo = source.Tipo,
         FormaPagamento = source.FormaPagamento,
         Valor = source.Valor,
         Descricao = source.Descricao,
-        OperatorId = source.OperatorId,
-        OperatorName = source.OperatorName,
-        CreatedAt = source.CreatedAt.ToString("o")
+        SaleNumber = source.SaleNumber,
+        UsuarioId = source.UsuarioId,
+        UsuarioName = source.UsuarioName,
+        DataHora = source.DataHora.ToString("o")
     };
+
+    private sealed record LiveSessionMetrics(
+        decimal ExpectedCashAmount,
+        decimal SalesCashTotal,
+        decimal SalesPixTotal,
+        decimal SalesDebitTotal,
+        decimal SalesCreditTotal,
+        decimal TotalSuprimentos,
+        decimal TotalSangrias,
+        decimal CashReturns,
+        int SalesCount);
 }
 
 public class CaixaStatusDto
@@ -585,9 +648,8 @@ public class CaixaStatusDto
     public string ServerNow { get; set; } = "";
     public CaixaSessionDto? CurrentSession { get; set; }
     public CaixaSessionDto? LastSession { get; set; }
-    public CaixaBalancoDiarioDto? CurrentBalance { get; set; }
-    public List<CaixaMovimentacaoDto> Movements { get; set; } = [];
     public List<CaixaSessionDto> History { get; set; } = [];
+    public List<CaixaMovimentacaoDto> CurrentMovements { get; set; } = [];
 }
 
 public class CaixaSessionDto
@@ -598,61 +660,91 @@ public class CaixaSessionDto
     public string? ClosedAt { get; set; }
     public string OpeningAmount { get; set; } = "0,00";
     public string ClosingAmount { get; set; } = "0,00";
-    public string ExpectedAmount { get; set; } = "0,00";
-    public string DifferenceAmount { get; set; } = "0,00";
-    public string DifferenceStatus { get; set; } = "CONFERIDO";
-    public string TotalCashSales { get; set; } = "0,00";
-    public string TotalSupplies { get; set; } = "0,00";
-    public string TotalWithdrawals { get; set; } = "0,00";
     public string OperatorName { get; set; } = "";
     public string ClosedByName { get; set; } = "";
     public string Note { get; set; } = "";
     public int ElapsedMinutes { get; set; }
+    public decimal? ExpectedCashAmount { get; set; }
+    public decimal? CountedCashAmount { get; set; }
+    public decimal? CashDifference { get; set; }
+    public decimal? SalesCashTotal { get; set; }
+    public decimal? SalesPixTotal { get; set; }
+    public decimal? SalesDebitTotal { get; set; }
+    public decimal? SalesCreditTotal { get; set; }
+    public decimal? TotalSuprimentos { get; set; }
+    public decimal? TotalSangrias { get; set; }
+    public int? SalesCount { get; set; }
+    public bool BlindClosing { get; set; } = true;
 }
 
 public class CaixaMovimentacaoDto
 {
     public string Id { get; set; } = "";
+    public string CompanyId { get; set; } = "";
     public string CaixaSessaoId { get; set; } = "";
     public string Tipo { get; set; } = "";
-    public string FormaPagamento { get; set; } = "Dinheiro";
-    public string Valor { get; set; } = "0,00";
-    public string Descricao { get; set; } = "";
-    public string OperatorId { get; set; } = "";
-    public string OperatorName { get; set; } = "";
-    public string CreatedAt { get; set; } = "";
-}
-
-public class CaixaFormaPagamentoResumoDto
-{
     public string FormaPagamento { get; set; } = "";
-    public int QuantidadeVendas { get; set; }
-    public string TotalVendido { get; set; } = "0,00";
-    public decimal Percentual { get; set; }
+    public decimal Valor { get; set; }
+    public string Descricao { get; set; } = "";
+    public string? SaleNumber { get; set; }
+    public string UsuarioId { get; set; } = "";
+    public string UsuarioName { get; set; } = "";
+    public string DataHora { get; set; } = "";
 }
 
-public class CaixaBalancoDiarioDto
+public class CaixaSessionSummaryDto
 {
-    public string CaixaSessaoId { get; set; } = "";
-    public string Status { get; set; } = "Fechado";
+    public string Id { get; set; } = "";
+    public string Status { get; set; } = "";
     public string OpenedAt { get; set; } = "";
     public string? ClosedAt { get; set; }
-    public string OperatorName { get; set; } = "";
     public string OpeningAmount { get; set; } = "0,00";
-    public string TotalCashSales { get; set; } = "0,00";
-    public string TotalPixSales { get; set; } = "0,00";
-    public string TotalDebitSales { get; set; } = "0,00";
-    public string TotalCreditSales { get; set; } = "0,00";
-    public string TotalOtherSales { get; set; } = "0,00";
-    public string TotalSalesAmount { get; set; } = "0,00";
-    public int TotalSalesCount { get; set; }
-    public string AverageTicket { get; set; } = "0,00";
-    public string TotalSupplies { get; set; } = "0,00";
-    public string TotalWithdrawals { get; set; } = "0,00";
-    public string ExpectedCashAmount { get; set; } = "0,00";
-    public string? CountedCashAmount { get; set; }
-    public string DifferenceAmount { get; set; } = "0,00";
-    public string DifferenceStatus { get; set; } = "CONFERIDO";
-    public List<CaixaFormaPagamentoResumoDto> PaymentBreakdown { get; set; } = [];
+    public string ClosingAmount { get; set; } = "0,00";
+    public decimal OpeningAmountDecimal { get; set; }
+    public string OperatorName { get; set; } = "";
+    public string ClosedByName { get; set; } = "";
+    public string Note { get; set; } = "";
+    public int ElapsedMinutes { get; set; }
+    public bool BlindClosing { get; set; } = true;
+    public decimal ExpectedCashAmount { get; set; }
+    public decimal CountedCashAmount { get; set; }
+    public decimal CashDifference { get; set; }
+    public string DifferenceStatus { get; set; } = "EXATO";
+    public decimal SalesCashTotal { get; set; }
+    public decimal SalesPixTotal { get; set; }
+    public decimal SalesDebitTotal { get; set; }
+    public decimal SalesCreditTotal { get; set; }
+    public decimal? CountedPixAmount { get; set; }
+    public decimal? CountedDebitAmount { get; set; }
+    public decimal? CountedCreditAmount { get; set; }
+    public decimal TotalSalesAmount { get; set; }
+    public int SalesCount { get; set; }
+    public decimal TicketMedio { get; set; }
+    public decimal TotalSuprimentos { get; set; }
+    public decimal TotalSangrias { get; set; }
+    public decimal CashReturns { get; set; }
+    public List<CaixaMovimentacaoDto> Movements { get; set; } = [];
 }
 
+public class DailyBalanceDto
+{
+    public string Date { get; set; } = "";
+    public int SessionsCount { get; set; }
+    public int OpenSessionsCount { get; set; }
+    public int ClosedSessionsCount { get; set; }
+    public decimal TotalOpeningAmount { get; set; }
+    public decimal TotalExpectedCashAmount { get; set; }
+    public decimal TotalCountedCashAmount { get; set; }
+    public decimal TotalCashDifference { get; set; }
+    public decimal TotalSuprimentos { get; set; }
+    public decimal TotalSangrias { get; set; }
+    public decimal TotalCashReturns { get; set; }
+    public decimal SalesCashTotal { get; set; }
+    public decimal SalesPixTotal { get; set; }
+    public decimal SalesDebitTotal { get; set; }
+    public decimal SalesCreditTotal { get; set; }
+    public decimal TotalSalesAmount { get; set; }
+    public int SalesCount { get; set; }
+    public decimal TicketMedio { get; set; }
+    public List<CaixaSessionSummaryDto> Sessions { get; set; } = [];
+}

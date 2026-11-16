@@ -233,12 +233,6 @@ BEGIN
         ClosedAt DATETIMEOFFSET NULL,
         OpeningAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_OpeningAmount DEFAULT N'0,00',
         ClosingAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ClosingAmount DEFAULT N'0,00',
-        ExpectedAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedAmount DEFAULT N'0,00',
-        DifferenceAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceAmount DEFAULT N'0,00',
-        DifferenceStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceStatus DEFAULT N'CONFERIDO',
-        TotalCashSales NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalCashSales DEFAULT N'0,00',
-        TotalSupplies NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSupplies DEFAULT N'0,00',
-        TotalWithdrawals NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalWithdrawals DEFAULT N'0,00',
         OperatorId NVARCHAR(40) NOT NULL,
         OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaSessoes_OperatorName DEFAULT N'',
         ClosedById NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaSessoes_ClosedById DEFAULT N'',
@@ -254,62 +248,12 @@ BEGIN
     ALTER TABLE CaixaSessoes ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaSessoes_CompanyId DEFAULT N'empresa-principal';
 END;
 
-IF COL_LENGTH(N'CaixaSessoes', N'ExpectedAmount') IS NULL
-BEGIN
-    ALTER TABLE CaixaSessoes ADD ExpectedAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedAmount DEFAULT N'0,00';
-END;
-
-IF COL_LENGTH(N'CaixaSessoes', N'DifferenceAmount') IS NULL
-BEGIN
-    ALTER TABLE CaixaSessoes ADD DifferenceAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceAmount DEFAULT N'0,00';
-END;
-
-IF COL_LENGTH(N'CaixaSessoes', N'DifferenceStatus') IS NULL
-BEGIN
-    ALTER TABLE CaixaSessoes ADD DifferenceStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceStatus DEFAULT N'CONFERIDO';
-END;
-
-IF COL_LENGTH(N'CaixaSessoes', N'TotalCashSales') IS NULL
-BEGIN
-    ALTER TABLE CaixaSessoes ADD TotalCashSales NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalCashSales DEFAULT N'0,00';
-END;
-
-IF COL_LENGTH(N'CaixaSessoes', N'TotalSupplies') IS NULL
-BEGIN
-    ALTER TABLE CaixaSessoes ADD TotalSupplies NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSupplies DEFAULT N'0,00';
-END;
-
-IF COL_LENGTH(N'CaixaSessoes', N'TotalWithdrawals') IS NULL
-BEGIN
-    ALTER TABLE CaixaSessoes ADD TotalWithdrawals NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalWithdrawals DEFAULT N'0,00';
-END;
-
-IF OBJECT_ID(N'CaixaMovimentacoes', N'U') IS NULL
-BEGIN
-    CREATE TABLE CaixaMovimentacoes
-    (
-        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaMovimentacoes PRIMARY KEY,
-        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CompanyId DEFAULT N'empresa-principal',
-        CaixaSessaoId NVARCHAR(40) NOT NULL,
-        Tipo NVARCHAR(30) NOT NULL,
-        FormaPagamento NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_FormaPagamento DEFAULT N'Dinheiro',
-        Valor NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Valor DEFAULT N'0,00',
-        Descricao NVARCHAR(500) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Descricao DEFAULT N'',
-        OperatorId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_OperatorId DEFAULT N'',
-        OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_OperatorName DEFAULT N'',
-        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CreatedAt DEFAULT SYSDATETIMEOFFSET()
-    );
-    CREATE INDEX IX_CaixaMovimentacoes_CaixaSessaoId_CreatedAt ON CaixaMovimentacoes (CaixaSessaoId, CreatedAt DESC);
-    CREATE INDEX IX_CaixaMovimentacoes_CompanyId_CreatedAt ON CaixaMovimentacoes (CompanyId, CreatedAt DESC);
-END;
-
 IF OBJECT_ID(N'Vendas', N'U') IS NULL
 BEGIN
     CREATE TABLE Vendas
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Vendas PRIMARY KEY,
         CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Vendas_CompanyId DEFAULT N'empresa-principal',
-        CaixaSessaoId NVARCHAR(40) NULL,
         SaleNumber NVARCHAR(30) NOT NULL,
         CustomerName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_CustomerName DEFAULT N'Consumidor',
         CustomerCpf NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_CustomerCpf DEFAULT N'-',
@@ -324,11 +268,6 @@ END;
 IF COL_LENGTH(N'Vendas', N'CompanyId') IS NULL
 BEGIN
     ALTER TABLE Vendas ADD CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Vendas_CompanyId DEFAULT N'empresa-principal';
-END;
-
-IF COL_LENGTH(N'Vendas', N'CaixaSessaoId') IS NULL
-BEGIN
-    ALTER TABLE Vendas ADD CaixaSessaoId NVARCHAR(40) NULL;
 END;
 
 IF COL_LENGTH(N'Vendas', N'PaymentType') IS NULL
@@ -552,3 +491,58 @@ BEGIN
          0, N'smtp-mail.outlook.com', 587, 1, N'', N'', N'naoresponderhoruspdv@outlook.com',
          N'Hórus PDV', N'');
 END;
+
+GO
+
+-- PR 3: Vínculo Vendas <-> CaixaSessoes, auditoria de fechamento cego e tabela CaixaMovimentacoes
+IF COL_LENGTH(N'Vendas', N'CaixaSessaoId') IS NULL
+BEGIN
+    ALTER TABLE Vendas ADD CaixaSessaoId NVARCHAR(40) NULL;
+    CREATE INDEX IX_Vendas_CaixaSessaoId ON Vendas (CaixaSessaoId);
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'ExpectedCashAmount') IS NULL
+    ALTER TABLE CaixaSessoes ADD ExpectedCashAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedCashAmount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'CountedCashAmount') IS NULL
+    ALTER TABLE CaixaSessoes ADD CountedCashAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_CountedCashAmount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'CashDifference') IS NULL
+    ALTER TABLE CaixaSessoes ADD CashDifference DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_CashDifference DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCashTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCashTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCashTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesPixTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesPixTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesPixTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesDebitTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesDebitTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesDebitTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCreditTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCreditTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCreditTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSuprimentos') IS NULL
+    ALTER TABLE CaixaSessoes ADD TotalSuprimentos DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSuprimentos DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSangrias') IS NULL
+    ALTER TABLE CaixaSessoes ADD TotalSangrias DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSangrias DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCount') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCount INT NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'BlindClosing') IS NULL
+    ALTER TABLE CaixaSessoes ADD BlindClosing BIT NOT NULL CONSTRAINT DF_CaixaSessoes_BlindClosing DEFAULT 1;
+
+GO
+
+IF OBJECT_ID(N'CaixaMovimentacoes', N'U') IS NULL
+BEGIN
+    CREATE TABLE CaixaMovimentacoes
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaMovimentacoes PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CompanyId DEFAULT N'empresa-principal',
+        CaixaSessaoId NVARCHAR(40) NOT NULL,
+        Tipo NVARCHAR(30) NOT NULL,
+        FormaPagamento NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_FormaPagamento DEFAULT N'dinheiro',
+        Valor DECIMAL(18,2) NOT NULL,
+        Descricao NVARCHAR(300) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Descricao DEFAULT N'',
+        SaleNumber NVARCHAR(30) NULL,
+        UsuarioId NVARCHAR(40) NOT NULL,
+        UsuarioName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_UsuarioName DEFAULT N'',
+        DataHora DATETIMEOFFSET NOT NULL CONSTRAINT DF_CaixaMovimentacoes_DataHora DEFAULT SYSDATETIMEOFFSET(),
+        CONSTRAINT FK_CaixaMovimentacoes_CaixaSessoes FOREIGN KEY (CaixaSessaoId) REFERENCES CaixaSessoes (Id) ON DELETE CASCADE
+    );
+    CREATE INDEX IX_CaixaMovimentacoes_Sessao ON CaixaMovimentacoes (CompanyId, CaixaSessaoId, DataHora);
+END;
+

@@ -170,17 +170,24 @@ public class RelatorioAB(Connection connection)
     {
         var startDate = GetDate(filters, "startDate") ?? DateTimeOffset.Now.AddDays(-30).Date;
         var endDate = (GetDate(filters, "endDate") ?? DateTimeOffset.Now.Date).AddDays(1);
+        var paymentMethods = GetStringList(filters, "paymentMethod")
+            .Where(item => !string.Equals(item, "all", StringComparison.OrdinalIgnoreCase))
+            .Select(NormalizePaymentFilter)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var rows = (await ListarCaixasAsync(companyId))
             .Where(item => item.OpenedAt >= startDate && item.OpenedAt < endDate)
+            .Where(item => paymentMethods.Count == 0 || MatchesCashPaymentFilter(item, paymentMethods))
             .Select(item => Row(
                 ("abertura", item.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")),
                 ("fechamento", item.ClosedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-"),
                 ("operador", item.OperatorName),
                 ("valorAbertura", FormatMoney(item.OpeningAmount)),
-                ("saldoEsperado", FormatMoney(item.ExpectedAmount > 0m ? item.ExpectedAmount : item.OpeningAmount)),
+                ("suprimentos", FormatMoney(item.TotalSuprimentos)),
+                ("sangrias", FormatMoney(item.TotalSangrias)),
+                ("saldoEsperado", FormatMoney(item.ExpectedCashAmount)),
                 ("valorFechamento", FormatMoney(item.ClosingAmount)),
-                ("diferenca", FormatMoney(item.DifferenceAmount)),
-                ("conferencia", string.IsNullOrWhiteSpace(item.DifferenceStatus) ? "CONFERIDO" : item.DifferenceStatus),
+                ("quebraCaixa", FormatMoney(item.CashDifference)),
                 ("status", item.ClosedAt is null ? "Aberto" : "Fechado")))
             .ToList();
 
@@ -190,10 +197,11 @@ public class RelatorioAB(Connection connection)
                 ("fechamento", "Fechamento"),
                 ("operador", "Operador"),
                 ("valorAbertura", "Valor abertura"),
+                ("suprimentos", "Suprimentos"),
+                ("sangrias", "Sangrias"),
                 ("saldoEsperado", "Saldo esperado"),
                 ("valorFechamento", "Valor fechamento"),
-                ("diferenca", "Diferença"),
-                ("conferencia", "Conferência"),
+                ("quebraCaixa", "Quebra / Sobra"),
                 ("status", "Status")),
             rows);
     }
@@ -263,43 +271,119 @@ public class RelatorioAB(Connection connection)
 
     private async Task<List<ReportCashRow>> ListarCaixasAsync(string companyId)
     {
-        const string schemaSql = """
-            IF COL_LENGTH(N'CaixaSessoes', N'ExpectedAmount') IS NULL
-                ALTER TABLE CaixaSessoes ADD ExpectedAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedAmount DEFAULT N'0,00';
-            IF COL_LENGTH(N'CaixaSessoes', N'DifferenceAmount') IS NULL
-                ALTER TABLE CaixaSessoes ADD DifferenceAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceAmount DEFAULT N'0,00';
-            IF COL_LENGTH(N'CaixaSessoes', N'DifferenceStatus') IS NULL
-                ALTER TABLE CaixaSessoes ADD DifferenceStatus NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaSessoes_DifferenceStatus DEFAULT N'CONFERIDO';
-            """;
-
         const string sql = """
-            SELECT OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, ExpectedAmount, DifferenceAmount, DifferenceStatus, OperatorName
+            SELECT Id, OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, OperatorName,
+                   ExpectedCashAmount, CashDifference,
+                   SalesCashTotal, SalesPixTotal, SalesDebitTotal, SalesCreditTotal,
+                   TotalSuprimentos, TotalSangrias
             FROM CaixaSessoes
             WHERE CompanyId = @CompanyId
             ORDER BY OpenedAt DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
-        await using (var schemaCommand = new SqlCommand(schemaSql, db))
+        var rows = new List<ReportCashRow>();
+        await using (var command = new SqlCommand(sql, db))
         {
-            await schemaCommand.ExecuteNonQueryAsync();
+            command.Parameters.AddWithValue("@CompanyId", companyId);
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                rows.Add(new ReportCashRow(
+                    ReadString(reader, "Id"),
+                    reader.GetDateTimeOffset(reader.GetOrdinal("OpenedAt")),
+                    reader.IsDBNull(reader.GetOrdinal("ClosedAt")) ? null : reader.GetDateTimeOffset(reader.GetOrdinal("ClosedAt")),
+                    ParseMoney(ReadString(reader, "OpeningAmount")),
+                    ParseMoney(ReadString(reader, "ClosingAmount")),
+                    ReadString(reader, "OperatorName"),
+                    ReadDecimalColumn(reader, "ExpectedCashAmount"),
+                    ReadDecimalColumn(reader, "CashDifference"),
+                    ReadDecimalColumn(reader, "SalesCashTotal"),
+                    ReadDecimalColumn(reader, "SalesPixTotal"),
+                    ReadDecimalColumn(reader, "SalesDebitTotal"),
+                    ReadDecimalColumn(reader, "SalesCreditTotal"),
+                    ReadDecimalColumn(reader, "TotalSuprimentos"),
+                    ReadDecimalColumn(reader, "TotalSangrias")));
+            }
         }
 
-        await using var command = new SqlCommand(sql, db);
-        command.Parameters.AddWithValue("@CompanyId", companyId);
-        await using var reader = await command.ExecuteReaderAsync();
-        var rows = new List<ReportCashRow>();
-        while (await reader.ReadAsync())
+        // Para sessões ainda abertas, calcula os totais ao vivo a partir de CaixaMovimentacoes e Vendas.
+        for (var index = 0; index < rows.Count; index += 1)
         {
-            rows.Add(new ReportCashRow(
-                reader.GetDateTimeOffset(reader.GetOrdinal("OpenedAt")),
-                reader.IsDBNull(reader.GetOrdinal("ClosedAt")) ? null : reader.GetDateTimeOffset(reader.GetOrdinal("ClosedAt")),
-                ParseMoney(ReadString(reader, "OpeningAmount")),
-                ParseMoney(ReadString(reader, "ClosingAmount")),
-                ParseMoney(ReadString(reader, "ExpectedAmount")),
-                ParseMoney(ReadString(reader, "DifferenceAmount")),
-                ReadString(reader, "DifferenceStatus"),
-                ReadString(reader, "OperatorName")));
+            var row = rows[index];
+            if (row.ClosedAt is not null) continue;
+
+            var suprimentos = 0m;
+            var sangrias = 0m;
+            var cashReturns = 0m;
+            await using (var movCmd = new SqlCommand(
+                             """
+                             SELECT Tipo, FormaPagamento, Valor
+                             FROM CaixaMovimentacoes
+                             WHERE CompanyId = @CompanyId AND CaixaSessaoId = @CaixaSessaoId;
+                             """,
+                             db))
+            {
+                movCmd.Parameters.AddWithValue("@CompanyId", companyId);
+                movCmd.Parameters.AddWithValue("@CaixaSessaoId", row.Id);
+                await using var movReader = await movCmd.ExecuteReaderAsync();
+                while (await movReader.ReadAsync())
+                {
+                    var tipo = ReadString(movReader, "Tipo");
+                    var payment = NormalizePaymentFilter(ReadString(movReader, "FormaPagamento"));
+                    var valor = ReadDecimalColumn(movReader, "Valor");
+                    if (string.Equals(tipo, "SUPRIMENTO", StringComparison.OrdinalIgnoreCase))
+                    {
+                        suprimentos += valor;
+                    }
+                    else if (string.Equals(tipo, "SANGRIA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sangrias += valor;
+                    }
+                    else if (string.Equals(tipo, "DEVOLUCAO", StringComparison.OrdinalIgnoreCase) && payment == "cash")
+                    {
+                        cashReturns += valor;
+                    }
+                }
+            }
+
+            var salesCash = 0m;
+            var salesPix = 0m;
+            var salesDebit = 0m;
+            var salesCredit = 0m;
+            await using (var salesCmd = new SqlCommand(
+                             """
+                             SELECT PaymentType, TotalAmount
+                             FROM Vendas
+                             WHERE CompanyId = @CompanyId AND CaixaSessaoId = @CaixaSessaoId;
+                             """,
+                             db))
+            {
+                salesCmd.Parameters.AddWithValue("@CompanyId", companyId);
+                salesCmd.Parameters.AddWithValue("@CaixaSessaoId", row.Id);
+                await using var salesReader = await salesCmd.ExecuteReaderAsync();
+                while (await salesReader.ReadAsync())
+                {
+                    var payment = NormalizePaymentFilter(ReadString(salesReader, "PaymentType"));
+                    var amount = ParseMoney(ReadString(salesReader, "TotalAmount"));
+                    if (payment == "cash") salesCash += amount;
+                    else if (payment == "pix") salesPix += amount;
+                    else if (payment == "debit") salesDebit += amount;
+                    else if (payment == "credit") salesCredit += amount;
+                }
+            }
+
+            var expectedCash = Math.Round(row.OpeningAmount + salesCash + suprimentos - sangrias - cashReturns, 2, MidpointRounding.AwayFromZero);
+            rows[index] = row with
+            {
+                ExpectedCashAmount = expectedCash,
+                SalesCashTotal = salesCash,
+                SalesPixTotal = salesPix,
+                SalesDebitTotal = salesDebit,
+                SalesCreditTotal = salesCredit,
+                TotalSuprimentos = suprimentos,
+                TotalSangrias = sangrias
+            };
         }
 
         return rows;
@@ -465,13 +549,34 @@ public class RelatorioAB(Connection connection)
         decimal UnitPrice,
         decimal SalePrice);
 
+    private static decimal ReadDecimalColumn(SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? 0m : reader.GetDecimal(ordinal);
+    }
+
+    private static bool MatchesCashPaymentFilter(ReportCashRow row, HashSet<string> paymentMethods)
+    {
+        if (paymentMethods.Contains("cash") && row.SalesCashTotal > 0m) return true;
+        if (paymentMethods.Contains("pix") && row.SalesPixTotal > 0m) return true;
+        if (paymentMethods.Contains("debit") && row.SalesDebitTotal > 0m) return true;
+        if (paymentMethods.Contains("credit") && row.SalesCreditTotal > 0m) return true;
+        return false;
+    }
+
     private sealed record ReportCashRow(
+        string Id,
         DateTimeOffset OpenedAt,
         DateTimeOffset? ClosedAt,
         decimal OpeningAmount,
         decimal ClosingAmount,
-        decimal ExpectedAmount,
-        decimal DifferenceAmount,
-        string DifferenceStatus,
-        string OperatorName);
+        string OperatorName,
+        decimal ExpectedCashAmount,
+        decimal CashDifference,
+        decimal SalesCashTotal,
+        decimal SalesPixTotal,
+        decimal SalesDebitTotal,
+        decimal SalesCreditTotal,
+        decimal TotalSuprimentos,
+        decimal TotalSangrias);
 }
