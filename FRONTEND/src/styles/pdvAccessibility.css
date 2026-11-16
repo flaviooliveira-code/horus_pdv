@@ -1,0 +1,351 @@
+/**
+ * Arquivo: src/styles/pdvAccessibility.css
+ * Objetivo: aplica tema WCAG AAA (>= 7:1) e escala tipográfica ampliada (+50%)
+ * exclusivamente na frente de caixa e no visor do cliente quando .pdv-high-visibility está ativo.
+ */
+
+.pdv-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =====================================================
+   MODO ALTA VISIBILIDADE (TEMA CLARO — WCAG AAA >= 7:1)
+   ===================================================== */
+.pdv-high-visibility {
+  --color-primary: #7f1d1d;
+  --color-secondary: #312e81;
+  --color-success: #14532d;
+  --color-accent: #075985;
+  --color-dark: #020617;
+  --color-light: #ffffff;
+
+  --color-text-light: #ffffff;
+  --color-text-primary: #020617;
+  --color-text-secondary: #0f172a;
+  --color-text-tertiary: #1e293b;
+
+  --color-bg-primary: #f8fafc;
+  --color-bg-light: #ffffff;
+  --color-bg-gray-theme: #f1f5f9;
+
+  --color-hover-primary: #991b1b;
+  --color-hover-secondary: #3730a3;
+  --color-hover-success: #166534;
+  --color-hover-accent: #0c4a6e;
+  --color-hover-light: #e2e8f0;
+
+  --color-border-primary: #334155;
+  --color-border-secondary: #1e293b;
+
+  --color-action-primary: #7f1d1d;
+  --color-action-secondary: #312e81;
+  --color-action-success: #14532d;
+  --color-action-accent: #082f49;
+  --color-action-dark: #020617;
+  --color-action-hover-primary: #991b1b;
+  --color-action-hover-secondary: #3730a3;
+  --color-action-hover-success: #166534;
+  --color-action-hover-accent: #0c4a6e;
+  --color-action-on-primary: #ffffff;
+  --color-action-on-secondary: #ffffff;
+  --color-action-on-success: #ffffff;
+  --color-action-on-accent: #ffffff;
+  --color-focus-ring: rgba(7, 89, 133, 0.45);
+
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+}
+
+/* =====================================================
+   MODO ALTA VISIBILIDADE (TEMA ESCURO — WCAG AAA >= 7:1)
+   ===================================================== */
+html[data-theme="dark"] .pdv-high-visibility {
+  color-scheme: dark;
+  --color-primary: #fecaca;
+  --color-secondary: #e0e7ff;
+  --color-success: #86efac;
+  --color-accent: #bae6fd;
+  --color-dark: #020617;
+  --color-light: #0a0f1e;
+
+  --color-text-light: #ffffff;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #f1f5f9;
+  --color-text-tertiary: #e2e8f0;
+
+  --color-bg-primary: #020617;
+  --color-bg-light: #0a0f1e;
+  --color-bg-gray-theme: #0f172a;
+
+  --color-hover-primary: #fca5a5;
+  --color-hover-secondary: #c7d2fe;
+  --color-hover-success: #bbf7d0;
+  --color-hover-accent: #e0f2fe;
+  --color-hover-light: #1e293b;
+
+  --color-border-primary: #94a3b8;
+  --color-border-secondary: #cbd5e1;
+
+  --color-action-primary: #7f1d1d;
+  --color-action-secondary: #312e81;
+  --color-action-success: #14532d;
+  --color-action-accent: #082f49;
+  --color-action-dark: #020617;
+  --color-action-hover-primary: #991b1b;
+  --color-action-hover-secondary: #3730a3;
+  --color-action-hover-success: #166534;
+  --color-action-hover-accent: #0c4a6e;
+  --color-action-on-primary: #ffffff;
+  --color-action-on-secondary: #ffffff;
+  --color-action-on-success: #ffffff;
+  --color-action-on-accent: #ffffff;
+  --color-focus-ring: rgba(186, 230, 253, 0.55);
+
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+}
+
+/* =====================================================
+   CORREÇÃO DE ESPECIFICIDADE TAILWIND v4 (LIGHT & DARK)
+   ===================================================== */
+.pdv-high-visibility .bg-accent.text-text-light,
+.pdv-high-visibility .bg-accent.text-white,
+html[data-theme="dark"] .pdv-high-visibility .bg-accent.text-text-light,
+html[data-theme="dark"] .pdv-high-visibility .bg-accent.text-white {
+  background-color: var(--color-action-accent);
+  color: #ffffff;
+}
+
+.pdv-high-visibility .bg-primary.text-white,
+.pdv-high-visibility .bg-primary.text-text-light,
+html[data-theme="dark"] .pdv-high-visibility .bg-primary.text-white,
+html[data-theme="dark"] .pdv-high-visibility .bg-primary.text-text-light {
+  background-color: var(--color-action-primary);
+  color: #ffffff;
+}
+
+.pdv-high-visibility .bg-success.text-white,
+.pdv-high-visibility .bg-success.text-text-light,
+html[data-theme="dark"] .pdv-high-visibility .bg-success.text-white,
+html[data-theme="dark"] .pdv-high-visibility .bg-success.text-text-light {
+  background-color: var(--color-action-success);
+  color: #ffffff;
+}
+
+.pdv-high-visibility .bg-secondary.text-white,
+.pdv-high-visibility .bg-secondary.text-text-light,
+html[data-theme="dark"] .pdv-high-visibility .bg-secondary.text-white,
+html[data-theme="dark"] .pdv-high-visibility .bg-secondary.text-text-light {
+  background-color: var(--color-action-secondary);
+  color: #ffffff;
+}
+
+.pdv-high-visibility .text-text-light\/80,
+html[data-theme="dark"] .pdv-high-visibility .text-text-light\/80 {
+  color: #ffffff;
+}
+
+/* Badges e faixas translúcidas em contraste sólido AAA */
+.pdv-high-visibility .bg-success\/10 {
+  background-color: #ecfdf5;
+  color: #14532d;
+  border-color: #14532d;
+}
+
+html[data-theme="dark"] .pdv-high-visibility .bg-success\/10 {
+  background-color: #052e16;
+  color: #bbf7d0;
+  border-color: #86efac;
+}
+
+.pdv-high-visibility .bg-primary\/10 {
+  background-color: #fef2f2;
+  color: #7f1d1d;
+  border-color: #7f1d1d;
+}
+
+html[data-theme="dark"] .pdv-high-visibility .bg-primary\/10 {
+  background-color: #450a0a;
+  color: #fecaca;
+  border-color: #fca5a5;
+}
+
+.pdv-high-visibility .bg-accent\/10 {
+  background-color: #f0f9ff;
+  color: #075985;
+  border-color: #075985;
+}
+
+html[data-theme="dark"] .pdv-high-visibility .bg-accent\/10 {
+  background-color: #082f49;
+  color: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+/* =====================================================
+   FOCO VISÍVEL 3px, BORDAS NÍTIDAS E CAMPOS DESABILITADOS
+   ===================================================== */
+.pdv-high-visibility *:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.pdv-high-visibility .input-field,
+.pdv-high-visibility .select-field {
+  background-color: var(--color-bg-light);
+  color: var(--color-text-primary);
+  border-width: 2px;
+  border-color: var(--color-border-secondary);
+}
+
+.pdv-high-visibility .input-field:disabled,
+.pdv-high-visibility input[disabled] {
+  opacity: 1;
+  background-color: var(--color-bg-light);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-secondary);
+}
+
+.pdv-high-visibility button:disabled,
+.pdv-high-visibility .btn-cancel:disabled,
+.pdv-high-visibility .btn-success:disabled,
+.pdv-high-visibility .btn-primary:disabled {
+  opacity: 1;
+  background-color: #334155;
+  color: #ffffff;
+  border: 2px dashed var(--color-border-secondary);
+}
+
+/* =====================================================
+   ESCALA TIPOGRÁFICA (+50%) E ALVOS DE TOQUE AMPLIADOS
+   ===================================================== */
+.pdv-high-visibility .pdv-header-title {
+  font-size: clamp(2.125rem, 2.8vw, 3rem);
+  line-height: 1.05;
+}
+
+.pdv-high-visibility .pdv-header-subtitle {
+  font-size: 1.375rem;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.pdv-high-visibility .pdv-header-clock {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.pdv-high-visibility .pdv-toggle-pill {
+  min-height: 2.875rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-width: 2px;
+}
+
+.pdv-high-visibility .pdv-field-label {
+  font-size: 1.125rem;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
+}
+
+.pdv-high-visibility .pdv-search-input {
+  min-height: 3.5rem;
+  font-size: 1.375rem;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.pdv-high-visibility .pdv-qty-input,
+.pdv-high-visibility .pdv-price-input {
+  min-height: 3.5rem;
+  font-size: 1.75rem;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.pdv-high-visibility .pdv-btn-action {
+  min-height: 3.75rem;
+  font-size: 1.375rem;
+  line-height: 1.25;
+  font-weight: 700;
+  border-width: 2px;
+}
+
+.pdv-high-visibility .pdv-cash-banner {
+  font-size: 1.3125rem;
+  line-height: 1.35;
+  font-weight: 700;
+  border-bottom-width: 2px;
+}
+
+.pdv-high-visibility .pdv-last-scanned-card {
+  border-bottom-width: 2px;
+  border-color: var(--color-border-primary);
+}
+
+.pdv-high-visibility .pdv-last-scanned-name {
+  font-size: clamp(2.85rem, 4vw, 3.75rem);
+  line-height: 1.08;
+  font-weight: 800;
+}
+
+.pdv-high-visibility .pdv-last-scanned-math {
+  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.pdv-high-visibility .pdv-table th {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  padding: 0.85rem 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.pdv-high-visibility .pdv-table td {
+  font-size: 1.875rem;
+  line-height: 1.3;
+  padding: 1rem 0.75rem;
+  font-weight: 700;
+}
+
+.pdv-high-visibility .pdv-mobile-item-card {
+  border-width: 2px;
+  padding: 1rem;
+  font-size: 1.125rem;
+}
+
+.pdv-high-visibility .pdv-total-banner {
+  border-top-width: 2px;
+  border-color: var(--color-border-secondary);
+}
+
+.pdv-high-visibility .pdv-total-amount {
+  font-size: clamp(4.25rem, 6vw, 5.5rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdv-high-visibility .pdv-shortcuts-bar {
+  font-size: 1.125rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pdv-high-visibility .pdv-shortcuts-bar kbd {
+  font-size: 1rem;
+  border-width: 2px;
+  padding: 0.2rem 0.5rem;
+}
+
+.pdv-high-visibility .pdv-footer {
+  font-size: 1.125rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}

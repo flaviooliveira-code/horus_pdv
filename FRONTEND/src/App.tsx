@@ -36,6 +36,9 @@ const ProductRegisterPage = lazy(
 );
 const SalesHistoryPage = lazy(() => import("@/pages/Admin/SalesHistoryPage"));
 const SalesStartPage = lazy(() => import("@/pages/Admin/SalesStartPage"));
+const CustomerDisplayPage = lazy(
+  () => import("@/pages/Admin/CustomerDisplayPage"),
+);
 const ReportsPage = lazy(() => import("@/pages/Admin/ReportsPage"));
 const UserAccountsPage = lazy(() => import("@/pages/Admin/UserAccountsPage"));
 const FiscalPage = lazy(() => import("@/pages/Admin/FiscalPage"));
@@ -106,6 +109,9 @@ export default function App() {
   const isStandalonePos =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("pdv") === "1";
+  const isCustomerDisplay =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("pdv-display") === "1";
 
   const isPageKey = (value: string): value is PageKey =>
     [
@@ -551,9 +557,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isStandalonePos) return;
+    if (isStandalonePos || isCustomerDisplay) return;
     window.localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, activePage);
-  }, [activePage, isStandalonePos]);
+  }, [activePage, isCustomerDisplay, isStandalonePos]);
 
   useEffect(() => {
     const handleOpenTourEvent = () => {
@@ -570,12 +576,16 @@ export default function App() {
   }, [themeMode]);
 
   useEffect(() => {
+    if (isCustomerDisplay) {
+      document.title = "Hórus PDV - Visor do Cliente";
+      return;
+    }
     if (activePage === "vendas" && isStandalonePos) {
       document.title = "Hórus PDV - Frente de caixa grátis";
       return;
     }
     document.title = "Hórus PDV - PDV grátis e frente de caixa";
-  }, [activePage, isStandalonePos]);
+  }, [activePage, isCustomerDisplay, isStandalonePos]);
 
   if (isCheckingAuth) {
     return (
@@ -627,6 +637,22 @@ export default function App() {
         onOpenForgotPassword={() => setPublicAuthPage("forgot-password")}
         onOpenRegister={() => setPublicAuthPage("register")}
       />
+    );
+  }
+
+  if (isCustomerDisplay) {
+    return (
+      <div className="min-h-screen bg-bg-primary text-text-primary font-sans">
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center text-text-secondary">
+              <LoadingBar />
+            </div>
+          }
+        >
+          <CustomerDisplayPage />
+        </Suspense>
+      </div>
     );
   }
 

@@ -5,6 +5,7 @@
 */
 export { default as ThemeSettingsCard } from "./ThemeSettingsCard";
 export { default as PrintSettingsCard } from "./PrintSettingsCard";
+export { default as AccessibilitySettingsCard } from "./AccessibilitySettingsCard";
 export {
   default as SecuritySessionsCard,
   type ActiveSession,
