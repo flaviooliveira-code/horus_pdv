@@ -292,7 +292,8 @@ public class HistoricoVendasAB(Connection connection)
             UPDATE i
                SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
               FROM VendaItens i
-              INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+              INNER JOIN Vendas v ON v.Id = i.VendaId
+              INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
              WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
                 OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
