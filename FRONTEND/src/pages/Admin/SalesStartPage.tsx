@@ -34,6 +34,11 @@ import {
 import { productService } from "@/services/api/productService";
 import { salesHistoryService } from "@/services/api/salesHistoryService";
 import { getPrintPreviewEnabled } from "@/utils/pdvPreferences";
+import {
+  formatQuantityPtBr,
+  parseScaleBarcode,
+  roundQuantity,
+} from "@/utils/scaleBarcode";
 
 type SalesStartPageProps = {
   onExit?: () => void;
@@ -48,14 +53,17 @@ type Product = {
   stock: number;
   salePrice: number;
   imageUrl?: string;
+  unitType?: string;
 };
 
 type CartItem = {
   id: string;
+  lineId?: string;
   code: string;
   name: string;
   quantity: number;
   unitPrice: number;
+  itemTotalOverride?: number;
 };
 
 const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string; shortcut: string }> = [
@@ -127,7 +135,7 @@ export default function SalesStartPage({
   standalone = false,
   operatorName = "Operador",
 }: SalesStartPageProps) {
-  const { formatMoneyBr, maskCpf, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } =
+  const { formatMoneyBr, maskCpf, maskMoneyBr, parseMoneyBr, sanitizeDecimalInput } =
     useInputMasks();
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
@@ -172,9 +180,9 @@ export default function SalesStartPage({
   );
 
   const quantity = useMemo(() => {
-    const parsed = Number(quantityInput);
-    if (!Number.isFinite(parsed) || parsed < 1) return 1;
-    return Math.floor(parsed);
+    const parsed = Number(String(quantityInput).replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+    return roundQuantity(parsed) || 1;
   }, [quantityInput]);
 
   const filteredProducts = useMemo(() => {
@@ -188,11 +196,18 @@ export default function SalesStartPage({
   }, [products, productSearch]);
 
   const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    () =>
+      Math.round(
+        cart.reduce(
+          (sum, item) =>
+            sum + (item.itemTotalOverride ?? Math.round(item.unitPrice * item.quantity * 100) / 100),
+          0,
+        ) * 100,
+      ) / 100,
     [cart],
   );
   const totalVolumes = useMemo(
-    () => cart.reduce((sum, item) => sum + item.quantity, 0),
+    () => roundQuantity(cart.reduce((sum, item) => sum + item.quantity, 0)),
     [cart],
   );
 
@@ -216,9 +231,10 @@ export default function SalesStartPage({
         id: item.id,
         name: item.productName,
         code: item.productCode,
-        stock: Number(item.productQnt || 0),
+        stock: Number(String(item.productQnt || "0").replace(",", ".")),
         salePrice: parseMoneyBr(item.productSalePrice || "0"),
         imageUrl: item.productImageUrl,
+        unitType: item.unitType,
       })),
     );
   }, [parseMoneyBr]);
@@ -356,12 +372,48 @@ export default function SalesStartPage({
   };
 
   const addItem = useCallback(() => {
+    const trimmedSearch = productSearch.trim();
+    const scaleMatch = !selectedProduct ? parseScaleBarcode(trimmedSearch, products) : null;
+    if (scaleMatch) {
+      const existingQty = roundQuantity(
+        cart
+          .filter((item) => item.id === scaleMatch.product.id)
+          .reduce((sum, item) => sum + item.quantity, 0),
+      );
+      if (roundQuantity(existingQty + scaleMatch.quantity) > scaleMatch.product.stock) {
+        Toast.error(
+          `Estoque insuficiente para ${scaleMatch.product.name}. Disponível: ${formatQuantityPtBr(scaleMatch.product.stock)}.`,
+        );
+        return;
+      }
+
+      setCart((current) => [
+        ...current,
+        {
+          id: scaleMatch.product.id,
+          lineId: `${scaleMatch.product.id}-scale-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          code: scaleMatch.product.code,
+          name: scaleMatch.product.name,
+          quantity: scaleMatch.quantity,
+          unitPrice: scaleMatch.unitPrice,
+          itemTotalOverride: scaleMatch.totalValue,
+        },
+      ]);
+
+      setSelectedProductId("");
+      setProductSearch("");
+      setShowProductOptions(false);
+      setQuantityInput("1");
+      productInputRef.current?.focus();
+      return;
+    }
+
     const matchedFromSearch =
       selectedProduct ??
       filteredProducts.find(
         (item) =>
-          item.name.toLowerCase() === productSearch.trim().toLowerCase() ||
-          item.code.toLowerCase() === productSearch.trim().toLowerCase(),
+          item.name.toLowerCase() === trimmedSearch.toLowerCase() ||
+          item.code.toLowerCase() === trimmedSearch.toLowerCase(),
       ) ??
       filteredProducts[0];
 
@@ -370,12 +422,24 @@ export default function SalesStartPage({
       return;
     }
     if (quantity > matchedFromSearch.stock) {
-      Toast.error(`Estoque insuficiente. Disponível: ${matchedFromSearch.stock}.`);
+      Toast.error(`Estoque insuficiente. Disponível: ${formatQuantityPtBr(matchedFromSearch.stock)}.`);
       return;
     }
 
     setCart((current) => {
-      const existing = current.find((item) => item.id === matchedFromSearch.id);
+      const currentTotalQty = roundQuantity(
+        current
+          .filter((item) => item.id === matchedFromSearch.id)
+          .reduce((sum, item) => sum + item.quantity, 0),
+      );
+      if (roundQuantity(currentTotalQty + quantity) > matchedFromSearch.stock) {
+        Toast.error(`Estoque insuficiente para ${matchedFromSearch.name}.`);
+        return current;
+      }
+
+      const existing = current.find(
+        (item) => item.id === matchedFromSearch.id && item.itemTotalOverride === undefined,
+      );
       if (!existing) {
         return [
           ...current,
@@ -388,13 +452,9 @@ export default function SalesStartPage({
           },
         ];
       }
-      const nextQuantity = existing.quantity + quantity;
-      if (nextQuantity > matchedFromSearch.stock) {
-        Toast.error(`Estoque insuficiente para ${matchedFromSearch.name}.`);
-        return current;
-      }
+      const nextQuantity = roundQuantity(existing.quantity + quantity);
       return current.map((item) =>
-        item.id === matchedFromSearch.id ? { ...item, quantity: nextQuantity } : item,
+        item === existing ? { ...item, quantity: nextQuantity } : item,
       );
     });
 
@@ -403,10 +463,10 @@ export default function SalesStartPage({
     setShowProductOptions(false);
     setQuantityInput("1");
     productInputRef.current?.focus();
-  }, [filteredProducts, productSearch, quantity, selectedProduct]);
+  }, [cart, filteredProducts, productSearch, products, quantity, selectedProduct]);
 
-  const removeItem = (id: string) => {
-    setCart((current) => current.filter((item) => item.id !== id));
+  const removeItem = (lineKey: string) => {
+    setCart((current) => current.filter((item) => (item.lineId ?? item.id) !== lineKey));
   };
 
   const saveLastReceipt = (receipt: SaleReceipt) => {
@@ -549,6 +609,9 @@ export default function SalesStartPage({
           productCode: item.code,
           productName: item.name,
           quantity: item.quantity,
+          ...(item.itemTotalOverride !== undefined
+            ? { itemTotalOverride: item.itemTotalOverride }
+            : {}),
         })),
       });
       const receipt: SaleReceipt = {
@@ -577,7 +640,7 @@ export default function SalesStartPage({
         change: paymentType === "dinheiro" ? changeValue : 0,
         items: cart.map((item) => ({
           ...item,
-          total: item.quantity * item.unitPrice,
+          total: item.itemTotalOverride ?? Math.round(item.quantity * item.unitPrice * 100) / 100,
         })),
       };
 
@@ -745,6 +808,12 @@ export default function SalesStartPage({
                   }}
                   onBlur={() => window.setTimeout(() => setShowProductOptions(false), 120)}
                   onKeyDown={(event) => {
+                    if (event.key === "Enter" && parseScaleBarcode(productSearch.trim(), products)) {
+                      event.preventDefault();
+                      addItem();
+                      return;
+                    }
+
                     if (!showProductOptions) return;
 
                     if (event.key === "ArrowDown") {
@@ -810,14 +879,19 @@ export default function SalesStartPage({
               <input
                 ref={qtyInputRef}
                 value={quantityInput}
-                inputMode="numeric"
-                pattern="[0-9]*"
+                inputMode="decimal"
                 onFocus={(event) => event.target.select()}
                 onChange={(event) =>
-                  setQuantityInput(sanitizeIntegerInput(event.target.value).slice(0, 4))
+                  setQuantityInput(sanitizeDecimalInput(event.target.value, 3).slice(0, 10))
                 }
                 onBlur={() => {
-                  if (!quantityInput || Number(quantityInput) < 1) setQuantityInput("1");
+                  const cleaned = quantityInput.replace(/\.$/, "");
+                  const parsed = Number(cleaned.replace(",", "."));
+                  if (!cleaned || !Number.isFinite(parsed) || parsed <= 0) {
+                    setQuantityInput("1");
+                  } else if (cleaned !== quantityInput) {
+                    setQuantityInput(cleaned);
+                  }
                 }}
                 className="input-field h-10 w-full text-lg font-semibold"
               />
@@ -850,7 +924,12 @@ export default function SalesStartPage({
             </button>
 
             <div className="mt-2 border-t border-border-primary pt-2 text-sm">
-              <p className="font-semibold">Total volumes: {String(totalVolumes).padStart(4, "0")}</p>
+              <p className="font-semibold">
+                Total volumes:{" "}
+                {Number.isInteger(totalVolumes)
+                  ? String(totalVolumes).padStart(4, "0")
+                  : formatQuantityPtBr(totalVolumes)}
+              </p>
             </div>
 
             <div className="mt-3 hidden rounded-xl border border-border-primary bg-bg-light p-3 sm:block">
@@ -910,10 +989,13 @@ export default function SalesStartPage({
                   <>
                     <div className="space-y-2 p-2 md:hidden">
                       {cart.map((item, index) => {
-                        const total = item.quantity * item.unitPrice;
+                        const lineKey = item.lineId ?? item.id;
+                        const total =
+                          item.itemTotalOverride ??
+                          Math.round(item.quantity * item.unitPrice * 100) / 100;
                         return (
                           <article
-                            key={item.id}
+                            key={lineKey}
                             className="rounded-xl border border-border-primary bg-bg-light p-2.5"
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -927,7 +1009,7 @@ export default function SalesStartPage({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => removeItem(item.id)}
+                                onClick={() => removeItem(lineKey)}
                                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-white"
                                 aria-label={`Remover ${item.name}`}
                               >
@@ -937,7 +1019,9 @@ export default function SalesStartPage({
                             <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                               <div>
                                 <p className="text-text-secondary">Qtd</p>
-                                <p className="font-semibold text-text-primary">{item.quantity}</p>
+                                <p className="font-semibold text-text-primary">
+                                  {formatQuantityPtBr(item.quantity)}
+                                </p>
                               </div>
                               <div>
                                 <p className="text-text-secondary">Vl. Unit</p>
@@ -971,19 +1055,24 @@ export default function SalesStartPage({
                       </thead>
                       <tbody>
                         {cart.map((item, index) => {
-                          const total = item.quantity * item.unitPrice;
+                          const lineKey = item.lineId ?? item.id;
+                          const total =
+                            item.itemTotalOverride ??
+                            Math.round(item.quantity * item.unitPrice * 100) / 100;
                           return (
-                            <tr key={item.id} className="border-b border-border-primary">
+                            <tr key={lineKey} className="border-b border-border-primary">
                               <td className="w-12 px-2 py-1 text-center">{index + 1}</td>
                               <td className="w-28 px-2 py-1">{item.code}</td>
                               <td className="px-2 py-1">{item.name}</td>
-                              <td className="w-16 px-2 py-1 text-center">{item.quantity}</td>
+                              <td className="w-16 px-2 py-1 text-center">
+                                {formatQuantityPtBr(item.quantity)}
+                              </td>
                               <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(item.unitPrice)}</td>
                               <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(total)}</td>
                               <td className="w-12 px-1 py-1 text-center">
                                 <button
                                   type="button"
-                                  onClick={() => removeItem(item.id)}
+                                  onClick={() => removeItem(lineKey)}
                                   className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-primary text-white"
                                   aria-label={`Remover ${item.name}`}
                                   title="Remover item"

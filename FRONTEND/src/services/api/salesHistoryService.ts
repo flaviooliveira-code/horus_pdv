@@ -35,6 +35,7 @@ export type RegisterSalePayload = {
     productCode: string;
     productName: string;
     quantity: number;
+    itemTotalOverride?: number;
   }>;
 };
 

@@ -14,4 +14,5 @@ public interface IProdutoService
     Task<ProdutoModel> CriarAsync(string companyId, ProdutoRequest request);
     Task<ProdutoModel?> AtualizarAsync(string companyId, string id, ProdutoRequest request);
     Task<bool> ExcluirAsync(string companyId, string id);
+    Task<ScaleBarcodeDecodeResponse?> DecodificarBalancaAsync(string companyId, string barcode, string? mode = null);
 }

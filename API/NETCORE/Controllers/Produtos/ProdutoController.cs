@@ -98,6 +98,43 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
         return Ok(new ApiResponse<object> { Success = true, Message = "Produto removido com sucesso." });
     }
 
+    [HttpGet("decodificar-balanca/{barcode}")]
+    [ProducesResponseType(typeof(ApiResponse<ScaleBarcodeDecodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ScaleBarcodeDecodeResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ScaleBarcodeDecodeResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DecodificarBalanca(string barcode, [FromQuery] string? mode = "price")
+    {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<ScaleBarcodeDecodeResponse> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        try
+        {
+            var decoded = await produtoService.DecodificarBalancaAsync(currentUser.CompanyId, barcode, mode);
+            if (decoded is null)
+            {
+                return NotFound(new ApiResponse<ScaleBarcodeDecodeResponse>
+                {
+                    Success = false,
+                    Message = "Produto correspondente à etiqueta de balança não encontrado."
+                });
+            }
+
+            return Ok(new ApiResponse<ScaleBarcodeDecodeResponse>
+            {
+                Success = true,
+                Message = "Etiqueta de balança decodificada com sucesso.",
+                Data = decoded
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<ScaleBarcodeDecodeResponse> { Success = false, Message = ex.Message });
+        }
+    }
+
     private AuthenticatedUser? GetCurrentUser()
         => HttpContext.Items["CurrentUser"] as AuthenticatedUser;
 }

@@ -17,4 +17,5 @@ public class ProdutoRequest
     public string ProductUnitPrice { get; set; } = string.Empty;
     public string ProductSalePrice { get; set; } = string.Empty;
     public string TotalPriceOnProduct { get; set; } = string.Empty;
+    public string UnitType { get; set; } = "UN";
 }

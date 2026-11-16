@@ -19,6 +19,7 @@ import { productService } from "@/services/api/productService";
 import { supplierService, type SupplierPayload } from "@/services/api/supplierService";
 import { lookupAddressByCep } from "@/utils/cepLookup";
 import { onlyDigits } from "@/utils/inputMasks";
+import { formatQuantityPtBr } from "@/utils/scaleBarcode";
 import { isValidCnpj, isValidEmail } from "@/utils/validators";
 
 type Product = {
@@ -33,6 +34,7 @@ type Product = {
   productUnitPrice: string;
   productSalePrice: string;
   totalPriceOnProduct: string;
+  unitType: "UN" | "KG";
 };
 
 type ProductFormData = Omit<Product, "id">;
@@ -50,6 +52,7 @@ const EMPTY_FORM: ProductFormData = {
   productUnitPrice: "",
   productSalePrice: "",
   totalPriceOnProduct: "",
+  unitType: "UN",
 };
 
 const EMPTY_SUPPLIER_DRAFT: QuickSupplierDraft = {
@@ -102,7 +105,7 @@ function ProductFormDrawer({
     maskMoneyBr,
     parseMoneyBr,
     formatMoneyBr,
-    sanitizeIntegerInput,
+    sanitizeDecimalInput,
   } = useInputMasks();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -117,9 +120,10 @@ function ProductFormDrawer({
     fieldValue: ProductFormData[K],
   ) => {
     const next = { ...value, [key]: fieldValue };
-    const quantity = Number(next.productQnt || 0);
+    const quantity = Number(String(next.productQnt || "0").replace(",", "."));
     const unitPrice = parseMoneyBr(next.productUnitPrice);
-    next.totalPriceOnProduct = quantity > 0 ? formatMoneyBr(quantity * unitPrice) : "";
+    next.totalPriceOnProduct =
+      Number.isFinite(quantity) && quantity > 0 ? formatMoneyBr(quantity * unitPrice) : "";
     onChange(next);
   };
 
@@ -396,9 +400,9 @@ function ProductFormDrawer({
                 </span>
                 <input
                   value={value.productQnt}
-                  inputMode="numeric"
+                  inputMode="decimal"
                   onChange={(event) =>
-                    setField("productQnt", sanitizeIntegerInput(event.target.value).slice(0, 8))
+                    setField("productQnt", sanitizeDecimalInput(event.target.value, 3).slice(0, 12))
                   }
                   className="input-field w-full"
                   placeholder="Quantidade"
@@ -444,6 +448,21 @@ function ProductFormDrawer({
                   placeholder="0,00"
                   disabled
                 />
+              </label>
+              <label className="block md:col-span-2">
+                <span className="mb-1.5 block text-sm text-text-secondary">
+                  Unidade de Medida
+                </span>
+                <select
+                  value={value.unitType}
+                  onChange={(event) =>
+                    setField("unitType", event.target.value === "KG" ? "KG" : "UN")
+                  }
+                  className="input-field w-full"
+                >
+                  <option value="UN">UN - Unidade</option>
+                  <option value="KG">KG - Quilograma (Balança)</option>
+                </select>
               </label>
             </div>
           </section>
@@ -591,7 +610,14 @@ export default function ProductRegisterPage() {
   useEffect(() => {
     productService
       .list()
-      .then(setProducts)
+      .then((items) =>
+        setProducts(
+          items.map((item) => ({
+            ...item,
+            unitType: item.unitType === "KG" ? "KG" : "UN",
+          })),
+        ),
+      )
       .catch(() => {
         Toast.error("Não foi possível carregar produtos da API.");
       });
@@ -661,7 +687,7 @@ export default function ProductRegisterPage() {
 
   const openEditDrawer = (product: Product) => {
     setEditingId(product.id);
-    setForm({ ...product });
+    setForm({ ...product, unitType: product.unitType === "KG" ? "KG" : "UN" });
     setDrawerOpen(true);
   };
 
@@ -794,7 +820,8 @@ export default function ProductRegisterPage() {
       return false;
     }
 
-    if (Number(form.productQnt) < 1) {
+    const qnt = Number(String(form.productQnt).replace(",", "."));
+    if (!Number.isFinite(qnt) || qnt <= 0) {
       Toast.error("A quantidade do produto deve ser maior que 0.");
       return false;
     }
@@ -815,14 +842,22 @@ export default function ProductRegisterPage() {
       if (editingId) {
         const updated = await productService.update(editingId, form);
         if (!updated) return;
+        const normalizedUpdated: Product = {
+          ...updated,
+          unitType: updated.unitType === "KG" ? "KG" : "UN",
+        };
         setProducts((current) =>
-          current.map((product) => (product.id === editingId ? updated : product)),
+          current.map((product) => (product.id === editingId ? normalizedUpdated : product)),
         );
         Toast.success("Produto atualizado com sucesso.");
       } else {
         const created = await productService.create(form);
         if (!created) return;
-        setProducts((current) => [created, ...current]);
+        const normalizedCreated: Product = {
+          ...created,
+          unitType: created.unitType === "KG" ? "KG" : "UN",
+        };
+        setProducts((current) => [normalizedCreated, ...current]);
         Toast.success("Produto cadastrado com sucesso.");
       }
     } catch (error) {
@@ -939,7 +974,9 @@ export default function ProductRegisterPage() {
                   <td className="px-4 py-3">{product.productName}</td>
                   <td className="px-4 py-3">{product.productCode}</td>
                   <td className="px-4 py-3">{product.productSupplier}</td>
-                  <td className="px-4 py-3">{product.productQnt}</td>
+                  <td className="px-4 py-3">
+                    {formatQuantityPtBr(Number(String(product.productQnt).replace(",", ".")))} {product.unitType}
+                  </td>
                   <td className="px-4 py-3">{product.productSalePrice}</td>
                   <td className="px-4 py-3">
                     <RowActionsMenu
