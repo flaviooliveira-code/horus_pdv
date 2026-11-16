@@ -20,6 +20,7 @@ import CashMovementModal from "@/components/Admin/CashRegisterPage/CashMovementM
 import DailyBalanceSection from "@/components/Admin/CashRegisterPage/DailyBalanceSection";
 import SessionSummaryModal from "@/components/Admin/CashRegisterPage/SessionSummaryModal";
 import PageHeader from "@/components/Admin/PageHeader";
+import { YesNoSegmentedControl } from "@/components/Form";
 import LoadingBar from "@/components/Loading/LoadingBar";
 import LoadingButton from "@/components/Loading/LoadingButton";
 import TablePagination from "@/components/Pagination/TablePagination";
@@ -548,15 +549,21 @@ export default function CashRegisterPage() {
               </div>
 
               {isSupervisor ? (
-                <label className="inline-flex items-center gap-2 text-sm text-text-secondary">
-                  <input
-                    type="checkbox"
-                    checked={blindClosing}
-                    onChange={(event) => setBlindClosing(event.target.checked)}
-                    className="h-4 w-4 rounded border-border-secondary"
+                <div className="flex flex-col gap-2 rounded-xl border border-border-primary bg-bg-primary p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      Registrar como fechamento cego auditável
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      Registra a conferência de caixa sem exibir divergência prévia ao operador.
+                    </p>
+                  </div>
+                  <YesNoSegmentedControl
+                    value={blindClosing}
+                    onChange={setBlindClosing}
+                    ariaLabel="Registrar como fechamento cego auditável"
                   />
-                  Registrar como fechamento cego auditável
-                </label>
+                </div>
               ) : null}
 
               <label className="block">
