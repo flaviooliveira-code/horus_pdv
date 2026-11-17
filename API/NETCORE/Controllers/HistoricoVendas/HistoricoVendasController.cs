@@ -43,8 +43,12 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
 
         try
         {
-            caixaService.EnsureVendaPermitida(currentUser.CompanyId);
-            var result = await historicoVendasAB.RegistrarAsync(currentUser.CompanyId, request);
+            await caixaService.EnsureVendaPermitidaAsync(currentUser.CompanyId);
+            var result = await historicoVendasAB.RegistrarAsync(
+                currentUser.CompanyId,
+                request,
+                currentUser.Id,
+                currentUser.Name);
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
                 Success = true,
