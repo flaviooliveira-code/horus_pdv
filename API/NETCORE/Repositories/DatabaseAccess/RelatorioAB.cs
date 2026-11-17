@@ -25,6 +25,8 @@ public class RelatorioAB(Connection connection)
             "compras-fornecedor" => await GerarComprasFornecedorAsync(companyId),
             "movimento-estoque" => await GerarMovimentoEstoqueAsync(companyId),
             "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters),
+            "lucro-real" => await GerarLucroRealAsync(companyId, filters),
+            "dre-simplificado" => await GerarDreSimplificadoAsync(companyId, filters),
             _ => throw new InvalidOperationException("Relatório não encontrado.")
         };
 
@@ -206,24 +208,237 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
+    private async Task<object> GerarLucroRealAsync(string companyId, Dictionary<string, JsonElement> filters)
+    {
+        var sales = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: true);
+        var viewMode = GetString(filters, "viewMode", "period");
+        var groupBy = GetString(filters, "groupBy", "daily");
+
+        var items = sales
+            .Where(s => !string.IsNullOrWhiteSpace(s.ProductCode) && s.Quantity > 0)
+            .Select(s => new LucroItemInput(
+                s.SaleNumber,
+                s.SaleDate,
+                s.ProductCode,
+                s.ProductName,
+                s.Quantity,
+                s.UnitPrice,
+                s.UnitCostPrice,
+                s.ItemTotal))
+            .ToList();
+
+        var result = CalcularLucroReal(items, viewMode, groupBy);
+        return Result(result.Columns, result.Rows);
+    }
+
+    private async Task<object> GerarDreSimplificadoAsync(string companyId, Dictionary<string, JsonElement> filters)
+    {
+        var startDate = GetDate(filters, "startDate") ?? DateTimeOffset.Now.AddDays(-30).Date;
+        var endDate = (GetDate(filters, "endDate") ?? DateTimeOffset.Now.Date).AddDays(1);
+        var regime = GetString(filters, "regime", "competencia");
+
+        var sales = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: true)
+            .Where(s => !string.IsNullOrWhiteSpace(s.ProductCode) && s.Quantity > 0)
+            .Select(s => new LucroItemInput(
+                s.SaleNumber,
+                s.SaleDate,
+                s.ProductCode,
+                s.ProductName,
+                s.Quantity,
+                s.UnitPrice,
+                s.UnitCostPrice,
+                s.ItemTotal))
+            .ToList();
+
+        var expenses = await ListarDespesasAsync(companyId);
+        var dre = CalcularDreSimplificado(sales, expenses, startDate.DateTime, endDate.DateTime, regime);
+        return Result(dre.Columns, dre.Rows);
+    }
+
+    public static (object[] Columns, List<Dictionary<string, object>> Rows) CalcularLucroReal(
+        IEnumerable<LucroItemInput> items,
+        string viewMode = "period",
+        string groupBy = "daily")
+    {
+        var list = items?.ToList() ?? [];
+        if (string.Equals(viewMode, "product", StringComparison.OrdinalIgnoreCase))
+        {
+            var productRows = list
+                .GroupBy(i => new { Code = i.ProductCode.Trim(), Name = i.ProductName.Trim() })
+                .Select(g =>
+                {
+                    var qty = g.Sum(x => x.Quantity);
+                    var revenue = g.Sum(x => x.ItemTotal > 0m ? x.ItemTotal : x.UnitPrice * x.Quantity);
+                    var cmv = g.Sum(x => x.UnitCostPrice * x.Quantity);
+                    var grossProfit = revenue - cmv;
+                    var margin = revenue > 0m
+                        ? Math.Round(grossProfit / revenue * 100m, 2, MidpointRounding.AwayFromZero)
+                        : 0m;
+                    return (
+                        GrossProfitDecimal: grossProfit,
+                        RowData: Row(
+                            ("codigo", g.Key.Code),
+                            ("produto", g.Key.Name),
+                            ("quantidade", qty),
+                            ("receitaBruta", FormatMoney(revenue)),
+                            ("cmv", FormatMoney(cmv)),
+                            ("lucroBruto", FormatMoney(grossProfit)),
+                            ("margemBruta", $"{margin.ToString("N2", PtBr)}%"))
+                    );
+                })
+                .OrderByDescending(x => x.GrossProfitDecimal)
+                .Select(x => x.RowData)
+                .ToList();
+
+            return (
+                Columns(
+                    ("codigo", "Código"),
+                    ("produto", "Produto"),
+                    ("quantidade", "Qtd. vendida"),
+                    ("receitaBruta", "Receita bruta"),
+                    ("cmv", "CMV (Custo)"),
+                    ("lucroBruto", "Lucro bruto"),
+                    ("margemBruta", "Margem bruta")),
+                productRows);
+        }
+
+        var periodRows = list
+            .GroupBy(i => BuildPeriodKey(i.SaleDate, groupBy))
+            .OrderBy(g => g.Key.Sort)
+            .Select(g =>
+            {
+                var salesCount = g.Select(x => x.SaleNumber).Distinct().Count();
+                var revenue = g.Sum(x => x.ItemTotal > 0m ? x.ItemTotal : x.UnitPrice * x.Quantity);
+                var cmv = g.Sum(x => x.UnitCostPrice * x.Quantity);
+                var grossProfit = revenue - cmv;
+                var margin = revenue > 0m
+                    ? Math.Round(grossProfit / revenue * 100m, 2, MidpointRounding.AwayFromZero)
+                    : 0m;
+                return Row(
+                    ("periodo", g.Key.Label),
+                    ("vendas", salesCount),
+                    ("receitaBruta", FormatMoney(revenue)),
+                    ("cmv", FormatMoney(cmv)),
+                    ("lucroBruto", FormatMoney(grossProfit)),
+                    ("margemBruta", $"{margin.ToString("N2", PtBr)}%"));
+            })
+            .ToList();
+
+        return (
+            Columns(
+                ("periodo", "Período"),
+                ("vendas", "Vendas"),
+                ("receitaBruta", "Receita bruta"),
+                ("cmv", "CMV (Custo)"),
+                ("lucroBruto", "Lucro bruto"),
+                ("margemBruta", "Margem bruta")),
+            periodRows);
+    }
+
+    public static (object[] Columns, List<Dictionary<string, object>> Rows) CalcularDreSimplificado(
+        IEnumerable<LucroItemInput> sales,
+        IEnumerable<DespesaDreInput> expenses,
+        DateTime startDate,
+        DateTime endDateExclusive,
+        string regime = "competencia")
+    {
+        var salesList = sales?.ToList() ?? [];
+        var expensesList = expenses?.ToList() ?? [];
+        var isCaixa = string.Equals(regime, "caixa", StringComparison.OrdinalIgnoreCase);
+
+        var filteredExpenses = expensesList
+            .Where(e =>
+            {
+                if (isCaixa)
+                {
+                    return string.Equals(e.Status, "Pago", StringComparison.OrdinalIgnoreCase)
+                           && e.PaidDate.HasValue
+                           && e.PaidDate.Value.Date >= startDate.Date
+                           && e.PaidDate.Value.Date < endDateExclusive.Date;
+                }
+
+                return e.CompetenceDate.Date >= startDate.Date && e.CompetenceDate.Date < endDateExclusive.Date;
+            })
+            .ToList();
+
+        var grossRevenue = salesList.Sum(s => s.ItemTotal > 0m ? s.ItemTotal : s.UnitPrice * s.Quantity);
+        var cmv = salesList.Sum(s => s.UnitCostPrice * s.Quantity);
+        var grossProfit = grossRevenue - cmv;
+        var totalExpenses = filteredExpenses.Sum(e => e.Amount);
+        var netProfit = grossProfit - totalExpenses;
+
+        string Pct(decimal value) => grossRevenue > 0m
+            ? $"{Math.Round(value / grossRevenue * 100m, 2, MidpointRounding.AwayFromZero).ToString("N2", PtBr)}%"
+            : "0,00%";
+
+        var rows = new List<Dictionary<string, object>>
+        {
+            Row(("conta", "1. Receita Bruta de Vendas"), ("categoria", "Receita Operacional"), ("valor", FormatMoney(grossRevenue)), ("av", grossRevenue > 0m ? "100,00%" : "0,00%"), ("situacao", "Faturamento")),
+            Row(("conta", "2. (-) CMV — Custo das Mercadorias Vendidas"), ("categoria", "Custos Diretos"), ("valor", FormatMoney(cmv)), ("av", Pct(cmv)), ("situacao", "Custo")),
+            Row(("conta", "3. (=) Resultado Operacional Bruto (Lucro Bruto)"), ("categoria", "Margem Bruta"), ("valor", FormatMoney(grossProfit)), ("av", Pct(grossProfit)), ("situacao", grossProfit >= 0m ? "Superávit Bruto" : "Déficit Bruto")),
+            Row(("conta", $"4. (-) Despesas Operacionais ({(isCaixa ? "Regime de Caixa" : "Regime de Competência")})"), ("categoria", "Despesas Gerais"), ("valor", FormatMoney(totalExpenses)), ("av", Pct(totalExpenses)), ("situacao", $"{filteredExpenses.Count} lançamento(s)"))
+        };
+
+        foreach (var group in filteredExpenses.GroupBy(e => string.IsNullOrWhiteSpace(e.Category) ? "Operacional" : e.Category).OrderByDescending(g => g.Sum(x => x.Amount)))
+        {
+            var catSum = group.Sum(x => x.Amount);
+            rows.Add(Row(
+                ("conta", $"   • {group.Key}"),
+                ("categoria", "Detalhamento de Despesa"),
+                ("valor", FormatMoney(catSum)),
+                ("av", Pct(catSum)),
+                ("situacao", $"{group.Count()} item(ns)")));
+        }
+
+        rows.Add(Row(
+            ("conta", "5. (=) Resultado Líquido do Período (Lucro / Prejuízo Líquido)"),
+            ("categoria", "Resultado Final"),
+            ("valor", FormatMoney(netProfit)),
+            ("av", Pct(netProfit)),
+            ("situacao", netProfit > 0m ? "LUCRO LÍQUIDO" : netProfit < 0m ? "PREJUÍZO" : "EQUILÍBRIO")));
+
+        return (
+            Columns(
+                ("conta", "Conta / Indicador DRE"),
+                ("categoria", "Natureza"),
+                ("valor", "Valor (R$)"),
+                ("av", "Análise Vertical (%)"),
+                ("situacao", "Status")),
+            rows);
+    }
+
     private async Task<List<ReportSaleRow>> ListarVendasAsync(string companyId)
     {
+        const string ensureSql = """
+            IF COL_LENGTH(N'VendaItens', N'UnitCostPrice') IS NULL
+                ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
+            """;
+
         const string sql = """
             SELECT v.SaleNumber, v.CustomerName, v.CustomerCpf, v.PaymentType, v.TotalAmount, v.SaleDate,
-                   i.ProductCode, i.ProductName, i.Quantity, i.UnitPrice, i.ItemTotal
+                   i.ProductCode, i.ProductName, i.Quantity, i.UnitPrice,
+                   COALESCE(NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), ''), p.ProductUnitPrice, N'0,00') AS EffectiveUnitCostPrice,
+                   i.ItemTotal
             FROM Vendas v
             LEFT JOIN VendaItens i ON i.VendaId = v.Id
+            LEFT JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
             WHERE v.CompanyId = @CompanyId
             ORDER BY v.SaleDate DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
+        await using (var ensureCmd = new SqlCommand(ensureSql, db))
+        {
+            await ensureCmd.ExecuteNonQueryAsync();
+        }
+
         await using var command = new SqlCommand(sql, db);
         command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ReportSaleRow>();
         while (await reader.ReadAsync())
         {
+            var unitCost = ParseMoney(ReadString(reader, "EffectiveUnitCostPrice"));
             rows.Add(new ReportSaleRow(
                 ReadString(reader, "SaleNumber"),
                 ReadString(reader, "CustomerName"),
@@ -235,7 +450,37 @@ public class RelatorioAB(Connection connection)
                 ReadString(reader, "ProductName"),
                 ReadInt(reader, "Quantity"),
                 ParseMoney(ReadString(reader, "UnitPrice")),
+                unitCost,
                 ParseMoney(ReadString(reader, "ItemTotal"))));
+        }
+
+        return rows;
+    }
+
+    private async Task<List<DespesaDreInput>> ListarDespesasAsync(string companyId)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await Controllers.Despesas.DespesasController.EnsureSchemaAsync(db);
+
+        await using var command = new SqlCommand(
+            """
+            SELECT Category, Amount, CompetenceDate, DueDate, PaidDate, Status
+            FROM DespesasOperacionais
+            WHERE CompanyId = @CompanyId;
+            """,
+            db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
+        await using var reader = await command.ExecuteReaderAsync();
+        var rows = new List<DespesaDreInput>();
+        while (await reader.ReadAsync())
+        {
+            rows.Add(new DespesaDreInput(
+                ReadString(reader, "Category"),
+                ParseMoney(ReadString(reader, "Amount")),
+                reader.GetDateTime(reader.GetOrdinal("CompetenceDate")),
+                reader.GetDateTime(reader.GetOrdinal("DueDate")),
+                reader.IsDBNull(reader.GetOrdinal("PaidDate")) ? null : reader.GetDateTime(reader.GetOrdinal("PaidDate")),
+                ReadString(reader, "Status")));
         }
 
         return rows;
@@ -539,6 +784,7 @@ public class RelatorioAB(Connection connection)
         string ProductName,
         int Quantity,
         decimal UnitPrice,
+        decimal UnitCostPrice,
         decimal ItemTotal);
 
     private sealed record ReportProductRow(
@@ -579,4 +825,22 @@ public class RelatorioAB(Connection connection)
         decimal SalesCreditTotal,
         decimal TotalSuprimentos,
         decimal TotalSangrias);
+
+    public sealed record LucroItemInput(
+        string SaleNumber,
+        DateTimeOffset SaleDate,
+        string ProductCode,
+        string ProductName,
+        int Quantity,
+        decimal UnitPrice,
+        decimal UnitCostPrice,
+        decimal ItemTotal);
+
+    public sealed record DespesaDreInput(
+        string Category,
+        decimal Amount,
+        DateTime CompetenceDate,
+        DateTime DueDate,
+        DateTime? PaidDate,
+        string Status);
 }

@@ -7,8 +7,10 @@
 import {
   BarChart3,
   Boxes,
+  Calculator,
   FileChartColumnIncreasing,
   HandCoins,
+  Landmark,
   PackageSearch,
   ShoppingCart,
   TrendingUp,
@@ -49,6 +51,16 @@ const groupByOptions: ReportFilterOption[] = [
   { label: "Mensal", value: "monthly" },
 ];
 
+const profitViewModeOptions: ReportFilterOption[] = [
+  { label: "Por Período", value: "period" },
+  { label: "Por Produto", value: "product" },
+];
+
+const dreRegimeOptions: ReportFilterOption[] = [
+  { label: "Regime de Competência", value: "competencia" },
+  { label: "Regime de Caixa (Pagas)", value: "caixa" },
+];
+
 const paymentMethodOptions: ReportFilterOption[] = [
   { label: "Todos", value: "all" },
   { label: "Dinheiro", value: "cash" },
@@ -66,6 +78,39 @@ const categoryOptions: ReportFilterOption[] = [
 ];
 
 export const reportCatalog: ReportDefinition[] = [
+  {
+    id: "lucro-real",
+    title: "Lucro Bruto e CMV",
+    description: "Apura receita bruta, custo das mercadorias vendidas (CMV), lucro bruto e margem real por período ou produto.",
+    icon: Calculator,
+    filters: [
+      ...periodFilters,
+      { id: "viewMode", label: "Visão de análise", type: "select", options: profitViewModeOptions },
+      { id: "groupBy", label: "Agrupar período por", type: "select", options: groupByOptions },
+      {
+        id: "paymentMethod",
+        label: "Forma de pagamento",
+        type: "multiselect",
+        options: paymentMethodOptions,
+      },
+    ],
+  },
+  {
+    id: "dre-simplificado",
+    title: "DRE Simplificado (Lucro Líquido)",
+    description: "Demonstração do resultado do exercício com Receita Bruta, CMV, Lucro Bruto, Despesas Operacionais e Lucro Líquido.",
+    icon: Landmark,
+    filters: [
+      ...periodFilters,
+      { id: "regime", label: "Regime contábil", type: "select", options: dreRegimeOptions },
+      {
+        id: "paymentMethod",
+        label: "Forma de pagamento (Vendas)",
+        type: "multiselect",
+        options: paymentMethodOptions,
+      },
+    ],
+  },
   {
     id: "vendas-periodo",
     title: "Vendas por Período",
@@ -158,3 +203,4 @@ export const reportCatalog: ReportDefinition[] = [
     ],
   },
 ];
+

@@ -4,9 +4,10 @@
  * Entradas esperadas: não recebe props; opera com estado local de lista e formulário de produto.
  */
 
-import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { FileSpreadsheet, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { type ClipboardEvent, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
+import ProductImportDrawer from "@/components/Admin/ProductRegisterPage/ProductImportDrawer";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import { SearchableSelectField } from "@/components/Form";
 import LoadingButton from "@/components/Loading/LoadingButton";
@@ -582,11 +583,21 @@ export default function ProductRegisterPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [deletingProductIds, setDeletingProductIds] = useState<Set<string>>(() => new Set());
   const [form, setForm] = useState<ProductFormData>(EMPTY_FORM);
+
+  const loadProducts = async () => {
+    try {
+      const items = await productService.list();
+      setProducts(items);
+    } catch {
+      Toast.error("Não foi possível carregar produtos da API.");
+    }
+  };
 
   useEffect(() => {
     productService
@@ -843,10 +854,24 @@ export default function ProductRegisterPage() {
         title="Cadastro de Produto"
         description="Cadastro e manutenção de produtos com os campos do sistema legado."
         action={
-          <button type="button" onClick={openCreateDrawer} className="btn-primary inline-flex items-center gap-2">
-            <Plus size={16} />
-            Novo produto
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setImportDrawerOpen(true)}
+              className="btn-outline-secondary inline-flex items-center gap-2"
+            >
+              <FileSpreadsheet size={16} />
+              Importar Planilha
+            </button>
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Novo produto
+            </button>
+          </div>
         }
       />
 
@@ -992,6 +1017,11 @@ export default function ProductRegisterPage() {
         onSave={handleSave}
         supplierOptions={supplierOptions}
         onCreateSupplier={handleCreateSupplier}
+      />
+      <ProductImportDrawer
+        open={importDrawerOpen}
+        onClose={() => setImportDrawerOpen(false)}
+        onImported={loadProducts}
       />
       {statusDialog.Dialog}
     </PageLayout>
