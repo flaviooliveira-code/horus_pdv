@@ -604,7 +604,9 @@ BEGIN
 
     IF @dfProductQnt IS NOT NULL
     BEGIN
-        EXEC(N'ALTER TABLE Produtos DROP CONSTRAINT ' + QUOTENAME(@dfProductQnt) + N';');
+        -- EXEC(...) só aceita literais e variáveis concatenados; a chamada a QUOTENAME vai para uma variável antes.
+        DECLARE @dropDfSql NVARCHAR(400) = N'ALTER TABLE Produtos DROP CONSTRAINT ' + QUOTENAME(@dfProductQnt) + N';';
+        EXEC(@dropDfSql);
     END;
 
     ALTER TABLE Produtos ALTER COLUMN ProductQnt DECIMAL(12,3) NOT NULL;
