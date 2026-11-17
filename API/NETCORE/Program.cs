@@ -45,6 +45,7 @@ builder.Services.AddScoped<EmpresaAB>();
 builder.Services.AddScoped<HistoricoVendasAB>();
 builder.Services.AddScoped<ModuloMercadoAB>();
 builder.Services.AddScoped<CaixaAB>();
+builder.Services.AddScoped<ICaixaRepository>(sp => sp.GetRequiredService<CaixaAB>());
 builder.Services.AddScoped<HomeAB>();
 builder.Services.AddScoped<RelatorioAB>();
 builder.Services.AddScoped<GatewayPagamentoAB>();
