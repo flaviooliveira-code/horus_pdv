@@ -303,7 +303,8 @@ GO
 UPDATE i
    SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
   FROM VendaItens i
-  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+  INNER JOIN Vendas v ON v.Id = i.VendaId
+  INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
  WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
     OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
@@ -491,6 +492,61 @@ BEGIN
          0, N'smtp-mail.outlook.com', 587, 1, N'', N'', N'naoresponderhoruspdv@outlook.com',
          N'Hórus PDV', N'');
 END;
+
+GO
+
+-- PR 3: Vínculo Vendas <-> CaixaSessoes, auditoria de fechamento cego e tabela CaixaMovimentacoes
+IF COL_LENGTH(N'Vendas', N'CaixaSessaoId') IS NULL
+BEGIN
+    ALTER TABLE Vendas ADD CaixaSessaoId NVARCHAR(40) NULL;
+    CREATE INDEX IX_Vendas_CaixaSessaoId ON Vendas (CaixaSessaoId);
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'ExpectedCashAmount') IS NULL
+    ALTER TABLE CaixaSessoes ADD ExpectedCashAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedCashAmount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'CountedCashAmount') IS NULL
+    ALTER TABLE CaixaSessoes ADD CountedCashAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_CountedCashAmount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'CashDifference') IS NULL
+    ALTER TABLE CaixaSessoes ADD CashDifference DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_CashDifference DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCashTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCashTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCashTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesPixTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesPixTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesPixTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesDebitTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesDebitTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesDebitTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCreditTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCreditTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCreditTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSuprimentos') IS NULL
+    ALTER TABLE CaixaSessoes ADD TotalSuprimentos DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSuprimentos DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSangrias') IS NULL
+    ALTER TABLE CaixaSessoes ADD TotalSangrias DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSangrias DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCount') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCount INT NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'BlindClosing') IS NULL
+    ALTER TABLE CaixaSessoes ADD BlindClosing BIT NOT NULL CONSTRAINT DF_CaixaSessoes_BlindClosing DEFAULT 1;
+
+GO
+
+IF OBJECT_ID(N'CaixaMovimentacoes', N'U') IS NULL
+BEGIN
+    CREATE TABLE CaixaMovimentacoes
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaMovimentacoes PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CompanyId DEFAULT N'empresa-principal',
+        CaixaSessaoId NVARCHAR(40) NOT NULL,
+        Tipo NVARCHAR(30) NOT NULL,
+        FormaPagamento NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_FormaPagamento DEFAULT N'dinheiro',
+        Valor DECIMAL(18,2) NOT NULL,
+        Descricao NVARCHAR(300) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Descricao DEFAULT N'',
+        SaleNumber NVARCHAR(30) NULL,
+        UsuarioId NVARCHAR(40) NOT NULL,
+        UsuarioName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_UsuarioName DEFAULT N'',
+        DataHora DATETIMEOFFSET NOT NULL CONSTRAINT DF_CaixaMovimentacoes_DataHora DEFAULT SYSDATETIMEOFFSET(),
+        CONSTRAINT FK_CaixaMovimentacoes_CaixaSessoes FOREIGN KEY (CaixaSessaoId) REFERENCES CaixaSessoes (Id) ON DELETE CASCADE
+    );
+    CREATE INDEX IX_CaixaMovimentacoes_Sessao ON CaixaMovimentacoes (CompanyId, CaixaSessaoId, DataHora);
+END;
+
 GO
 
 USE HorusPdv;
