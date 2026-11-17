@@ -36,8 +36,7 @@ import {
 } from "@/services/api/cashRegisterService";
 import { getStoredAuthUser } from "@/utils/authStorage";
 import { formatMoneyBr } from "@/utils/inputMasks";
-
-const SUPERVISORY_ROLES = new Set(["administrador", "gerente", "financeiro"]);
+import { SUPERVISORY_ROLES } from "@/utils/roles";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";

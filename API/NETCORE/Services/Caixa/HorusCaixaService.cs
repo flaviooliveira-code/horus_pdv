@@ -15,12 +15,6 @@ namespace HORUSPDV_API.Services.Caixa;
 public class HorusCaixaService(ICaixaRepository caixaRepository)
 {
     private static readonly TimeSpan MaxOpenPeriod = TimeSpan.FromHours(24);
-    private static readonly HashSet<string> SupervisoryRoles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "administrador",
-        "gerente",
-        "financeiro"
-    };
 
     public async Task<CaixaStatusDto> GetStatusAsync(
         string companyId,
@@ -456,8 +450,7 @@ public class HorusCaixaService(ICaixaRepository caixaRepository)
             : "O caixa aberto ultrapassou 24 horas. Feche o caixa atual e abra um novo.");
     }
 
-    private static bool IsSupervisor(string? userRole)
-        => !string.IsNullOrWhiteSpace(userRole) && SupervisoryRoles.Contains(userRole.Trim());
+    private static bool IsSupervisor(string? userRole) => HorusRoles.IsSupervisor(userRole);
 
     private static decimal ComputeCashReturns(IEnumerable<CaixaMovimentacaoAD> movements)
         => Math.Round(
