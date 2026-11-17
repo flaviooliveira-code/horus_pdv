@@ -297,7 +297,19 @@ END;
 IF COL_LENGTH(N'VendaItens', N'UnitPrice') IS NULL
     ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
 IF COL_LENGTH(N'VendaItens', N'UnitCostPrice') IS NULL
+BEGIN
     ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
+
+    -- Backfill único, só na criação da coluna: vendas antigas recebem o custo atual do produto da mesma empresa.
+    -- Depois disso o custo gravado na venda não é mais sobrescrito (snapshot). EXEC adia a compilação até a coluna existir.
+    EXEC(N'
+        UPDATE i
+           SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), N''''), N''0,00'')
+          FROM VendaItens i
+          INNER JOIN Vendas v ON v.Id = i.VendaId
+          INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode;
+    ');
+END;
 IF COL_LENGTH(N'VendaItens', N'ItemTotal') IS NULL
     ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
 
@@ -330,14 +342,6 @@ UPDATE i
   INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
  WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
     OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
-
-UPDATE i
-   SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
-  FROM VendaItens i
-  INNER JOIN Vendas v ON v.Id = i.VendaId
-  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode AND p.CompanyId = v.CompanyId
- WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
-    OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
 UPDATE i
    SET ItemTotal = FORMAT(
