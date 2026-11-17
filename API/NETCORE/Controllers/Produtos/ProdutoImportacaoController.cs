@@ -90,6 +90,8 @@ public class ProdutoImportacaoController(ProdutoAB produtoAB) : ControllerBase
                         Id = existingProduct.Id,
                         ProductImageUrl = existingProduct.ProductImageUrl,
                         ProductImageName = existingProduct.ProductImageName,
+                        // A planilha não traz unidade: preserva KG/UN do produto existente.
+                        UnitType = existingProduct.UnitType,
                         ProductCode = row.ProductCode,
                         ProductName = row.ProductName,
                         ProductSupplier = row.ProductSupplier,
