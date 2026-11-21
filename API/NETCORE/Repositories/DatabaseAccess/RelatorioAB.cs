@@ -3,6 +3,7 @@
  * Objetivo: gerar relatórios operacionais reais a partir das tabelas atuais do PDV.
  * Entradas esperadas: recebe identificador do relatório, filtros serializados e retorna colunas/linhas para o frontend.
  */
+using HORUSPDV_API.Services.Security;
 using Microsoft.Data.SqlClient;
 using System.Globalization;
 using System.Text;
@@ -14,8 +15,37 @@ public class RelatorioAB(Connection connection)
 {
     private static readonly CultureInfo PtBr = new("pt-BR");
 
-    public async Task<object> GerarAsync(string companyId, string reportId, Dictionary<string, JsonElement> filters)
-        => reportId switch
+    /// <summary>Relatórios contábeis (margem, CMV, despesas): só administrador, gerente ou financeiro.</summary>
+    private static readonly HashSet<string> SupervisorOnlyReports = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "lucro-real",
+        "dre-simplificado"
+    };
+
+    public const string RedactedValue = "-";
+
+    public static bool PodeGerar(string reportId, string? userRole)
+        => !SupervisorOnlyReports.Contains(reportId ?? string.Empty) || HorusRoles.IsSupervisor(userRole);
+
+    /// <summary>
+    /// Fechamento cego: enquanto o caixa está aberto, quem não é supervisor não pode ver o saldo esperado
+    /// nem a quebra/sobra projetada. Depois de fechado, os valores ficam visíveis para auditoria.
+    /// </summary>
+    public static bool DeveOcultarAuditoriaCaixa(bool sessaoAberta, string? userRole)
+        => sessaoAberta && !HorusRoles.IsSupervisor(userRole);
+
+    public async Task<object> GerarAsync(
+        string companyId,
+        string reportId,
+        Dictionary<string, JsonElement> filters,
+        string? userRole)
+    {
+        if (!PodeGerar(reportId, userRole))
+        {
+            throw new UnauthorizedAccessException("Relatório disponível apenas para administrador, gerente ou financeiro.");
+        }
+
+        return reportId switch
         {
             "vendas-periodo" => await GerarVendasPeriodoAsync(companyId, filters),
             "historico-vendas" => await GerarHistoricoVendasAsync(companyId, filters),
@@ -24,9 +54,12 @@ public class RelatorioAB(Connection connection)
             "estoque-critico" => await GerarEstoqueCriticoAsync(companyId, filters),
             "compras-fornecedor" => await GerarComprasFornecedorAsync(companyId),
             "movimento-estoque" => await GerarMovimentoEstoqueAsync(companyId),
-            "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters),
+            "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters, userRole),
+            "lucro-real" => await GerarLucroRealAsync(companyId, filters),
+            "dre-simplificado" => await GerarDreSimplificadoAsync(companyId, filters),
             _ => throw new InvalidOperationException("Relatório não encontrado.")
         };
+    }
 
     private async Task<object> GerarVendasPeriodoAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
@@ -80,7 +113,7 @@ public class RelatorioAB(Connection connection)
                 ("produto", group.Key.ProductName),
                 ("quantidade", group.Sum(item => item.Quantity)),
                 ("faturamento", FormatMoney(group.Sum(item => item.ItemTotal)))))
-            .OrderByDescending(row => Convert.ToInt32(row["quantidade"]))
+            .OrderByDescending(row => Convert.ToDecimal(row["quantidade"], CultureInfo.InvariantCulture))
             .ToList();
 
         return Result(
@@ -124,7 +157,7 @@ public class RelatorioAB(Connection connection)
                 ("estoque", item.Quantity),
                 ("valorVenda", FormatMoney(item.SalePrice)),
                 ("status", item.Quantity <= 0 ? "Sem estoque" : "Crítico")))
-            .OrderBy(row => Convert.ToInt32(row["estoque"]))
+            .OrderBy(row => Convert.ToDecimal(row["estoque"], CultureInfo.InvariantCulture))
             .ToList();
 
         return Result(
@@ -166,44 +199,286 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarDesempenhoCaixaAsync(string companyId, Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarDesempenhoCaixaAsync(
+        string companyId,
+        Dictionary<string, JsonElement> filters,
+        string? userRole)
     {
         var startDate = GetDate(filters, "startDate") ?? DateTimeOffset.Now.AddDays(-30).Date;
         var endDate = (GetDate(filters, "endDate") ?? DateTimeOffset.Now.Date).AddDays(1);
+        var paymentMethods = GetStringList(filters, "paymentMethod")
+            .Where(item => !string.Equals(item, "all", StringComparison.OrdinalIgnoreCase))
+            .Select(NormalizePaymentFilter)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var rows = (await ListarCaixasAsync(companyId))
             .Where(item => item.OpenedAt >= startDate && item.OpenedAt < endDate)
-            .Select(item => Row(
-                ("abertura", item.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")),
-                ("fechamento", item.ClosedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-"),
-                ("operador", item.OperatorName),
-                ("valorAbertura", FormatMoney(item.OpeningAmount)),
-                ("valorFechamento", FormatMoney(item.ClosingAmount)),
-                ("status", item.ClosedAt is null ? "Aberto" : "Fechado")))
+            // O filtro por forma de pagamento revelaria vendas da sessão aberta; para quem não pode ver, ela fica de fora.
+            .Where(item => paymentMethods.Count == 0
+                || (!DeveOcultarAuditoriaCaixa(item.ClosedAt is null, userRole) && MatchesCashPaymentFilter(item, paymentMethods)))
+            .Select(item =>
+            {
+                var ocultar = DeveOcultarAuditoriaCaixa(item.ClosedAt is null, userRole);
+                return Row(
+                    ("abertura", item.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")),
+                    ("fechamento", item.ClosedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-"),
+                    ("operador", item.OperatorName),
+                    ("valorAbertura", FormatMoney(item.OpeningAmount)),
+                    ("suprimentos", FormatMoney(item.TotalSuprimentos)),
+                    ("sangrias", FormatMoney(item.TotalSangrias)),
+                    ("saldoEsperado", ocultar ? RedactedValue : FormatMoney(item.ExpectedCashAmount)),
+                    ("valorFechamento", FormatMoney(item.ClosingAmount)),
+                    ("quebraCaixa", ocultar ? RedactedValue : FormatMoney(item.CashDifference)),
+                    ("status", item.ClosedAt is null ? "Aberto" : "Fechado"));
+            })
             .ToList();
 
         return Result(
-            Columns(("abertura", "Abertura"), ("fechamento", "Fechamento"), ("operador", "Operador"), ("valorAbertura", "Valor abertura"), ("valorFechamento", "Valor fechamento"), ("status", "Status")),
+            Columns(
+                ("abertura", "Abertura"),
+                ("fechamento", "Fechamento"),
+                ("operador", "Operador"),
+                ("valorAbertura", "Valor abertura"),
+                ("suprimentos", "Suprimentos"),
+                ("sangrias", "Sangrias"),
+                ("saldoEsperado", "Saldo esperado"),
+                ("valorFechamento", "Valor fechamento"),
+                ("quebraCaixa", "Quebra / Sobra"),
+                ("status", "Status")),
+            rows);
+    }
+
+    private async Task<object> GerarLucroRealAsync(string companyId, Dictionary<string, JsonElement> filters)
+    {
+        var sales = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: true);
+        var viewMode = GetString(filters, "viewMode", "period");
+        var groupBy = GetString(filters, "groupBy", "daily");
+
+        var items = sales
+            .Where(s => !string.IsNullOrWhiteSpace(s.ProductCode) && s.Quantity > 0)
+            .Select(s => new LucroItemInput(
+                s.SaleNumber,
+                s.SaleDate,
+                s.ProductCode,
+                s.ProductName,
+                s.Quantity,
+                s.UnitPrice,
+                s.UnitCostPrice,
+                s.ItemTotal))
+            .ToList();
+
+        var result = CalcularLucroReal(items, viewMode, groupBy);
+        return Result(result.Columns, result.Rows);
+    }
+
+    private async Task<object> GerarDreSimplificadoAsync(string companyId, Dictionary<string, JsonElement> filters)
+    {
+        var startDate = GetDate(filters, "startDate") ?? DateTimeOffset.Now.AddDays(-30).Date;
+        var endDate = (GetDate(filters, "endDate") ?? DateTimeOffset.Now.Date).AddDays(1);
+        var regime = GetString(filters, "regime", "competencia");
+
+        var sales = FilterSales(await ListarVendasAsync(companyId), filters, includeItems: true)
+            .Where(s => !string.IsNullOrWhiteSpace(s.ProductCode) && s.Quantity > 0)
+            .Select(s => new LucroItemInput(
+                s.SaleNumber,
+                s.SaleDate,
+                s.ProductCode,
+                s.ProductName,
+                s.Quantity,
+                s.UnitPrice,
+                s.UnitCostPrice,
+                s.ItemTotal))
+            .ToList();
+
+        var expenses = await ListarDespesasAsync(companyId);
+        var dre = CalcularDreSimplificado(sales, expenses, startDate.DateTime, endDate.DateTime, regime);
+        return Result(dre.Columns, dre.Rows);
+    }
+
+    public static (object[] Columns, List<Dictionary<string, object>> Rows) CalcularLucroReal(
+        IEnumerable<LucroItemInput> items,
+        string viewMode = "period",
+        string groupBy = "daily")
+    {
+        var list = items?.ToList() ?? [];
+        if (string.Equals(viewMode, "product", StringComparison.OrdinalIgnoreCase))
+        {
+            var productRows = list
+                .GroupBy(i => new { Code = i.ProductCode.Trim(), Name = i.ProductName.Trim() })
+                .Select(g =>
+                {
+                    var qty = g.Sum(x => x.Quantity);
+                    var revenue = g.Sum(x => x.ItemTotal > 0m ? x.ItemTotal : x.UnitPrice * x.Quantity);
+                    var cmv = g.Sum(x => x.UnitCostPrice * x.Quantity);
+                    var grossProfit = revenue - cmv;
+                    var margin = revenue > 0m
+                        ? Math.Round(grossProfit / revenue * 100m, 2, MidpointRounding.AwayFromZero)
+                        : 0m;
+                    return (
+                        GrossProfitDecimal: grossProfit,
+                        RowData: Row(
+                            ("codigo", g.Key.Code),
+                            ("produto", g.Key.Name),
+                            ("quantidade", qty),
+                            ("receitaBruta", FormatMoney(revenue)),
+                            ("cmv", FormatMoney(cmv)),
+                            ("lucroBruto", FormatMoney(grossProfit)),
+                            ("margemBruta", $"{margin.ToString("N2", PtBr)}%"))
+                    );
+                })
+                .OrderByDescending(x => x.GrossProfitDecimal)
+                .Select(x => x.RowData)
+                .ToList();
+
+            return (
+                Columns(
+                    ("codigo", "Código"),
+                    ("produto", "Produto"),
+                    ("quantidade", "Qtd. vendida"),
+                    ("receitaBruta", "Receita bruta"),
+                    ("cmv", "CMV (Custo)"),
+                    ("lucroBruto", "Lucro bruto"),
+                    ("margemBruta", "Margem bruta")),
+                productRows);
+        }
+
+        var periodRows = list
+            .GroupBy(i => BuildPeriodKey(i.SaleDate, groupBy))
+            .OrderBy(g => g.Key.Sort)
+            .Select(g =>
+            {
+                var salesCount = g.Select(x => x.SaleNumber).Distinct().Count();
+                var revenue = g.Sum(x => x.ItemTotal > 0m ? x.ItemTotal : x.UnitPrice * x.Quantity);
+                var cmv = g.Sum(x => x.UnitCostPrice * x.Quantity);
+                var grossProfit = revenue - cmv;
+                var margin = revenue > 0m
+                    ? Math.Round(grossProfit / revenue * 100m, 2, MidpointRounding.AwayFromZero)
+                    : 0m;
+                return Row(
+                    ("periodo", g.Key.Label),
+                    ("vendas", salesCount),
+                    ("receitaBruta", FormatMoney(revenue)),
+                    ("cmv", FormatMoney(cmv)),
+                    ("lucroBruto", FormatMoney(grossProfit)),
+                    ("margemBruta", $"{margin.ToString("N2", PtBr)}%"));
+            })
+            .ToList();
+
+        return (
+            Columns(
+                ("periodo", "Período"),
+                ("vendas", "Vendas"),
+                ("receitaBruta", "Receita bruta"),
+                ("cmv", "CMV (Custo)"),
+                ("lucroBruto", "Lucro bruto"),
+                ("margemBruta", "Margem bruta")),
+            periodRows);
+    }
+
+    public static (object[] Columns, List<Dictionary<string, object>> Rows) CalcularDreSimplificado(
+        IEnumerable<LucroItemInput> sales,
+        IEnumerable<DespesaDreInput> expenses,
+        DateTime startDate,
+        DateTime endDateExclusive,
+        string regime = "competencia")
+    {
+        var salesList = sales?.ToList() ?? [];
+        var expensesList = expenses?.ToList() ?? [];
+        var isCaixa = string.Equals(regime, "caixa", StringComparison.OrdinalIgnoreCase);
+
+        var filteredExpenses = expensesList
+            .Where(e =>
+            {
+                if (isCaixa)
+                {
+                    return string.Equals(e.Status, "Pago", StringComparison.OrdinalIgnoreCase)
+                           && e.PaidDate.HasValue
+                           && e.PaidDate.Value.Date >= startDate.Date
+                           && e.PaidDate.Value.Date < endDateExclusive.Date;
+                }
+
+                return e.CompetenceDate.Date >= startDate.Date && e.CompetenceDate.Date < endDateExclusive.Date;
+            })
+            .ToList();
+
+        var grossRevenue = salesList.Sum(s => s.ItemTotal > 0m ? s.ItemTotal : s.UnitPrice * s.Quantity);
+        var cmv = salesList.Sum(s => s.UnitCostPrice * s.Quantity);
+        var grossProfit = grossRevenue - cmv;
+        var totalExpenses = filteredExpenses.Sum(e => e.Amount);
+        var netProfit = grossProfit - totalExpenses;
+
+        string Pct(decimal value) => grossRevenue > 0m
+            ? $"{Math.Round(value / grossRevenue * 100m, 2, MidpointRounding.AwayFromZero).ToString("N2", PtBr)}%"
+            : "0,00%";
+
+        var rows = new List<Dictionary<string, object>>
+        {
+            Row(("conta", "1. Receita Bruta de Vendas"), ("categoria", "Receita Operacional"), ("valor", FormatMoney(grossRevenue)), ("av", grossRevenue > 0m ? "100,00%" : "0,00%"), ("situacao", "Faturamento")),
+            Row(("conta", "2. (-) CMV — Custo das Mercadorias Vendidas"), ("categoria", "Custos Diretos"), ("valor", FormatMoney(cmv)), ("av", Pct(cmv)), ("situacao", "Custo")),
+            Row(("conta", "3. (=) Resultado Operacional Bruto (Lucro Bruto)"), ("categoria", "Margem Bruta"), ("valor", FormatMoney(grossProfit)), ("av", Pct(grossProfit)), ("situacao", grossProfit >= 0m ? "Superávit Bruto" : "Déficit Bruto")),
+            Row(("conta", $"4. (-) Despesas Operacionais ({(isCaixa ? "Regime de Caixa" : "Regime de Competência")})"), ("categoria", "Despesas Gerais"), ("valor", FormatMoney(totalExpenses)), ("av", Pct(totalExpenses)), ("situacao", $"{filteredExpenses.Count} lançamento(s)"))
+        };
+
+        foreach (var group in filteredExpenses.GroupBy(e => string.IsNullOrWhiteSpace(e.Category) ? "Operacional" : e.Category).OrderByDescending(g => g.Sum(x => x.Amount)))
+        {
+            var catSum = group.Sum(x => x.Amount);
+            rows.Add(Row(
+                ("conta", $"   • {group.Key}"),
+                ("categoria", "Detalhamento de Despesa"),
+                ("valor", FormatMoney(catSum)),
+                ("av", Pct(catSum)),
+                ("situacao", $"{group.Count()} item(ns)")));
+        }
+
+        rows.Add(Row(
+            ("conta", "5. (=) Resultado Líquido do Período (Lucro / Prejuízo Líquido)"),
+            ("categoria", "Resultado Final"),
+            ("valor", FormatMoney(netProfit)),
+            ("av", Pct(netProfit)),
+            ("situacao", netProfit > 0m ? "LUCRO LÍQUIDO" : netProfit < 0m ? "PREJUÍZO" : "EQUILÍBRIO")));
+
+        return (
+            Columns(
+                ("conta", "Conta / Indicador DRE"),
+                ("categoria", "Natureza"),
+                ("valor", "Valor (R$)"),
+                ("av", "Análise Vertical (%)"),
+                ("situacao", "Status")),
             rows);
     }
 
     private async Task<List<ReportSaleRow>> ListarVendasAsync(string companyId)
     {
+        const string ensureSql = """
+            IF COL_LENGTH(N'VendaItens', N'UnitCostPrice') IS NULL
+                ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
+            """;
+
         const string sql = """
             SELECT v.SaleNumber, v.CustomerName, v.CustomerCpf, v.PaymentType, v.TotalAmount, v.SaleDate,
-                   i.ProductCode, i.ProductName, i.Quantity, i.UnitPrice, i.ItemTotal
+                   i.ProductCode, i.ProductName, i.Quantity, i.UnitPrice,
+                   COALESCE(NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), ''), p.ProductUnitPrice, N'0,00') AS EffectiveUnitCostPrice,
+                   i.ItemTotal
             FROM Vendas v
             LEFT JOIN VendaItens i ON i.VendaId = v.Id
+            LEFT JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
             WHERE v.CompanyId = @CompanyId
             ORDER BY v.SaleDate DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
+        await using (var ensureCmd = new SqlCommand(ensureSql, db))
+        {
+            await ensureCmd.ExecuteNonQueryAsync();
+        }
+
         await using var command = new SqlCommand(sql, db);
         command.Parameters.AddWithValue("@CompanyId", companyId);
         await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ReportSaleRow>();
         while (await reader.ReadAsync())
         {
+            var unitCost = ParseMoney(ReadString(reader, "EffectiveUnitCostPrice"));
             rows.Add(new ReportSaleRow(
                 ReadString(reader, "SaleNumber"),
                 ReadString(reader, "CustomerName"),
@@ -213,9 +488,39 @@ public class RelatorioAB(Connection connection)
                 reader.GetDateTimeOffset(reader.GetOrdinal("SaleDate")),
                 ReadString(reader, "ProductCode"),
                 ReadString(reader, "ProductName"),
-                ReadInt(reader, "Quantity"),
+                ReadDecimal(reader, "Quantity"),
                 ParseMoney(ReadString(reader, "UnitPrice")),
+                unitCost,
                 ParseMoney(ReadString(reader, "ItemTotal"))));
+        }
+
+        return rows;
+    }
+
+    private async Task<List<DespesaDreInput>> ListarDespesasAsync(string companyId)
+    {
+        await using var db = await connection.OpenConnectionAsync();
+        await Controllers.Despesas.DespesasController.EnsureSchemaAsync(db);
+
+        await using var command = new SqlCommand(
+            """
+            SELECT Category, Amount, CompetenceDate, DueDate, PaidDate, Status
+            FROM DespesasOperacionais
+            WHERE CompanyId = @CompanyId;
+            """,
+            db);
+        command.Parameters.AddWithValue("@CompanyId", companyId);
+        await using var reader = await command.ExecuteReaderAsync();
+        var rows = new List<DespesaDreInput>();
+        while (await reader.ReadAsync())
+        {
+            rows.Add(new DespesaDreInput(
+                ReadString(reader, "Category"),
+                ParseMoney(ReadString(reader, "Amount")),
+                reader.GetDateTime(reader.GetOrdinal("CompetenceDate")),
+                reader.GetDateTime(reader.GetOrdinal("DueDate")),
+                reader.IsDBNull(reader.GetOrdinal("PaidDate")) ? null : reader.GetDateTime(reader.GetOrdinal("PaidDate")),
+                ReadString(reader, "Status")));
         }
 
         return rows;
@@ -241,7 +546,7 @@ public class RelatorioAB(Connection connection)
                 ReadString(reader, "ProductCode"),
                 ReadString(reader, "ProductName"),
                 ReadString(reader, "ProductSupplier"),
-                ParseInt(ReadString(reader, "ProductQnt")),
+                ReadDecimal(reader, "ProductQnt"),
                 ParseMoney(ReadString(reader, "ProductUnitPrice")),
                 ParseMoney(ReadString(reader, "ProductSalePrice"))));
         }
@@ -252,25 +557,118 @@ public class RelatorioAB(Connection connection)
     private async Task<List<ReportCashRow>> ListarCaixasAsync(string companyId)
     {
         const string sql = """
-            SELECT OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, OperatorName
+            SELECT Id, OpenedAt, ClosedAt, OpeningAmount, ClosingAmount, OperatorName,
+                   ExpectedCashAmount, CashDifference,
+                   SalesCashTotal, SalesPixTotal, SalesDebitTotal, SalesCreditTotal,
+                   TotalSuprimentos, TotalSangrias
             FROM CaixaSessoes
             WHERE CompanyId = @CompanyId
             ORDER BY OpenedAt DESC;
             """;
 
         await using var db = await connection.OpenConnectionAsync();
-        await using var command = new SqlCommand(sql, db);
-        command.Parameters.AddWithValue("@CompanyId", companyId);
-        await using var reader = await command.ExecuteReaderAsync();
         var rows = new List<ReportCashRow>();
-        while (await reader.ReadAsync())
+        await using (var command = new SqlCommand(sql, db))
         {
-            rows.Add(new ReportCashRow(
-                reader.GetDateTimeOffset(reader.GetOrdinal("OpenedAt")),
-                reader.IsDBNull(reader.GetOrdinal("ClosedAt")) ? null : reader.GetDateTimeOffset(reader.GetOrdinal("ClosedAt")),
-                ParseMoney(ReadString(reader, "OpeningAmount")),
-                ParseMoney(ReadString(reader, "ClosingAmount")),
-                ReadString(reader, "OperatorName")));
+            command.Parameters.AddWithValue("@CompanyId", companyId);
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                rows.Add(new ReportCashRow(
+                    ReadString(reader, "Id"),
+                    reader.GetDateTimeOffset(reader.GetOrdinal("OpenedAt")),
+                    reader.IsDBNull(reader.GetOrdinal("ClosedAt")) ? null : reader.GetDateTimeOffset(reader.GetOrdinal("ClosedAt")),
+                    ParseMoney(ReadString(reader, "OpeningAmount")),
+                    ParseMoney(ReadString(reader, "ClosingAmount")),
+                    ReadString(reader, "OperatorName"),
+                    ReadDecimalColumn(reader, "ExpectedCashAmount"),
+                    ReadDecimalColumn(reader, "CashDifference"),
+                    ReadDecimalColumn(reader, "SalesCashTotal"),
+                    ReadDecimalColumn(reader, "SalesPixTotal"),
+                    ReadDecimalColumn(reader, "SalesDebitTotal"),
+                    ReadDecimalColumn(reader, "SalesCreditTotal"),
+                    ReadDecimalColumn(reader, "TotalSuprimentos"),
+                    ReadDecimalColumn(reader, "TotalSangrias")));
+            }
+        }
+
+        // Para sessões ainda abertas, calcula os totais ao vivo a partir de CaixaMovimentacoes e Vendas.
+        for (var index = 0; index < rows.Count; index += 1)
+        {
+            var row = rows[index];
+            if (row.ClosedAt is not null) continue;
+
+            var suprimentos = 0m;
+            var sangrias = 0m;
+            var cashReturns = 0m;
+            await using (var movCmd = new SqlCommand(
+                             """
+                             SELECT Tipo, FormaPagamento, Valor
+                             FROM CaixaMovimentacoes
+                             WHERE CompanyId = @CompanyId AND CaixaSessaoId = @CaixaSessaoId;
+                             """,
+                             db))
+            {
+                movCmd.Parameters.AddWithValue("@CompanyId", companyId);
+                movCmd.Parameters.AddWithValue("@CaixaSessaoId", row.Id);
+                await using var movReader = await movCmd.ExecuteReaderAsync();
+                while (await movReader.ReadAsync())
+                {
+                    var tipo = ReadString(movReader, "Tipo");
+                    var payment = NormalizePaymentFilter(ReadString(movReader, "FormaPagamento"));
+                    var valor = ReadDecimalColumn(movReader, "Valor");
+                    if (string.Equals(tipo, "SUPRIMENTO", StringComparison.OrdinalIgnoreCase))
+                    {
+                        suprimentos += valor;
+                    }
+                    else if (string.Equals(tipo, "SANGRIA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sangrias += valor;
+                    }
+                    else if (string.Equals(tipo, "DEVOLUCAO", StringComparison.OrdinalIgnoreCase) && payment == "cash")
+                    {
+                        cashReturns += valor;
+                    }
+                }
+            }
+
+            var salesCash = 0m;
+            var salesPix = 0m;
+            var salesDebit = 0m;
+            var salesCredit = 0m;
+            await using (var salesCmd = new SqlCommand(
+                             """
+                             SELECT PaymentType, TotalAmount
+                             FROM Vendas
+                             WHERE CompanyId = @CompanyId AND CaixaSessaoId = @CaixaSessaoId;
+                             """,
+                             db))
+            {
+                salesCmd.Parameters.AddWithValue("@CompanyId", companyId);
+                salesCmd.Parameters.AddWithValue("@CaixaSessaoId", row.Id);
+                await using var salesReader = await salesCmd.ExecuteReaderAsync();
+                while (await salesReader.ReadAsync())
+                {
+                    var payment = NormalizePaymentFilter(ReadString(salesReader, "PaymentType"));
+                    var amount = ParseMoney(ReadString(salesReader, "TotalAmount"));
+                    if (payment == "cash") salesCash += amount;
+                    else if (payment == "pix") salesPix += amount;
+                    else if (payment == "debit") salesDebit += amount;
+                    else if (payment == "credit") salesCredit += amount;
+                }
+            }
+
+            var expectedCash = Math.Round(row.OpeningAmount + salesCash + suprimentos - sangrias - cashReturns, 2, MidpointRounding.AwayFromZero);
+            rows[index] = row with
+            {
+                ExpectedCashAmount = expectedCash,
+                SalesCashTotal = salesCash,
+                SalesPixTotal = salesPix,
+                SalesDebitTotal = salesDebit,
+                SalesCreditTotal = salesCredit,
+                TotalSuprimentos = suprimentos,
+                TotalSangrias = sangrias
+            };
         }
 
         return rows;
@@ -342,14 +740,27 @@ public class RelatorioAB(Connection connection)
         return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
     }
 
-    private static int ReadInt(SqlDataReader reader, string name)
+    private static decimal ReadDecimal(SqlDataReader reader, string name)
     {
         var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? 0 : reader.GetInt32(ordinal);
+        if (reader.IsDBNull(ordinal)) return 0m;
+        var raw = reader.GetValue(ordinal);
+        return raw is string text
+            ? ParseDecimal(text)
+            : Convert.ToDecimal(raw, CultureInfo.InvariantCulture);
     }
 
-    private static int ParseInt(string value)
-        => int.TryParse(value, out var parsed) ? parsed : 0;
+    private static decimal ParseDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0m;
+        var trimmed = value.Trim();
+        var normalized = trimmed.Contains(',')
+            ? trimmed.Replace(".", string.Empty).Replace(',', '.')
+            : trimmed;
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0m;
+    }
 
     private static decimal ParseMoney(string value)
     {
@@ -424,22 +835,65 @@ public class RelatorioAB(Connection connection)
         DateTimeOffset SaleDate,
         string ProductCode,
         string ProductName,
-        int Quantity,
+        decimal Quantity,
         decimal UnitPrice,
+        decimal UnitCostPrice,
         decimal ItemTotal);
 
     private sealed record ReportProductRow(
         string Code,
         string Name,
         string Supplier,
-        int Quantity,
+        decimal Quantity,
         decimal UnitPrice,
         decimal SalePrice);
 
+    private static decimal ReadDecimalColumn(SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? 0m : reader.GetDecimal(ordinal);
+    }
+
+    private static bool MatchesCashPaymentFilter(ReportCashRow row, HashSet<string> paymentMethods)
+    {
+        if (paymentMethods.Contains("cash") && row.SalesCashTotal > 0m) return true;
+        if (paymentMethods.Contains("pix") && row.SalesPixTotal > 0m) return true;
+        if (paymentMethods.Contains("debit") && row.SalesDebitTotal > 0m) return true;
+        if (paymentMethods.Contains("credit") && row.SalesCreditTotal > 0m) return true;
+        return false;
+    }
+
     private sealed record ReportCashRow(
+        string Id,
         DateTimeOffset OpenedAt,
         DateTimeOffset? ClosedAt,
         decimal OpeningAmount,
         decimal ClosingAmount,
-        string OperatorName);
+        string OperatorName,
+        decimal ExpectedCashAmount,
+        decimal CashDifference,
+        decimal SalesCashTotal,
+        decimal SalesPixTotal,
+        decimal SalesDebitTotal,
+        decimal SalesCreditTotal,
+        decimal TotalSuprimentos,
+        decimal TotalSangrias);
+
+    public sealed record LucroItemInput(
+        string SaleNumber,
+        DateTimeOffset SaleDate,
+        string ProductCode,
+        string ProductName,
+        decimal Quantity,
+        decimal UnitPrice,
+        decimal UnitCostPrice,
+        decimal ItemTotal);
+
+    public sealed record DespesaDreInput(
+        string Category,
+        decimal Amount,
+        DateTime CompetenceDate,
+        DateTime DueDate,
+        DateTime? PaidDate,
+        string Status);
 }

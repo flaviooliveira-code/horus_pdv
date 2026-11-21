@@ -4,6 +4,8 @@
  * Entradas esperadas: produtos e itens do carrinho do PDV (compatível com execução direta em Node --test).
  */
 
+import { computeLineTotal } from "../../../utils/scaleBarcode.ts";
+
 export type PdvProduct = {
   id: string;
   name: string;
@@ -11,15 +13,30 @@ export type PdvProduct = {
   stock: number;
   salePrice: number;
   imageUrl?: string;
+  unitType?: string;
 };
 
 export type PdvCartItem = {
   id: string;
+  /** Identifica a linha quando o mesmo produto aparece mais de uma vez (etiquetas de balança). */
+  lineId?: string;
   code: string;
   name: string;
   quantity: number;
   unitPrice: number;
+  /** Total impresso na etiqueta da balança; o servidor valida contra o preço cadastrado. */
+  itemTotalOverride?: number;
 };
+
+export function getCartLineKey(item: Pick<PdvCartItem, "id" | "lineId">): string {
+  return item.lineId ?? item.id;
+}
+
+export function getCartLineTotal(
+  item: Pick<PdvCartItem, "quantity" | "unitPrice" | "itemTotalOverride">,
+): number {
+  return item.itemTotalOverride ?? computeLineTotal(item.unitPrice, item.quantity);
+}
 
 export type ProductSubmissionResolution =
   | { type: "add"; product: PdvProduct }

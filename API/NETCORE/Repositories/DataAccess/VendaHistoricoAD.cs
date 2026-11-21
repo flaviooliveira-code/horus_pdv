@@ -15,7 +15,7 @@ public class VendaHistoricoAD
     public string OperatorName { get; set; } = string.Empty;
     public string ProductCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public string UnitPrice { get; set; } = string.Empty;
     public string ItemTotal { get; set; } = string.Empty;
     public string SaleDate { get; set; } = string.Empty;

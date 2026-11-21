@@ -3,6 +3,7 @@
  * Objetivo: centraliza regras de negócio de cadastro, estoque e manutenção de produtos antes do acesso ao banco ou resposta HTTP.
  * Entradas esperadas: recebe requisições já validadas pelos controladores e aplica consistência operacional do domínio.
  */
+using System.Globalization;
 using HORUSPDV_API.Models.Produtos;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
@@ -10,7 +11,10 @@ using HORUSPDV_API.Repositories.DatabaseAccess;
 
 namespace HORUSPDV_API.Services.Produtos;
 
-public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) : IProdutoService
+public class ProdutoService(
+    ProdutoAB produtosAB,
+    FornecedorAB fornecedoresAB,
+    ScaleBarcodeParser scaleBarcodeParser) : IProdutoService
 {
     public async Task<List<ProdutoModel>> ListarAsync(string companyId)
         => (await produtosAB.ListarAsync(companyId)).Select(ToModel).ToList();
@@ -39,6 +43,19 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
     public Task<bool> ExcluirAsync(string companyId, string id)
         => produtosAB.ExcluirAsync(companyId, id);
 
+    public async Task<ScaleBarcodeDecodeResponse?> DecodificarBalancaAsync(string companyId, string barcode, string? mode = null)
+    {
+        ScaleBarcodeParser.NormalizeMode(mode);
+        var parsed = scaleBarcodeParser.ParseBarcode(barcode);
+        var matchingProducts = await produtosAB.ObterPorCodigoOuBalancaAsync(companyId, parsed.AllCandidateCodes);
+        if (matchingProducts.Count == 0)
+        {
+            return null;
+        }
+
+        return scaleBarcodeParser.DecodeForProducts(barcode, matchingProducts, mode);
+    }
+
     private static void Validate(ProdutoRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ProductName) || request.ProductName.Trim().Length < 3)
@@ -56,17 +73,24 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
             throw new InvalidOperationException("Fornecedor do produto e obrigatorio.");
         }
 
-        if (!int.TryParse(request.ProductQnt, out var quantity) || quantity <= 0)
+        if (!TryParseDecimal(request.ProductQnt, out var quantity) || quantity <= 0m)
         {
             throw new InvalidOperationException("Quantidade do produto deve ser maior que zero.");
         }
 
-        if (ParseMoney(request.ProductUnitPrice) <= 0)
+        if (decimal.Round(quantity, 3) != quantity)
+        {
+            throw new InvalidOperationException("Quantidade do produto deve ter no maximo 3 casas decimais.");
+        }
+
+        NormalizeUnitType(request.UnitType);
+
+        if (ParseDecimal(request.ProductUnitPrice) <= 0m)
         {
             throw new InvalidOperationException("Preco de custo deve ser maior que zero.");
         }
 
-        if (ParseMoney(request.ProductSalePrice) <= 0)
+        if (ParseDecimal(request.ProductSalePrice) <= 0m)
         {
             throw new InvalidOperationException("Preco de venda deve ser maior que zero.");
         }
@@ -93,20 +117,28 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
         }
     }
 
-    private static ProdutoAD MapRequest(string id, ProdutoRequest request) => new()
+    private static ProdutoAD MapRequest(string id, ProdutoRequest request)
     {
-        Id = id,
-        ProductImageUrl = request.ProductImageUrl,
-        ProductImageName = request.ProductImageName,
-        ProductName = request.ProductName.Trim(),
-        ProductCode = request.ProductCode.Trim(),
-        ProductSupplier = request.ProductSupplier.Trim(),
-        ProductDescription = request.ProductDescription.Trim(),
-        ProductQnt = request.ProductQnt,
-        ProductUnitPrice = request.ProductUnitPrice,
-        ProductSalePrice = request.ProductSalePrice,
-        TotalPriceOnProduct = request.TotalPriceOnProduct
-    };
+        TryParseDecimal(request.ProductQnt, out var quantity);
+        var normalizedQnt = decimal.Round(quantity, 3, MidpointRounding.AwayFromZero)
+            .ToString("0.###", CultureInfo.InvariantCulture);
+
+        return new ProdutoAD
+        {
+            Id = id,
+            ProductImageUrl = request.ProductImageUrl,
+            ProductImageName = request.ProductImageName,
+            ProductName = request.ProductName.Trim(),
+            ProductCode = request.ProductCode.Trim(),
+            ProductSupplier = request.ProductSupplier.Trim(),
+            ProductDescription = request.ProductDescription.Trim(),
+            ProductQnt = normalizedQnt,
+            ProductUnitPrice = request.ProductUnitPrice,
+            ProductSalePrice = request.ProductSalePrice,
+            TotalPriceOnProduct = request.TotalPriceOnProduct,
+            UnitType = NormalizeUnitType(request.UnitType)
+        };
+    }
 
     private static ProdutoModel ToModel(ProdutoAD source) => new()
     {
@@ -120,18 +152,43 @@ public class ProdutoService(ProdutoAB produtosAB, FornecedorAB fornecedoresAB) :
         ProductQnt = source.ProductQnt,
         ProductUnitPrice = source.ProductUnitPrice,
         ProductSalePrice = source.ProductSalePrice,
-        TotalPriceOnProduct = source.TotalPriceOnProduct
+        TotalPriceOnProduct = source.TotalPriceOnProduct,
+        UnitType = string.IsNullOrWhiteSpace(source.UnitType) ? "UN" : source.UnitType.Trim().ToUpperInvariant()
     };
 
-    private static decimal ParseMoney(string value)
+    internal static string NormalizeUnitType(string? unitType)
     {
-        var normalized = value.Trim().Replace(".", "").Replace(",", ".");
+        if (string.IsNullOrWhiteSpace(unitType))
+        {
+            return "UN";
+        }
+
+        var normalized = unitType.Trim().ToUpperInvariant();
+        return normalized is "UN" or "KG"
+            ? normalized
+            : throw new InvalidOperationException("Unidade de medida invalida. Utilize UN ou KG.");
+    }
+
+    internal static bool TryParseDecimal(string? value, out decimal parsed)
+    {
+        parsed = 0m;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim().Replace("R$", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        var normalized = trimmed.Contains(',')
+            ? trimmed.Replace(".", string.Empty).Replace(',', '.')
+            : trimmed;
+
         return decimal.TryParse(
             normalized,
-            System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.InvariantCulture,
-            out var parsed)
-            ? parsed
-            : 0;
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out parsed);
     }
+
+    internal static decimal ParseDecimal(string? value)
+        => TryParseDecimal(value, out var parsed) ? parsed : 0m;
 }

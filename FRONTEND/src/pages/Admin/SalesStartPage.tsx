@@ -26,7 +26,10 @@ import {
   LastScannedCard,
   TotalBanner,
   filterProductsByQuery,
+  formatQuantity,
   formatTotalVolumes,
+  getCartLineKey,
+  getCartLineTotal,
   resolveProductSubmission,
   type PdvCartItem,
   type PdvProduct,
@@ -62,6 +65,7 @@ import {
   setHighVisibilityEnabled,
   setScannerAutoFocusEnabled,
 } from "@/utils/pdvPreferences";
+import { computeLineTotal, parseScaleBarcode, roundQuantity } from "@/utils/scaleBarcode";
 
 type SalesStartPageProps = {
   onExit?: () => void;
@@ -158,7 +162,7 @@ export default function SalesStartPage({
   standalone = false,
   operatorName = "Operador",
 }: SalesStartPageProps) {
-  const { formatMoneyBr, maskCpf, maskMoneyBr, parseMoneyBr, sanitizeIntegerInput } =
+  const { formatMoneyBr, maskCpf, maskMoneyBr, parseMoneyBr, sanitizeDecimalInput } =
     useInputMasks();
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
@@ -224,9 +228,9 @@ export default function SalesStartPage({
   );
 
   const quantity = useMemo(() => {
-    const parsed = Number(quantityInput);
-    if (!Number.isFinite(parsed) || parsed < 1) return 1;
-    return Math.floor(parsed);
+    const parsed = Number(String(quantityInput).replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+    return roundQuantity(parsed) || 1;
   }, [quantityInput]);
 
   const filteredProducts = useMemo(
@@ -235,11 +239,11 @@ export default function SalesStartPage({
   );
 
   const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    () => Math.round(cart.reduce((sum, item) => sum + getCartLineTotal(item), 0) * 100) / 100,
     [cart],
   );
   const totalVolumes = useMemo(
-    () => cart.reduce((sum, item) => sum + item.quantity, 0),
+    () => roundQuantity(cart.reduce((sum, item) => sum + item.quantity, 0)),
     [cart],
   );
 
@@ -249,7 +253,7 @@ export default function SalesStartPage({
   const lastScannedCartItem = useMemo(() => {
     if (cart.length === 0) return null;
     if (lastScannedItemId) {
-      const matched = cart.find((item) => item.id === lastScannedItemId);
+      const matched = cart.find((item) => getCartLineKey(item) === lastScannedItemId);
       if (matched) return matched;
     }
     return cart[cart.length - 1];
@@ -281,9 +285,10 @@ export default function SalesStartPage({
         id: item.id,
         name: item.productName,
         code: item.productCode,
-        stock: Number(item.productQnt || 0),
+        stock: Number(String(item.productQnt || "0").replace(",", ".")),
         salePrice: parseMoneyBr(item.productSalePrice || "0"),
         imageUrl: item.productImageUrl,
+        unitType: item.unitType,
       })),
     );
   }, [parseMoneyBr]);
@@ -454,16 +459,16 @@ export default function SalesStartPage({
   const customerDisplayState = useMemo<CustomerDisplayState>(() => {
     const productImageMap = new Map(products.map((product) => [product.id, product.imageUrl]));
     const mappedItems = cart.map((item) => ({
-      id: item.id,
+      id: getCartLineKey(item),
       code: item.code,
       name: item.name,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
-      total: item.quantity * item.unitPrice,
+      total: getCartLineTotal(item),
       imageUrl: productImageMap.get(item.id),
     }));
     const mappedLastScanned = lastScannedCartItem
-      ? mappedItems.find((item) => item.id === lastScannedCartItem.id) ?? null
+      ? mappedItems.find((item) => item.id === getCartLineKey(lastScannedCartItem)) ?? null
       : null;
 
     return {
@@ -578,20 +583,38 @@ export default function SalesStartPage({
     qtyInputRef.current?.focus();
   }, []);
 
+  const finishProductEntry = useCallback(() => {
+    setDisplayStatus("active");
+    setLastCompletedSale(null);
+    setSelectedProductId("");
+    setProductSearch("");
+    setShowProductOptions(false);
+    setQuantityInput("1");
+    productInputRef.current?.focus();
+  }, []);
+
   const addProductToCart = useCallback(
     (product: PdvProduct, qty: number): boolean => {
-      const existing = cart.find((item) => item.id === product.id);
+      // Linhas de etiqueta de balança têm total próprio e não se juntam às linhas comuns.
+      const existing = cart.find(
+        (item) => item.id === product.id && item.itemTotalOverride === undefined,
+      );
+      const qtyInCart = roundQuantity(
+        cart.filter((item) => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0),
+      );
       if (qty > product.stock) {
-        Toast.error(`Estoque insuficiente. Disponível: ${product.stock}.`);
+        Toast.error(`Estoque insuficiente. Disponível: ${formatQuantity(product.stock)}.`);
         return false;
       }
-      if (existing && existing.quantity + qty > product.stock) {
+      if (roundQuantity(qtyInCart + qty) > product.stock) {
         Toast.error(`Estoque insuficiente para ${product.name}.`);
         return false;
       }
 
       setCart((current) => {
-        const currentExisting = current.find((item) => item.id === product.id);
+        const currentExisting = current.find(
+          (item) => item.id === product.id && item.itemTotalOverride === undefined,
+        );
         if (!currentExisting) {
           return [
             ...current,
@@ -605,28 +628,65 @@ export default function SalesStartPage({
           ];
         }
         return current.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: currentExisting.quantity + qty }
+          item === currentExisting
+            ? { ...item, quantity: roundQuantity(currentExisting.quantity + qty) }
             : item,
         );
       });
 
-      setLastScannedItemId(product.id);
-      setDisplayStatus("active");
-      setLastCompletedSale(null);
-      setSelectedProductId("");
-      setProductSearch("");
-      setShowProductOptions(false);
-      setQuantityInput("1");
-      productInputRef.current?.focus();
+      setLastScannedItemId(existing ? getCartLineKey(existing) : product.id);
+      finishProductEntry();
       return true;
     },
-    [cart],
+    [cart, finishProductEntry],
+  );
+
+  /** Etiqueta EAN-13 de balança (prefixo 2): adiciona uma linha com peso e total da etiqueta. */
+  const addScaleLabelToCart = useCallback(
+    (rawQuery: string): boolean | null => {
+      const scaleMatch = parseScaleBarcode(rawQuery.trim(), products);
+      if (!scaleMatch) return null;
+
+      const qtyInCart = roundQuantity(
+        cart
+          .filter((item) => item.id === scaleMatch.product.id)
+          .reduce((sum, item) => sum + item.quantity, 0),
+      );
+      if (roundQuantity(qtyInCart + scaleMatch.quantity) > scaleMatch.product.stock) {
+        Toast.error(
+          `Estoque insuficiente para ${scaleMatch.product.name}. Disponível: ${formatQuantity(scaleMatch.product.stock)}.`,
+        );
+        return false;
+      }
+
+      const lineId = `${scaleMatch.product.id}-scale-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      setCart((current) => [
+        ...current,
+        {
+          id: scaleMatch.product.id,
+          lineId,
+          code: scaleMatch.product.code,
+          name: scaleMatch.product.name,
+          quantity: scaleMatch.quantity,
+          unitPrice: scaleMatch.unitPrice,
+          itemTotalOverride: scaleMatch.totalValue,
+        },
+      ]);
+      setLastScannedItemId(lineId);
+      finishProductEntry();
+      return true;
+    },
+    [cart, finishProductEntry, products],
   );
 
   const submitProductEntry = useCallback(
     (rawQuery?: string, options?: { allowFuzzyFallback?: boolean }): boolean => {
       const query = rawQuery ?? productSearch;
+      if (rawQuery || !selectedProduct) {
+        const scaleResult = addScaleLabelToCart(query);
+        if (scaleResult !== null) return scaleResult;
+      }
+
       const resolution = resolveProductSubmission({
         query,
         products,
@@ -656,6 +716,7 @@ export default function SalesStartPage({
     },
     [
       addProductToCart,
+      addScaleLabelToCart,
       focusProductInput,
       highlightedProductIndex,
       productSearch,
@@ -671,11 +732,11 @@ export default function SalesStartPage({
     submitProductEntry(undefined, { allowFuzzyFallback: true });
   }, [submitProductEntry]);
 
-  const removeItem = (id: string) => {
+  const removeItem = (lineKey: string) => {
     setCart((current) => {
-      const next = current.filter((item) => item.id !== id);
-      if (lastScannedItemId === id) {
-        setLastScannedItemId(next.length > 0 ? next[next.length - 1].id : null);
+      const next = current.filter((item) => getCartLineKey(item) !== lineKey);
+      if (lastScannedItemId === lineKey) {
+        setLastScannedItemId(next.length > 0 ? getCartLineKey(next[next.length - 1]) : null);
       }
       if (next.length === 0) {
         setDisplayStatus("idle");
@@ -837,6 +898,9 @@ export default function SalesStartPage({
           productCode: item.code,
           productName: item.name,
           quantity: item.quantity,
+          ...(item.itemTotalOverride !== undefined
+            ? { itemTotalOverride: item.itemTotalOverride }
+            : {}),
         })),
       });
       const receipt: SaleReceipt = {
@@ -865,7 +929,7 @@ export default function SalesStartPage({
         change: paymentType === "dinheiro" ? changeValue : 0,
         items: cart.map((item) => ({
           ...item,
-          total: item.quantity * item.unitPrice,
+          total: getCartLineTotal(item),
         })),
       };
 
@@ -1213,14 +1277,19 @@ export default function SalesStartPage({
                 <input
                   ref={qtyInputRef}
                   value={quantityInput}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  inputMode="decimal"
                   onFocus={(event) => event.target.select()}
                   onChange={(event) =>
-                    setQuantityInput(sanitizeIntegerInput(event.target.value).slice(0, 4))
+                    setQuantityInput(sanitizeDecimalInput(event.target.value, 3).slice(0, 10))
                   }
                   onBlur={() => {
-                    if (!quantityInput || Number(quantityInput) < 1) setQuantityInput("1");
+                    const cleaned = quantityInput.replace(/\.$/, "");
+                    const parsed = Number(cleaned.replace(",", "."));
+                    if (!cleaned || !Number.isFinite(parsed) || parsed <= 0) {
+                      setQuantityInput("1");
+                    } else if (cleaned !== quantityInput) {
+                      setQuantityInput(cleaned);
+                    }
                   }}
                   className="input-field pdv-qty-input pdv-tabular h-10 w-full text-lg font-semibold"
                 />
@@ -1243,7 +1312,9 @@ export default function SalesStartPage({
                 </span>
                 <input
                   value={
-                    selectedProduct ? formatMoneyBr(selectedProduct.salePrice * quantity) : "0,00"
+                    selectedProduct
+                      ? formatMoneyBr(computeLineTotal(selectedProduct.salePrice, quantity))
+                      : "0,00"
                   }
                   className="input-field pdv-price-input pdv-tabular h-10 w-full text-lg font-semibold"
                   disabled
@@ -1300,7 +1371,7 @@ export default function SalesStartPage({
                 <div className="min-h-[180px] flex-1 overflow-auto rounded-xl border border-dashed border-border-secondary bg-bg-primary md:min-h-0">
                   <CartItemsTable
                     cart={cart}
-                    lastScannedItemId={lastScannedCartItem?.id}
+                    lastScannedItemId={lastScannedCartItem ? getCartLineKey(lastScannedCartItem) : null}
                     formatMoney={formatMoneyBr}
                     onRemoveItem={removeItem}
                     highVisibility={highVisibilityEnabled}

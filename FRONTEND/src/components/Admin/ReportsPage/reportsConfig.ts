@@ -7,8 +7,10 @@
 import {
   BarChart3,
   Boxes,
+  Calculator,
   FileChartColumnIncreasing,
   HandCoins,
+  Landmark,
   PackageSearch,
   ShoppingCart,
   TrendingUp,
@@ -36,6 +38,8 @@ export type ReportDefinition = {
   description: string;
   icon: LucideIcon;
   filters: ReportFilter[];
+  /** Só administrador, gerente e financeiro (a API responde 403 para os demais). */
+  supervisorOnly?: boolean;
 };
 
 const periodFilters: ReportFilter[] = [
@@ -47,6 +51,16 @@ const groupByOptions: ReportFilterOption[] = [
   { label: "Diário", value: "daily" },
   { label: "Semanal", value: "weekly" },
   { label: "Mensal", value: "monthly" },
+];
+
+const profitViewModeOptions: ReportFilterOption[] = [
+  { label: "Por Período", value: "period" },
+  { label: "Por Produto", value: "product" },
+];
+
+const dreRegimeOptions: ReportFilterOption[] = [
+  { label: "Regime de Competência", value: "competencia" },
+  { label: "Regime de Caixa (Pagas)", value: "caixa" },
 ];
 
 const paymentMethodOptions: ReportFilterOption[] = [
@@ -66,6 +80,41 @@ const categoryOptions: ReportFilterOption[] = [
 ];
 
 export const reportCatalog: ReportDefinition[] = [
+  {
+    id: "lucro-real",
+    title: "Lucro Bruto e CMV",
+    description: "Apura receita bruta, custo das mercadorias vendidas (CMV), lucro bruto e margem real por período ou produto.",
+    icon: Calculator,
+    supervisorOnly: true,
+    filters: [
+      ...periodFilters,
+      { id: "viewMode", label: "Visão de análise", type: "select", options: profitViewModeOptions },
+      { id: "groupBy", label: "Agrupar período por", type: "select", options: groupByOptions },
+      {
+        id: "paymentMethod",
+        label: "Forma de pagamento",
+        type: "multiselect",
+        options: paymentMethodOptions,
+      },
+    ],
+  },
+  {
+    id: "dre-simplificado",
+    title: "DRE Simplificado (Lucro Líquido)",
+    description: "Demonstração do resultado do exercício com Receita Bruta, CMV, Lucro Bruto, Despesas Operacionais e Lucro Líquido.",
+    icon: Landmark,
+    supervisorOnly: true,
+    filters: [
+      ...periodFilters,
+      { id: "regime", label: "Regime contábil", type: "select", options: dreRegimeOptions },
+      {
+        id: "paymentMethod",
+        label: "Forma de pagamento (Vendas)",
+        type: "multiselect",
+        options: paymentMethodOptions,
+      },
+    ],
+  },
   {
     id: "vendas-periodo",
     title: "Vendas por Período",
@@ -158,3 +207,4 @@ export const reportCatalog: ReportDefinition[] = [
     ],
   },
 ];
+

@@ -287,6 +287,7 @@ BEGIN
         ProductName NVARCHAR(180) NOT NULL,
         Quantity INT NOT NULL,
         UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00',
+        UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00',
         ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00',
         CONSTRAINT FK_VendaItens_Vendas FOREIGN KEY (VendaId) REFERENCES Vendas (Id) ON DELETE CASCADE
     );
@@ -295,15 +296,50 @@ END;
 
 IF COL_LENGTH(N'VendaItens', N'UnitPrice') IS NULL
     ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
+IF COL_LENGTH(N'VendaItens', N'UnitCostPrice') IS NULL
+BEGIN
+    ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
+
+    -- Backfill único, só na criação da coluna: vendas antigas recebem o custo atual do produto da mesma empresa.
+    -- Depois disso o custo gravado na venda não é mais sobrescrito (snapshot). EXEC adia a compilação até a coluna existir.
+    EXEC(N'
+        UPDATE i
+           SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), N''''), N''0,00'')
+          FROM VendaItens i
+          INNER JOIN Vendas v ON v.Id = i.VendaId
+          INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode;
+    ');
+END;
 IF COL_LENGTH(N'VendaItens', N'ItemTotal') IS NULL
     ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
+
+IF OBJECT_ID(N'DespesasOperacionais', N'U') IS NULL
+BEGIN
+    CREATE TABLE DespesasOperacionais
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_DespesasOperacionais PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_DespesasOperacionais_CompanyId DEFAULT N'empresa-principal',
+        Description NVARCHAR(220) NOT NULL,
+        Category NVARCHAR(80) NOT NULL CONSTRAINT DF_DespesasOperacionais_Category DEFAULT N'Operacional',
+        Amount NVARCHAR(30) NOT NULL CONSTRAINT DF_DespesasOperacionais_Amount DEFAULT N'0,00',
+        CompetenceDate DATE NOT NULL,
+        DueDate DATE NOT NULL,
+        PaidDate DATE NULL,
+        Status NVARCHAR(30) NOT NULL CONSTRAINT DF_DespesasOperacionais_Status DEFAULT N'Pendente',
+        PaymentMethod NVARCHAR(40) NOT NULL CONSTRAINT DF_DespesasOperacionais_PaymentMethod DEFAULT N'PIX',
+        Observation NVARCHAR(500) NOT NULL CONSTRAINT DF_DespesasOperacionais_Observation DEFAULT N'',
+        CreatedAt DATETIMEOFFSET NOT NULL CONSTRAINT DF_DespesasOperacionais_CreatedAt DEFAULT SYSDATETIMEOFFSET()
+    );
+    CREATE INDEX IX_DespesasOperacionais_CompanyId_CompetenceDate ON DespesasOperacionais (CompanyId, CompetenceDate DESC);
+END;
 
 GO
 
 UPDATE i
    SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
   FROM VendaItens i
-  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode
+  INNER JOIN Vendas v ON v.Id = i.VendaId
+  INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
  WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
     OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
 
@@ -491,3 +527,130 @@ BEGIN
          0, N'smtp-mail.outlook.com', 587, 1, N'', N'', N'naoresponderhoruspdv@outlook.com',
          N'Hórus PDV', N'');
 END;
+
+GO
+
+-- PR 3: Vínculo Vendas <-> CaixaSessoes, auditoria de fechamento cego e tabela CaixaMovimentacoes
+IF COL_LENGTH(N'Vendas', N'CaixaSessaoId') IS NULL
+BEGIN
+    ALTER TABLE Vendas ADD CaixaSessaoId NVARCHAR(40) NULL;
+    CREATE INDEX IX_Vendas_CaixaSessaoId ON Vendas (CaixaSessaoId);
+END;
+
+IF COL_LENGTH(N'CaixaSessoes', N'ExpectedCashAmount') IS NULL
+    ALTER TABLE CaixaSessoes ADD ExpectedCashAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_ExpectedCashAmount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'CountedCashAmount') IS NULL
+    ALTER TABLE CaixaSessoes ADD CountedCashAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_CountedCashAmount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'CashDifference') IS NULL
+    ALTER TABLE CaixaSessoes ADD CashDifference DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_CashDifference DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCashTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCashTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCashTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesPixTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesPixTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesPixTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesDebitTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesDebitTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesDebitTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCreditTotal') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCreditTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCreditTotal DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSuprimentos') IS NULL
+    ALTER TABLE CaixaSessoes ADD TotalSuprimentos DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSuprimentos DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'TotalSangrias') IS NULL
+    ALTER TABLE CaixaSessoes ADD TotalSangrias DECIMAL(18,2) NOT NULL CONSTRAINT DF_CaixaSessoes_TotalSangrias DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'SalesCount') IS NULL
+    ALTER TABLE CaixaSessoes ADD SalesCount INT NOT NULL CONSTRAINT DF_CaixaSessoes_SalesCount DEFAULT 0;
+IF COL_LENGTH(N'CaixaSessoes', N'BlindClosing') IS NULL
+    ALTER TABLE CaixaSessoes ADD BlindClosing BIT NOT NULL CONSTRAINT DF_CaixaSessoes_BlindClosing DEFAULT 1;
+
+GO
+
+IF OBJECT_ID(N'CaixaMovimentacoes', N'U') IS NULL
+BEGIN
+    CREATE TABLE CaixaMovimentacoes
+    (
+        Id NVARCHAR(40) NOT NULL CONSTRAINT PK_CaixaMovimentacoes PRIMARY KEY,
+        CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_CompanyId DEFAULT N'empresa-principal',
+        CaixaSessaoId NVARCHAR(40) NOT NULL,
+        Tipo NVARCHAR(30) NOT NULL,
+        FormaPagamento NVARCHAR(30) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_FormaPagamento DEFAULT N'dinheiro',
+        Valor DECIMAL(18,2) NOT NULL,
+        Descricao NVARCHAR(300) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_Descricao DEFAULT N'',
+        SaleNumber NVARCHAR(30) NULL,
+        UsuarioId NVARCHAR(40) NOT NULL,
+        UsuarioName NVARCHAR(180) NOT NULL CONSTRAINT DF_CaixaMovimentacoes_UsuarioName DEFAULT N'',
+        DataHora DATETIMEOFFSET NOT NULL CONSTRAINT DF_CaixaMovimentacoes_DataHora DEFAULT SYSDATETIMEOFFSET(),
+        CONSTRAINT FK_CaixaMovimentacoes_CaixaSessoes FOREIGN KEY (CaixaSessaoId) REFERENCES CaixaSessoes (Id) ON DELETE CASCADE
+    );
+    CREATE INDEX IX_CaixaMovimentacoes_Sessao ON CaixaMovimentacoes (CompanyId, CaixaSessaoId, DataHora);
+END;
+
+GO
+
+USE HorusPdv;
+
+IF EXISTS (
+    SELECT 1
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = N'VendaItens'
+      AND COLUMN_NAME = N'Quantity'
+      AND DATA_TYPE = N'int'
+)
+BEGIN
+    ALTER TABLE VendaItens ALTER COLUMN Quantity DECIMAL(10,3) NOT NULL;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = N'Produtos'
+      AND COLUMN_NAME = N'ProductQnt'
+      AND DATA_TYPE <> N'decimal'
+)
+BEGIN
+    EXEC(N'
+        UPDATE Produtos
+           SET ProductQnt = COALESCE(
+               CONVERT(
+                   NVARCHAR(30),
+                   TRY_CONVERT(
+                       DECIMAL(12,3),
+                       CASE
+                           WHEN CHARINDEX(N'','', ProductQnt) > 0
+                               THEN REPLACE(REPLACE(LTRIM(RTRIM(ProductQnt)), N''.'', N''''), N'','', N''.'')
+                           ELSE LTRIM(RTRIM(ProductQnt))
+                       END
+                   )
+               ),
+               N''0''
+           );
+    ');
+
+    IF OBJECT_ID(N'DF_Produtos_ProductQnt', N'D') IS NOT NULL
+    BEGIN
+        ALTER TABLE Produtos DROP CONSTRAINT DF_Produtos_ProductQnt;
+    END;
+
+    DECLARE @dfProductQnt SYSNAME;
+    SELECT @dfProductQnt = dc.name
+      FROM sys.default_constraints dc
+     INNER JOIN sys.columns c
+        ON c.object_id = dc.parent_object_id
+       AND c.column_id = dc.parent_column_id
+     WHERE dc.parent_object_id = OBJECT_ID(N'Produtos')
+       AND c.name = N'ProductQnt';
+
+    IF @dfProductQnt IS NOT NULL
+    BEGIN
+        -- EXEC(...) só aceita literais e variáveis concatenados; a chamada a QUOTENAME vai para uma variável antes.
+        DECLARE @dropDfSql NVARCHAR(400) = N'ALTER TABLE Produtos DROP CONSTRAINT ' + QUOTENAME(@dfProductQnt) + N';';
+        EXEC(@dropDfSql);
+    END;
+
+    ALTER TABLE Produtos ALTER COLUMN ProductQnt DECIMAL(12,3) NOT NULL;
+    ALTER TABLE Produtos ADD CONSTRAINT DF_Produtos_ProductQnt DEFAULT 0 FOR ProductQnt;
+END;
+
+IF COL_LENGTH(N'Produtos', N'UnitType') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD UnitType NVARCHAR(10) NOT NULL CONSTRAINT DF_Produtos_UnitType DEFAULT N'UN';
+END;
+GO
+

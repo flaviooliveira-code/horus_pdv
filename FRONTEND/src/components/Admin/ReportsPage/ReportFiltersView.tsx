@@ -22,6 +22,7 @@ type FilterValue = string | string[] | boolean;
 type ReportFiltersViewProps = {
   report: ReportDefinition;
   onBack: () => void;
+  onOpenExpenses?: () => void;
 };
 
 function getTodayIso() {
@@ -226,7 +227,7 @@ function exportToPdf(
   popup.print();
 }
 
-export default function ReportFiltersView({ report, onBack }: ReportFiltersViewProps) {
+export default function ReportFiltersView({ report, onBack, onOpenExpenses }: ReportFiltersViewProps) {
   const initialValues = useMemo(() => createInitialFilterValues(report.filters), [report.filters]);
 
   const [values, setValues] = useState<ReportFilterValues>(initialValues);
@@ -352,9 +353,20 @@ export default function ReportFiltersView({ report, onBack }: ReportFiltersViewP
             <p className="mt-1 text-sm text-text-secondary">{report.description}</p>
           </div>
 
-          <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
-            Filtros do relatório
-          </span>
+          <div className="flex items-center gap-2">
+            {report.id === "dre-simplificado" && onOpenExpenses ? (
+              <button
+                type="button"
+                onClick={onOpenExpenses}
+                className="btn-secondary text-xs px-3 py-1.5"
+              >
+                Lançar Despesas Operacionais
+              </button>
+            ) : null}
+            <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
+              Filtros do relatório
+            </span>
+          </div>
         </div>
       </div>
 

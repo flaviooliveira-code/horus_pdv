@@ -4,7 +4,8 @@
  * Entradas esperadas: último item do carrinho, produto selecionado em prévia, imagem, formatador e flag alta visibilidade.
  */
 import { Image as ImageIcon } from "lucide-react";
-import { formatQuantity, type PdvCartItem, type PdvProduct } from "./pdvTypes";
+import { computeLineTotal } from "../../../utils/scaleBarcode.ts";
+import { formatQuantity, getCartLineTotal, type PdvCartItem, type PdvProduct } from "./pdvTypes";
 
 type LastScannedCardProps = {
   activeItem: PdvCartItem | null;
@@ -31,7 +32,9 @@ export default function LastScannedCard({
     : selectedProduct
       ? selectedProduct.salePrice
       : 0;
-  const displayTotal = displayQty * displayUnitPrice;
+  const displayTotal = activeItem
+    ? getCartLineTotal(activeItem)
+    : computeLineTotal(displayUnitPrice, displayQty);
   const hasActiveProduct = Boolean(activeItem || selectedProduct);
 
   return (

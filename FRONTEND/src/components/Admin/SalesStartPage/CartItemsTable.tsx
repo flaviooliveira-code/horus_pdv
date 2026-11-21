@@ -4,7 +4,7 @@
  * Entradas esperadas: carrinho, formatador de moeda, callback de remoção e flag alta visibilidade.
  */
 import { Trash2 } from "lucide-react";
-import { formatQuantity, type PdvCartItem } from "./pdvTypes";
+import { formatQuantity, getCartLineKey, getCartLineTotal, type PdvCartItem } from "./pdvTypes";
 
 type CartItemsTableProps = {
   cart: PdvCartItem[];
@@ -33,11 +33,12 @@ export default function CartItemsTable({
     <>
       <div className="space-y-2.5 p-2.5 md:hidden">
         {cart.map((item, index) => {
-          const total = item.quantity * item.unitPrice;
-          const isLast = item.id === lastScannedItemId;
+          const lineKey = getCartLineKey(item);
+          const total = getCartLineTotal(item);
+          const isLast = lineKey === lastScannedItemId;
           return (
             <article
-              key={item.id}
+              key={lineKey}
               className={`pdv-mobile-item-card rounded-xl border bg-bg-light p-3 ${
                 isLast ? "border-accent ring-1 ring-accent/30" : "border-border-primary"
               }`}
@@ -51,7 +52,7 @@ export default function CartItemsTable({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onRemoveItem(item.id)}
+                  onClick={() => onRemoveItem(lineKey)}
                   className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-white"
                   aria-label={`Remover ${item.name}`}
                 >
@@ -91,11 +92,12 @@ export default function CartItemsTable({
         </thead>
         <tbody>
           {cart.map((item, index) => {
-            const total = item.quantity * item.unitPrice;
-            const isLast = item.id === lastScannedItemId;
+            const lineKey = getCartLineKey(item);
+            const total = getCartLineTotal(item);
+            const isLast = lineKey === lastScannedItemId;
             return (
               <tr
-                key={item.id}
+                key={lineKey}
                 className={`border-b border-border-primary transition-colors ${
                   isLast
                     ? "bg-accent/10"
@@ -123,7 +125,7 @@ export default function CartItemsTable({
                 <td className="w-14 px-2 py-3.5 text-center">
                   <button
                     type="button"
-                    onClick={() => onRemoveItem(item.id)}
+                    onClick={() => onRemoveItem(lineKey)}
                     className={`inline-flex items-center justify-center rounded-md bg-primary text-white ${
                       highVisibility ? "h-10 w-10" : "h-8 w-8"
                     }`}

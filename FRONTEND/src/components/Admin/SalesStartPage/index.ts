@@ -11,6 +11,8 @@ export {
   filterProductsByQuery,
   formatQuantity,
   formatTotalVolumes,
+  getCartLineKey,
+  getCartLineTotal,
   normalizeQuantity,
   resolveProductSubmission,
   type PdvCartItem,
