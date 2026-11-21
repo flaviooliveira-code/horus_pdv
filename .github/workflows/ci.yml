@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Testes da API
+        run: dotnet test API/NETCORE.Tests/HORUSPDV-API.Tests.csproj --configuration Release
+
+  frontend:
+    name: Frontend (lint, unitários, build, acessibilidade)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FRONTEND
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: FRONTEND/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Testes unitários
+        run: node --test tests/unit/*.test.ts
+
+      - name: Build
+        run: npm run build
+
+      - name: Instalar Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes de acessibilidade do PDV
+        run: npx playwright test --config playwright.accessibility.config.ts
+
+      - name: Guardar relatório em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acessibilidade-test-results
+          path: FRONTEND/test-results/
+          retention-days: 7
+
+  smoke:
+    name: Smoke (API + SQL Server + navegador)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    env:
+      SMOKE_SQL_CONTAINER: sqlserver2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Subir SQL Server
+        run: |
+          docker run -d --name "$SMOKE_SQL_CONTAINER" \
+            -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Senha@12345' \
+            -p 1433:1433 mcr.microsoft.com/mssql/server:2025-latest
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: FRONTEND/package-lock.json
+
+      - name: Instalar dependências do frontend
+        working-directory: FRONTEND
+        run: npm ci
+
+      - name: Instalar Chromium do Playwright
+        working-directory: FRONTEND
+        run: npx playwright install --with-deps chromium
+
+      - name: Compilar a API
+        run: dotnet build API/NETCORE/HORUSPDV-API.csproj
+
+      - name: Aguardar SQL Server
+        run: |
+          for i in $(seq 1 60); do
+            if docker exec "$SMOKE_SQL_CONTAINER" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Senha@12345' -Q "SELECT 1" >/dev/null 2>&1; then
+              echo "SQL Server pronto"; exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$SMOKE_SQL_CONTAINER" | tail -50
+          exit 1
+
+      - name: Smoke completo
+        working-directory: FRONTEND
+        run: npx playwright test --config playwright.config.ts
+
+      - name: Guardar relatório em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: FRONTEND/test-results/
+          retention-days: 7
