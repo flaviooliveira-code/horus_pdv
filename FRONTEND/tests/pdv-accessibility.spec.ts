@@ -375,10 +375,14 @@ test.describe("Acessibilidade e Redesenho da Frente de Caixa", () => {
     await page.evaluate(() => {
       (document.activeElement as HTMLElement | null)?.blur();
     });
-    for (const ch of "7890001112223") {
-      await page.keyboard.press(ch, { delay: 5 });
-    }
-    await page.keyboard.press("Enter");
+    // A rajada é disparada dentro da página: com page.keyboard.press tecla a tecla, a ida e volta
+    // do Playwright às vezes passa de HID_INTER_KEY_MAX_MS (60 ms) e o teste ficava instável.
+    // Um leitor real envia as teclas com poucos milissegundos de intervalo.
+    await page.evaluate((code) => {
+      for (const key of [...code.split(""), "Enter"]) {
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      }
+    }, "7890001112223");
 
     await expect(page.locator(".pdv-table tbody tr")).toHaveCount(2);
     await expect(page.locator(".pdv-last-scanned-name")).toHaveText("Refrigerante Cola 2L");
