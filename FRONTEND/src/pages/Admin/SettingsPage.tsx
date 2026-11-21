@@ -1,10 +1,11 @@
 /**
  * Arquivo: src/pages/Admin/SettingsPage.tsx
- * Objetivo: renderiza página de configurações com tema e segurança de sessões.
+ * Objetivo: renderiza página de configurações com tema, impressão, acessibilidade do PDV e segurança de sessões.
  * Entradas esperadas: estado do tema e callback para alternância.
  */
 import { useEffect, useMemo, useState } from "react";
 import {
+  AccessibilitySettingsCard,
   PrintSettingsCard,
   SecuritySessionsCard,
   ThemeSettingsCard,
@@ -13,7 +14,14 @@ import {
 import { Toast } from "@/hooks/Dialog";
 import PageLayout from "@/layout/PageLayout";
 import { sessionService } from "@/services/api/sessionService";
-import { getPrintPreviewEnabled, setPrintPreviewEnabled } from "@/utils/pdvPreferences";
+import {
+  getHighVisibilityEnabled,
+  getPrintPreviewEnabled,
+  getScannerAutoFocusEnabled,
+  setHighVisibilityEnabled,
+  setPrintPreviewEnabled,
+  setScannerAutoFocusEnabled,
+} from "@/utils/pdvPreferences";
 
 type ThemeMode = "light" | "dark";
 
@@ -30,6 +38,12 @@ export default function SettingsPage({
   const [isLoading] = useState(false);
   const [printPreviewEnabled, setPrintPreviewEnabledState] = useState(() =>
     getPrintPreviewEnabled(),
+  );
+  const [highVisibilityEnabled, setHighVisibilityEnabledState] = useState(() =>
+    getHighVisibilityEnabled(),
+  );
+  const [scannerAutoFocusEnabled, setScannerAutoFocusEnabledState] = useState(() =>
+    getScannerAutoFocusEnabled(),
   );
 
   useEffect(() => {
@@ -72,6 +86,26 @@ export default function SettingsPage({
     );
   };
 
+  const handleChangeHighVisibility = (enabled: boolean) => {
+    setHighVisibilityEnabledState(enabled);
+    setHighVisibilityEnabled(enabled);
+    Toast.success(
+      enabled
+        ? "Modo Alta Visibilidade (F7) ativado no PDV."
+        : "Modo Alta Visibilidade (F7) desativado no PDV.",
+    );
+  };
+
+  const handleChangeScannerAutoFocus = (enabled: boolean) => {
+    setScannerAutoFocusEnabledState(enabled);
+    setScannerAutoFocusEnabled(enabled);
+    Toast.success(
+      enabled
+        ? "Foco contínuo no leitor de código de barras ativado."
+        : "Foco contínuo no leitor de código de barras desativado.",
+    );
+  };
+
   return (
     <div className="flex-1 py-4 md:py-6 lg:py-8">
       <PageLayout>
@@ -88,6 +122,12 @@ export default function SettingsPage({
             <PrintSettingsCard
               printPreviewEnabled={printPreviewEnabled}
               onChangePrintPreview={handleChangePrintPreview}
+            />
+            <AccessibilitySettingsCard
+              highVisibilityEnabled={highVisibilityEnabled}
+              onChangeHighVisibility={handleChangeHighVisibility}
+              scannerAutoFocusEnabled={scannerAutoFocusEnabled}
+              onChangeScannerAutoFocus={handleChangeScannerAutoFocus}
             />
             <SecuritySessionsCard
               sessions={sessions}

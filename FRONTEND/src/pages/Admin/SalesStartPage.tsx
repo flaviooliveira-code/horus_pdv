@@ -1,10 +1,11 @@
 /**
  * Arquivo: src/pages/Admin/SalesStartPage.tsx
- * Objetivo: implementa a frente de caixa com busca de produto, carrinho, fechamento e pagamento.
+ * Objetivo: implementa a frente de caixa com busca de produto, leitor HID contínuo, acessibilidade (F7),
+ * visor do cliente em segunda tela, carrinho, fechamento e pagamento.
  * Entradas esperadas: recebe flag opcional de modo standalone para ajustar comportamento da aba PDV.
  */
 
-import { Image as ImageIcon, Printer, Search, Trash2, X } from "lucide-react";
+import { Eye, Monitor, Printer, ScanBarcode, Search, X } from "lucide-react";
 import {
   type ClipboardEvent,
   type FormEvent,
@@ -14,18 +15,32 @@ import {
   useRef,
   useState,
 } from "react";
-import LoadingButton from "@/components/Loading/LoadingButton";
 import PixChargePanel from "@/components/Admin/PixChargePanel";
+import ReceiptPreviewModal, {
+  type PaymentType,
+  type SaleReceipt,
+} from "@/components/Admin/ReceiptPreviewModal";
+import {
+  CartItemsTable,
+  HighVisibilityWrapper,
+  LastScannedCard,
+  TotalBanner,
+  filterProductsByQuery,
+  formatQuantity,
+  formatTotalVolumes,
+  getCartLineKey,
+  getCartLineTotal,
+  resolveProductSubmission,
+  type PdvCartItem,
+  type PdvProduct,
+} from "@/components/Admin/SalesStartPage";
+import LoadingButton from "@/components/Loading/LoadingButton";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import {
   cashRegisterService,
   type CashRegisterStatusDto,
 } from "@/services/api/cashRegisterService";
-import ReceiptPreviewModal, {
-  type PaymentType,
-  type SaleReceipt,
-} from "@/components/Admin/ReceiptPreviewModal";
 import { companyService, type CompanyDto } from "@/services/api/companyService";
 import {
   paymentChargeService,
@@ -33,38 +48,29 @@ import {
 } from "@/services/api/paymentChargeService";
 import { productService } from "@/services/api/productService";
 import { salesHistoryService } from "@/services/api/salesHistoryService";
-import { getPrintPreviewEnabled } from "@/utils/pdvPreferences";
 import {
-  computeLineTotal,
-  formatQuantityPtBr,
-  parseScaleBarcode,
-  roundQuantity,
-} from "@/utils/scaleBarcode";
+  type CustomerDisplayLastSale,
+  type CustomerDisplayState,
+  createCustomerDisplayChannel,
+  publishCustomerDisplayState,
+  subscribeCustomerDisplay,
+} from "@/utils/customerDisplayChannel";
+import {
+  HIGH_VISIBILITY_CHANGE_EVENT,
+  PRINT_PREVIEW_CHANGE_EVENT,
+  SCANNER_AUTO_FOCUS_CHANGE_EVENT,
+  getHighVisibilityEnabled,
+  getPrintPreviewEnabled,
+  getScannerAutoFocusEnabled,
+  setHighVisibilityEnabled,
+  setScannerAutoFocusEnabled,
+} from "@/utils/pdvPreferences";
+import { computeLineTotal, parseScaleBarcode, roundQuantity } from "@/utils/scaleBarcode";
 
 type SalesStartPageProps = {
   onExit?: () => void;
   standalone?: boolean;
   operatorName?: string;
-};
-
-type Product = {
-  id: string;
-  name: string;
-  code: string;
-  stock: number;
-  salePrice: number;
-  imageUrl?: string;
-  unitType?: string;
-};
-
-type CartItem = {
-  id: string;
-  lineId?: string;
-  code: string;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  itemTotalOverride?: number;
 };
 
 const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string; shortcut: string }> = [
@@ -77,6 +83,7 @@ const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string; shortcut: stri
 const KEYBOARD_SHORTCUTS: Array<{ key: string; label: string }> = [
   { key: "F2", label: "Produto" },
   { key: "F4", label: "Quantidade" },
+  { key: "F7", label: "Alta visibilidade" },
   { key: "Enter", label: "Adicionar" },
   { key: "F8", label: "Cancelar" },
   { key: "F12", label: "Pagamento" },
@@ -86,13 +93,16 @@ const KEYBOARD_SHORTCUTS: Array<{ key: string; label: string }> = [
 const PIX_POLL_INTERVAL_MS = 3000;
 const LAST_RECEIPT_STORAGE_KEY = "horus-pdv-last-receipt";
 const PENDING_CART_STORAGE_KEY = "horus-pdv-pending-cart";
+const HID_INTER_KEY_MAX_MS = 60;
+const HID_ENTER_MAX_MS = 80;
+const HID_MIN_CODE_LENGTH = 4;
 
-function readPendingCart(): CartItem[] {
+function readPendingCart(): PdvCartItem[] {
   try {
     const stored = window.sessionStorage.getItem(PENDING_CART_STORAGE_KEY);
     if (!stored) return [];
     const parsed = JSON.parse(stored) as unknown;
-    return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
+    return Array.isArray(parsed) ? (parsed as PdvCartItem[]) : [];
   } catch {
     return [];
   }
@@ -132,6 +142,22 @@ function formatCashElapsed(minutes?: number) {
   return `${hours}h ${String(remainingMinutes).padStart(2, "0")}min`;
 }
 
+function readDocumentThemeMode(): "light" | "dark" {
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function isEditableElement(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
+}
+
 export default function SalesStartPage({
   standalone = false,
   operatorName = "Operador",
@@ -141,17 +167,31 @@ export default function SalesStartPage({
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
+  const displayWindowRef = useRef<Window | null>(null);
+  const displayChannelRef = useRef<BroadcastChannel | null>(null);
+  const hidBufferRef = useRef<{ buffer: string; lastKeyAt: number }>({
+    buffer: "",
+    lastKeyAt: 0,
+  });
 
   const [now, setNow] = useState(new Date());
   const [productSearch, setProductSearch] = useState("");
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<PdvProduct[]>([]);
   const [company, setCompany] = useState<CompanyDto | null>(null);
   const [cashStatus, setCashStatus] = useState<CashRegisterStatusDto | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [showProductOptions, setShowProductOptions] = useState(false);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
   const [quantityInput, setQuantityInput] = useState("1");
-  const [cart, setCart] = useState<CartItem[]>(readPendingCart);
+  const [cart, setCart] = useState<PdvCartItem[]>(readPendingCart);
+  const [lastScannedItemId, setLastScannedItemId] = useState<string | null>(() => {
+    const initialCart = readPendingCart();
+    return initialCart.length > 0 ? initialCart[initialCart.length - 1].id : null;
+  });
+  const [displayStatus, setDisplayStatus] = useState<
+    "idle" | "active" | "completed" | "cancelled"
+  >(() => (readPendingCart().length > 0 ? "active" : "idle"));
+  const [lastCompletedSale, setLastCompletedSale] = useState<CustomerDisplayLastSale | null>(null);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<PaymentType>("dinheiro");
@@ -169,6 +209,13 @@ export default function SalesStartPage({
   const [printPreviewEnabled, setPrintPreviewEnabled] = useState(() =>
     getPrintPreviewEnabled(),
   );
+  const [highVisibilityEnabled, setHighVisibilityEnabledState] = useState(() =>
+    getHighVisibilityEnabled(),
+  );
+  const [scannerAutoFocusEnabled, setScannerAutoFocusEnabledState] = useState(() =>
+    getScannerAutoFocusEnabled(),
+  );
+  const [themeMode, setThemeMode] = useState<"light" | "dark">(() => readDocumentThemeMode());
 
   const pasteCashGiven = (event: ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault();
@@ -186,25 +233,13 @@ export default function SalesStartPage({
     return roundQuantity(parsed) || 1;
   }, [quantityInput]);
 
-  const filteredProducts = useMemo(() => {
-    const normalized = productSearch.trim().toLowerCase();
-    if (!normalized) return products;
-    return products.filter(
-      (item) =>
-        item.name.toLowerCase().includes(normalized) ||
-        item.code.toLowerCase().includes(normalized),
-    );
-  }, [products, productSearch]);
+  const filteredProducts = useMemo(
+    () => filterProductsByQuery(productSearch, products),
+    [products, productSearch],
+  );
 
   const subtotal = useMemo(
-    () =>
-      Math.round(
-        cart.reduce(
-          (sum, item) =>
-            sum + (item.itemTotalOverride ?? computeLineTotal(item.unitPrice, item.quantity)),
-          0,
-        ) * 100,
-      ) / 100,
+    () => Math.round(cart.reduce((sum, item) => sum + getCartLineTotal(item), 0) * 100) / 100,
     [cart],
   );
   const totalVolumes = useMemo(
@@ -215,15 +250,33 @@ export default function SalesStartPage({
   const cashGivenValue = parseMoneyBr(cashGiven || "0");
   const changeValue = paymentType === "dinheiro" ? Math.max(0, cashGivenValue - subtotal) : 0;
 
-  const activeProductName =
-    cart.length > 0 ? cart[cart.length - 1].name : selectedProduct?.name ?? "";
+  const lastScannedCartItem = useMemo(() => {
+    if (cart.length === 0) return null;
+    if (lastScannedItemId) {
+      const matched = cart.find((item) => getCartLineKey(item) === lastScannedItemId);
+      if (matched) return matched;
+    }
+    return cart[cart.length - 1];
+  }, [cart, lastScannedItemId]);
 
   const previewProduct = useMemo(() => {
     if (selectedProduct) return selectedProduct;
-    const lastItem = cart[cart.length - 1];
-    if (!lastItem) return null;
-    return products.find((item) => item.id === lastItem.id) ?? null;
-  }, [selectedProduct, products, cart]);
+    if (!lastScannedCartItem) return null;
+    return products.find((item) => item.id === lastScannedCartItem.id) ?? null;
+  }, [selectedProduct, products, lastScannedCartItem]);
+
+  const focusProductInput = useCallback((options?: { select?: boolean }) => {
+    if (typeof document !== "undefined" && document.querySelector('[role="dialog"]')) {
+      return;
+    }
+    window.setTimeout(() => {
+      if (document.querySelector('[role="dialog"]')) return;
+      productInputRef.current?.focus();
+      if (options?.select) {
+        productInputRef.current?.select();
+      }
+    }, 0);
+  }, []);
 
   const loadProducts = useCallback(async () => {
     const items = await productService.list();
@@ -289,21 +342,53 @@ export default function SalesStartPage({
   }, []);
 
   useEffect(() => {
-    const syncPrintPreviewPreference = () => setPrintPreviewEnabled(getPrintPreviewEnabled());
-    const onCustomPreferenceChange = (event: Event) => {
+    const syncPreferences = () => {
+      setPrintPreviewEnabled(getPrintPreviewEnabled());
+      setHighVisibilityEnabledState(getHighVisibilityEnabled());
+      setScannerAutoFocusEnabledState(getScannerAutoFocusEnabled());
+    };
+    const onPrintPreferenceChange = (event: Event) => {
       const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
       setPrintPreviewEnabled(typeof enabled === "boolean" ? enabled : getPrintPreviewEnabled());
     };
+    const onHighVisibilityChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      setHighVisibilityEnabledState(
+        typeof enabled === "boolean" ? enabled : getHighVisibilityEnabled(),
+      );
+    };
+    const onScannerAutoFocusChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      setScannerAutoFocusEnabledState(
+        typeof enabled === "boolean" ? enabled : getScannerAutoFocusEnabled(),
+      );
+    };
 
-    window.addEventListener("focus", syncPrintPreviewPreference);
-    window.addEventListener("storage", syncPrintPreviewPreference);
-    window.addEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
+    window.addEventListener("focus", syncPreferences);
+    window.addEventListener("storage", syncPreferences);
+    window.addEventListener(PRINT_PREVIEW_CHANGE_EVENT, onPrintPreferenceChange);
+    window.addEventListener(HIGH_VISIBILITY_CHANGE_EVENT, onHighVisibilityChange);
+    window.addEventListener(SCANNER_AUTO_FOCUS_CHANGE_EVENT, onScannerAutoFocusChange);
 
     return () => {
-      window.removeEventListener("focus", syncPrintPreviewPreference);
-      window.removeEventListener("storage", syncPrintPreviewPreference);
-      window.removeEventListener("horus-pdv-print-preview-change", onCustomPreferenceChange);
+      window.removeEventListener("focus", syncPreferences);
+      window.removeEventListener("storage", syncPreferences);
+      window.removeEventListener(PRINT_PREVIEW_CHANGE_EVENT, onPrintPreferenceChange);
+      window.removeEventListener(HIGH_VISIBILITY_CHANGE_EVENT, onHighVisibilityChange);
+      window.removeEventListener(SCANNER_AUTO_FOCUS_CHANGE_EVENT, onScannerAutoFocusChange);
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(() => {
+      setThemeMode(readDocumentThemeMode());
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -327,6 +412,11 @@ export default function SalesStartPage({
       Toast.info(`Venda em andamento restaurada (${restored.length} item(ns)).`);
     }
   }, []);
+
+  useEffect(() => {
+    if (!scannerAutoFocusEnabled || checkoutOpen || receiptPreview) return;
+    focusProductInput();
+  }, [scannerAutoFocusEnabled, checkoutOpen, receiptPreview, focusProductInput]);
 
   useEffect(() => {
     if (!checkoutOpen) return;
@@ -364,35 +454,217 @@ export default function SalesStartPage({
     });
   }, [filteredProducts]);
 
-  const selectProductOption = (product: Product) => {
+  const cashCanSell = cashStatus?.canSell === true;
+
+  const customerDisplayState = useMemo<CustomerDisplayState>(() => {
+    const productImageMap = new Map(products.map((product) => [product.id, product.imageUrl]));
+    const mappedItems = cart.map((item) => ({
+      id: getCartLineKey(item),
+      code: item.code,
+      name: item.name,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: getCartLineTotal(item),
+      imageUrl: productImageMap.get(item.id),
+    }));
+    const mappedLastScanned = lastScannedCartItem
+      ? mappedItems.find((item) => item.id === getCartLineKey(lastScannedCartItem)) ?? null
+      : null;
+
+    return {
+      updatedAt: 0,
+      status: cart.length > 0 ? "active" : displayStatus,
+      companyName: company?.fantasyName || "Hórus PDV",
+      operatorName,
+      cashCanSell,
+      highVisibility: highVisibilityEnabled,
+      themeMode,
+      lastScannedItem: mappedLastScanned,
+      items: mappedItems,
+      totalVolumes,
+      subtotal,
+      lastSale: lastCompletedSale,
+    };
+  }, [
+    cart,
+    cashCanSell,
+    company?.fantasyName,
+    displayStatus,
+    highVisibilityEnabled,
+    lastCompletedSale,
+    lastScannedCartItem,
+    operatorName,
+    products,
+    subtotal,
+    themeMode,
+    totalVolumes,
+  ]);
+
+  const latestDisplayStateRef = useRef(customerDisplayState);
+  useEffect(() => {
+    latestDisplayStateRef.current = customerDisplayState;
+  });
+
+  useEffect(() => {
+    const channel = createCustomerDisplayChannel();
+    displayChannelRef.current = channel;
+    const unsubscribe = subscribeCustomerDisplay({
+      onRequestSync: () => {
+        publishCustomerDisplayState(
+          { ...latestDisplayStateRef.current, updatedAt: Date.now() },
+          displayChannelRef.current,
+        );
+      },
+    });
+    return () => {
+      unsubscribe();
+      channel?.close();
+      displayChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    publishCustomerDisplayState(
+      { ...customerDisplayState, updatedAt: Date.now() },
+      displayChannelRef.current,
+    );
+  }, [customerDisplayState]);
+
+  const highVisibilityRef = useRef(highVisibilityEnabled);
+  const scannerAutoFocusRef = useRef(scannerAutoFocusEnabled);
+  useEffect(() => {
+    highVisibilityRef.current = highVisibilityEnabled;
+  }, [highVisibilityEnabled]);
+  useEffect(() => {
+    scannerAutoFocusRef.current = scannerAutoFocusEnabled;
+  }, [scannerAutoFocusEnabled]);
+
+  const toggleHighVisibility = useCallback(() => {
+    const next = !highVisibilityRef.current;
+    highVisibilityRef.current = next;
+    setHighVisibilityEnabledState(next);
+    setHighVisibilityEnabled(next);
+  }, []);
+
+  const toggleScannerAutoFocus = useCallback(() => {
+    const next = !scannerAutoFocusRef.current;
+    scannerAutoFocusRef.current = next;
+    setScannerAutoFocusEnabledState(next);
+    setScannerAutoFocusEnabled(next);
+    if (next) {
+      focusProductInput();
+    }
+  }, [focusProductInput]);
+
+  const openCustomerDisplayWindow = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("pdv");
+    url.searchParams.set("pdv-display", "1");
+    publishCustomerDisplayState(
+      { ...latestDisplayStateRef.current, updatedAt: Date.now() },
+      displayChannelRef.current,
+    );
+    const opened = window.open(
+      url.toString(),
+      "horuspdv-customer-display",
+      "width=1280,height=800",
+    );
+    if (opened) {
+      displayWindowRef.current = opened;
+      opened.focus();
+    }
+  };
+
+  const selectProductOption = useCallback((product: PdvProduct) => {
     setSelectedProductId(product.id);
     setProductSearch(product.name);
     setShowProductOptions(false);
     setHighlightedProductIndex(0);
     qtyInputRef.current?.focus();
-  };
+  }, []);
 
-  const addItem = useCallback(() => {
-    const trimmedSearch = productSearch.trim();
-    const scaleMatch = !selectedProduct ? parseScaleBarcode(trimmedSearch, products) : null;
-    if (scaleMatch) {
-      const existingQty = roundQuantity(
+  const finishProductEntry = useCallback(() => {
+    setDisplayStatus("active");
+    setLastCompletedSale(null);
+    setSelectedProductId("");
+    setProductSearch("");
+    setShowProductOptions(false);
+    setQuantityInput("1");
+    productInputRef.current?.focus();
+  }, []);
+
+  const addProductToCart = useCallback(
+    (product: PdvProduct, qty: number): boolean => {
+      // Linhas de etiqueta de balança têm total próprio e não se juntam às linhas comuns.
+      const existing = cart.find(
+        (item) => item.id === product.id && item.itemTotalOverride === undefined,
+      );
+      const qtyInCart = roundQuantity(
+        cart.filter((item) => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0),
+      );
+      if (qty > product.stock) {
+        Toast.error(`Estoque insuficiente. Disponível: ${formatQuantity(product.stock)}.`);
+        return false;
+      }
+      if (roundQuantity(qtyInCart + qty) > product.stock) {
+        Toast.error(`Estoque insuficiente para ${product.name}.`);
+        return false;
+      }
+
+      setCart((current) => {
+        const currentExisting = current.find(
+          (item) => item.id === product.id && item.itemTotalOverride === undefined,
+        );
+        if (!currentExisting) {
+          return [
+            ...current,
+            {
+              id: product.id,
+              code: product.code,
+              name: product.name,
+              quantity: qty,
+              unitPrice: product.salePrice,
+            },
+          ];
+        }
+        return current.map((item) =>
+          item === currentExisting
+            ? { ...item, quantity: roundQuantity(currentExisting.quantity + qty) }
+            : item,
+        );
+      });
+
+      setLastScannedItemId(existing ? getCartLineKey(existing) : product.id);
+      finishProductEntry();
+      return true;
+    },
+    [cart, finishProductEntry],
+  );
+
+  /** Etiqueta EAN-13 de balança (prefixo 2): adiciona uma linha com peso e total da etiqueta. */
+  const addScaleLabelToCart = useCallback(
+    (rawQuery: string): boolean | null => {
+      const scaleMatch = parseScaleBarcode(rawQuery.trim(), products);
+      if (!scaleMatch) return null;
+
+      const qtyInCart = roundQuantity(
         cart
           .filter((item) => item.id === scaleMatch.product.id)
           .reduce((sum, item) => sum + item.quantity, 0),
       );
-      if (roundQuantity(existingQty + scaleMatch.quantity) > scaleMatch.product.stock) {
+      if (roundQuantity(qtyInCart + scaleMatch.quantity) > scaleMatch.product.stock) {
         Toast.error(
-          `Estoque insuficiente para ${scaleMatch.product.name}. Disponível: ${formatQuantityPtBr(scaleMatch.product.stock)}.`,
+          `Estoque insuficiente para ${scaleMatch.product.name}. Disponível: ${formatQuantity(scaleMatch.product.stock)}.`,
         );
-        return;
+        return false;
       }
 
+      const lineId = `${scaleMatch.product.id}-scale-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       setCart((current) => [
         ...current,
         {
           id: scaleMatch.product.id,
-          lineId: `${scaleMatch.product.id}-scale-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          lineId,
           code: scaleMatch.product.code,
           name: scaleMatch.product.name,
           quantity: scaleMatch.quantity,
@@ -400,74 +672,80 @@ export default function SalesStartPage({
           itemTotalOverride: scaleMatch.totalValue,
         },
       ]);
+      setLastScannedItemId(lineId);
+      finishProductEntry();
+      return true;
+    },
+    [cart, finishProductEntry, products],
+  );
 
-      setSelectedProductId("");
-      setProductSearch("");
+  const submitProductEntry = useCallback(
+    (rawQuery?: string, options?: { allowFuzzyFallback?: boolean }): boolean => {
+      const query = rawQuery ?? productSearch;
+      if (rawQuery || !selectedProduct) {
+        const scaleResult = addScaleLabelToCart(query);
+        if (scaleResult !== null) return scaleResult;
+      }
+
+      const resolution = resolveProductSubmission({
+        query,
+        products,
+        selectedProduct: rawQuery ? null : selectedProduct,
+        showProductOptions: rawQuery ? false : showProductOptions,
+        highlightedProductIndex,
+        allowFuzzyFallback: options?.allowFuzzyFallback ?? false,
+      });
+
+      if (resolution.type === "add") {
+        return addProductToCart(resolution.product, quantity);
+      }
+
+      if (resolution.type === "select_option") {
+        selectProductOption(resolution.product);
+        return true;
+      }
+
+      Toast.error(
+        query.trim()
+          ? "Produto não encontrado para o código informado."
+          : "Selecione um produto.",
+      );
       setShowProductOptions(false);
-      setQuantityInput("1");
-      productInputRef.current?.focus();
-      return;
-    }
+      focusProductInput({ select: true });
+      return false;
+    },
+    [
+      addProductToCart,
+      addScaleLabelToCart,
+      focusProductInput,
+      highlightedProductIndex,
+      productSearch,
+      products,
+      quantity,
+      selectProductOption,
+      selectedProduct,
+      showProductOptions,
+    ],
+  );
 
-    const matchedFromSearch =
-      selectedProduct ??
-      filteredProducts.find(
-        (item) =>
-          item.name.toLowerCase() === trimmedSearch.toLowerCase() ||
-          item.code.toLowerCase() === trimmedSearch.toLowerCase(),
-      ) ??
-      filteredProducts[0];
-
-    if (!matchedFromSearch) {
-      Toast.error("Selecione um produto.");
-      return;
-    }
-    if (quantity > matchedFromSearch.stock) {
-      Toast.error(`Estoque insuficiente. Disponível: ${formatQuantityPtBr(matchedFromSearch.stock)}.`);
-      return;
-    }
-
-    setCart((current) => {
-      const currentTotalQty = roundQuantity(
-        current
-          .filter((item) => item.id === matchedFromSearch.id)
-          .reduce((sum, item) => sum + item.quantity, 0),
-      );
-      if (roundQuantity(currentTotalQty + quantity) > matchedFromSearch.stock) {
-        Toast.error(`Estoque insuficiente para ${matchedFromSearch.name}.`);
-        return current;
-      }
-
-      const existing = current.find(
-        (item) => item.id === matchedFromSearch.id && item.itemTotalOverride === undefined,
-      );
-      if (!existing) {
-        return [
-          ...current,
-          {
-            id: matchedFromSearch.id,
-            code: matchedFromSearch.code,
-            name: matchedFromSearch.name,
-            quantity,
-            unitPrice: matchedFromSearch.salePrice,
-          },
-        ];
-      }
-      const nextQuantity = roundQuantity(existing.quantity + quantity);
-      return current.map((item) =>
-        item === existing ? { ...item, quantity: nextQuantity } : item,
-      );
-    });
-
-    setSelectedProductId("");
-    setProductSearch("");
-    setShowProductOptions(false);
-    setQuantityInput("1");
-    productInputRef.current?.focus();
-  }, [cart, filteredProducts, productSearch, products, quantity, selectedProduct]);
+  const addItem = useCallback(() => {
+    submitProductEntry(undefined, { allowFuzzyFallback: true });
+  }, [submitProductEntry]);
 
   const removeItem = (lineKey: string) => {
-    setCart((current) => current.filter((item) => (item.lineId ?? item.id) !== lineKey));
+    setCart((current) => {
+      const next = current.filter((item) => getCartLineKey(item) !== lineKey);
+      if (lastScannedItemId === lineKey) {
+        setLastScannedItemId(next.length > 0 ? getCartLineKey(next[next.length - 1]) : null);
+      }
+      if (next.length === 0) {
+        setDisplayStatus("idle");
+      }
+      return next;
+    });
+    if (scannerAutoFocusEnabled) {
+      focusProductInput();
+    }
   };
 
   const saveLastReceipt = (receipt: SaleReceipt) => {
@@ -475,7 +753,7 @@ export default function SalesStartPage({
     try {
       window.localStorage.setItem(LAST_RECEIPT_STORAGE_KEY, JSON.stringify(receipt));
     } catch {
-      // Mantem apenas em memoria caso o navegador bloqueie o armazenamento local.
+      // Mantém apenas em memória caso o navegador bloqueie o armazenamento local.
     }
   };
 
@@ -490,14 +768,21 @@ export default function SalesStartPage({
   const cancelSale = useCallback(async () => {
     if (cart.length === 0) return;
     const confirmed = await statusDialog.confirm("Cancelar venda atual?");
-    if (!confirmed) return;
+    if (!confirmed) {
+      if (scannerAutoFocusEnabled) focusProductInput();
+      return;
+    }
     setCart([]);
+    setLastScannedItemId(null);
+    setDisplayStatus("cancelled");
+    setLastCompletedSale(null);
     setCpfNota("");
     setCashGiven("");
     setPixCharge(null);
     setCheckoutOpen(false);
     Toast.info("Venda cancelada.");
-  }, [cart.length, statusDialog]);
+    if (scannerAutoFocusEnabled) focusProductInput();
+  }, [cart.length, focusProductInput, scannerAutoFocusEnabled, statusDialog]);
 
   const openPayment = useCallback(async () => {
     if (cart.length === 0) {
@@ -574,6 +859,9 @@ export default function SalesStartPage({
     if (confirmingPayment) return;
     if (!(await cancelPix(true))) return;
     setCheckoutOpen(false);
+    if (scannerAutoFocusEnabled) {
+      focusProductInput();
+    }
   };
 
   const confirmPayment = async (polledChargeId?: string) => {
@@ -641,12 +929,19 @@ export default function SalesStartPage({
         change: paymentType === "dinheiro" ? changeValue : 0,
         items: cart.map((item) => ({
           ...item,
-          total: item.itemTotalOverride ?? computeLineTotal(item.unitPrice, item.quantity),
+          total: getCartLineTotal(item),
         })),
       };
 
       setCheckoutOpen(false);
       saveLastReceipt(receipt);
+      setLastCompletedSale({
+        saleNumber: receipt.saleNumber,
+        total: receipt.subtotal,
+        paymentLabel: receipt.paymentLabel,
+        change: receipt.change,
+      });
+      setDisplayStatus("completed");
       // Atualiza o estoque em segundo plano para não atrasar o recibo.
       loadProducts().catch(() => {
         Toast.error("Não foi possível atualizar o estoque no PDV.");
@@ -663,6 +958,7 @@ export default function SalesStartPage({
     }
 
     setCart([]);
+    setLastScannedItemId(null);
     setSelectedProductId("");
     setProductSearch("");
     setShowProductOptions(false);
@@ -671,7 +967,11 @@ export default function SalesStartPage({
     setCpfNota("");
     setCashGiven("");
     setPixCharge(null);
-    window.setTimeout(() => productInputRef.current?.focus(), 0);
+    window.setTimeout(() => {
+      if (!document.querySelector('[role="dialog"]')) {
+        productInputRef.current?.focus();
+      }
+    }, 0);
   };
 
   // Mantém a versão mais recente para o polling do PIX chamar sem reiniciar o intervalo a cada render.
@@ -715,35 +1015,45 @@ export default function SalesStartPage({
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       const isInput = target?.tagName === "INPUT";
+      const isEditable = isEditableElement(target);
+      const hasOpenDialog = Boolean(document.querySelector('[role="dialog"]'));
 
       if (event.key === "F2") {
         event.preventDefault();
         productInputRef.current?.focus();
+        return;
       }
       if (event.key === "F4") {
         event.preventDefault();
         qtyInputRef.current?.focus();
+        return;
+      }
+      if (event.key === "F7") {
+        event.preventDefault();
+        toggleHighVisibility();
+        return;
       }
       if (event.key === "F8") {
         event.preventDefault();
         void cancelSale();
+        return;
       }
       if (event.key === "F12") {
         event.preventDefault();
-        if (!checkoutOpen) openPayment();
+        if (!checkoutOpen) void openPayment();
+        return;
       }
       if (event.key === "Enter" && isInput && !checkoutOpen) {
-        if (target === productInputRef.current && showProductOptions) {
-          return;
-        }
-        if (target === productInputRef.current || target === qtyInputRef.current) {
+        if (target === qtyInputRef.current) {
           event.preventDefault();
-          addItem();
+          submitProductEntry(undefined, { allowFuzzyFallback: true });
+          return;
         }
       }
       if (event.key === "Escape" && checkoutOpen) {
         event.preventDefault();
         void closeCheckoutRef.current();
+        return;
       }
       if (checkoutOpen && !isInput && !pixPendingRef.current) {
         // Teclas 1–4 escolhem a forma de pagamento quando o foco não está num campo de texto.
@@ -752,15 +1062,44 @@ export default function SalesStartPage({
           event.preventDefault();
           setPaymentType(option.value);
         }
+        return;
+      }
+
+      // Captura rajada de leitor HID mesmo quando o foco estiver fora de campos editáveis.
+      if (!checkoutOpen && !receiptPreview && !isEditable && !hasOpenDialog) {
+        const nowMs = Date.now();
+        if (event.key === "Enter") {
+          const { buffer, lastKeyAt } = hidBufferRef.current;
+          hidBufferRef.current = { buffer: "", lastKeyAt: 0 };
+          if (buffer.length >= HID_MIN_CODE_LENGTH && nowMs - lastKeyAt <= HID_ENTER_MAX_MS) {
+            event.preventDefault();
+            submitProductEntry(buffer, { allowFuzzyFallback: false });
+          }
+          return;
+        }
+
+        if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+          const withinBurst = nowMs - hidBufferRef.current.lastKeyAt <= HID_INTER_KEY_MAX_MS;
+          hidBufferRef.current = {
+            buffer: withinBurst ? `${hidBufferRef.current.buffer}${event.key}` : event.key,
+            lastKeyAt: nowMs,
+          };
+        }
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addItem, cancelSale, checkoutOpen, openPayment, quantity, selectedProductId, cart.length, showProductOptions]);
+  }, [
+    cancelSale,
+    checkoutOpen,
+    openPayment,
+    receiptPreview,
+    submitProductEntry,
+    toggleHighVisibility,
+  ]);
 
   const { dateLabel, timeLabel } = formatDateTime(now);
-  const cashCanSell = cashStatus?.canSell === true;
   const cashLabel = cashStatus
     ? cashCanSell
       ? `Caixa aberto por ${formatCashElapsed(cashStatus.currentSession?.elapsedMinutes)}`
@@ -768,542 +1107,513 @@ export default function SalesStartPage({
     : "Validando caixa...";
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-bg-primary p-1.5 md:overflow-hidden md:p-2">
-      <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col overflow-visible rounded-2xl border border-border-primary bg-bg-light shadow-md md:h-full md:overflow-hidden">
-        <header className="relative border-b border-border-secondary bg-accent px-4 py-3 text-text-light">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="font-display text-2xl font-bold italic leading-none md:text-4xl">Hórus PDV</h1>
-              <p className="text-sm italic leading-none md:text-lg">Frente de Caixa</p>
-            </div>
-            <div className="text-right text-xs md:text-sm">
-              <p className="capitalize">{dateLabel}</p>
-              <p className="text-base font-semibold md:text-lg">{timeLabel}</p>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="shrink-0 border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
-            <label className="mb-2 block">
-              <span className="mb-1 block text-xs font-semibold uppercase">Produto:</span>
-              <div className="relative">
-                <Search
-                  size={14}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
-                />
-                <input
-                  ref={productInputRef}
-                  value={productSearch}
-                  onChange={(event) => {
-                    setProductSearch(event.target.value);
-                    setSelectedProductId("");
-                    setShowProductOptions(true);
-                    setHighlightedProductIndex(0);
-                  }}
-                  onFocus={() => {
-                    // Evita reabrir o autocomplete automaticamente após adicionar item no mobile.
-                    const hasSearch = productSearch.trim().length > 0;
-                    setShowProductOptions(hasSearch);
-                    if (hasSearch && filteredProducts.length > 0) setHighlightedProductIndex(0);
-                  }}
-                  onBlur={() => window.setTimeout(() => setShowProductOptions(false), 120)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && parseScaleBarcode(productSearch.trim(), products)) {
-                      event.preventDefault();
-                      addItem();
-                      return;
-                    }
-
-                    if (!showProductOptions) return;
-
-                    if (event.key === "ArrowDown") {
-                      event.preventDefault();
-                      if (filteredProducts.length === 0) return;
-                      setHighlightedProductIndex((current) =>
-                        current >= filteredProducts.length - 1 ? 0 : current + 1,
-                      );
-                    }
-
-                    if (event.key === "ArrowUp") {
-                      event.preventDefault();
-                      if (filteredProducts.length === 0) return;
-                      setHighlightedProductIndex((current) =>
-                        current <= 0 ? filteredProducts.length - 1 : current - 1,
-                      );
-                    }
-
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      const product = filteredProducts[highlightedProductIndex];
-                      if (product) {
-                        selectProductOption(product);
-                      }
-                    }
-
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      setShowProductOptions(false);
-                    }
-                  }}
-                  className="input-field h-10 w-full pl-9 text-sm"
-                  autoComplete="off"
-                />
-                {showProductOptions && (
-                  <ul className="absolute left-0 right-0 top-full z-layer-popover mt-1 max-h-44 overflow-y-auto rounded-xl border border-border-secondary bg-bg-light text-text-primary shadow-lg">
-                    {filteredProducts.length > 0 ? (
-                      filteredProducts.map((item, index) => (
-                        <li
-                          key={item.id}
-                          className={`cursor-pointer border-b border-border-primary px-3 py-2 text-xs ${
-                            highlightedProductIndex === index ? "bg-hover-light" : "hover:bg-hover-light"
-                          }`}
-                          onMouseEnter={() => setHighlightedProductIndex(index)}
-                          onMouseDown={() => {
-                            selectProductOption(item);
-                          }}
-                        >
-                          <p className="font-semibold">{item.name}</p>
-                          <p className="text-[11px] text-text-secondary">{item.code}</p>
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-2 py-2 text-xs text-text-secondary">Nenhum produto encontrado.</li>
-                    )}
-                  </ul>
-                )}
+    <HighVisibilityWrapper enabled={highVisibilityEnabled} className="h-full">
+      <div className="h-[100dvh] overflow-y-auto bg-bg-primary p-1.5 md:overflow-hidden md:p-2">
+        <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col overflow-visible rounded-2xl border border-border-primary bg-bg-light shadow-md md:h-full md:overflow-hidden">
+          <header className="relative border-b border-border-secondary bg-accent px-4 py-3 text-text-light">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="pdv-header-title font-display text-2xl font-bold italic leading-none md:text-4xl">
+                  Hórus PDV
+                </h1>
+                <p className="pdv-header-subtitle text-sm italic leading-none md:text-lg">
+                  Frente de Caixa
+                </p>
               </div>
-            </label>
 
-            <label className="mb-2 block">
-              <span className="mb-1 block text-xs font-semibold uppercase">Quantidade (volume):</span>
-              <input
-                ref={qtyInputRef}
-                value={quantityInput}
-                inputMode="decimal"
-                onFocus={(event) => event.target.select()}
-                onChange={(event) =>
-                  setQuantityInput(sanitizeDecimalInput(event.target.value, 3).slice(0, 10))
-                }
-                onBlur={() => {
-                  const cleaned = quantityInput.replace(/\.$/, "");
-                  const parsed = Number(cleaned.replace(",", "."));
-                  if (!cleaned || !Number.isFinite(parsed) || parsed <= 0) {
-                    setQuantityInput("1");
-                  } else if (cleaned !== quantityInput) {
-                    setQuantityInput(cleaned);
-                  }
-                }}
-                className="input-field h-10 w-full text-lg font-semibold"
-              />
-            </label>
-
-            <label className="mb-2 block">
-              <span className="mb-1 block text-xs font-semibold uppercase">Preço unitário:</span>
-              <input
-                value={selectedProduct ? formatMoneyBr(selectedProduct.salePrice) : "0,00"}
-                className="input-field h-10 w-full text-lg font-semibold"
-                disabled
-              />
-            </label>
-
-            <label className="mb-2 block">
-              <span className="mb-1 block text-xs font-semibold uppercase">Preço total:</span>
-              <input
-                value={selectedProduct ? formatMoneyBr(computeLineTotal(selectedProduct.salePrice, quantity)) : "0,00"}
-                className="input-field h-10 w-full text-lg font-semibold"
-                disabled
-              />
-            </label>
-
-            <button
-              type="button"
-              onClick={addItem}
-              className="btn-success h-10 w-full rounded-xl"
-            >
-              ADICIONAR ITEM (ENTER)
-            </button>
-
-            <div className="mt-2 border-t border-border-primary pt-2 text-sm">
-              <p className="font-semibold">
-                Total volumes:{" "}
-                {Number.isInteger(totalVolumes)
-                  ? String(totalVolumes).padStart(4, "0")
-                  : formatQuantityPtBr(totalVolumes)}
-              </p>
-            </div>
-
-            <div className="mt-3 hidden rounded-xl border border-border-primary bg-bg-light p-3 sm:block">
-              <div className="mx-auto flex h-28 w-full max-w-[220px] items-center justify-center overflow-hidden rounded-xl border-2 border-border-secondary bg-bg-primary text-text-tertiary">
-                {previewProduct?.imageUrl ? (
-                  <img
-                    src={previewProduct.imageUrl}
-                    alt={previewProduct.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-1 text-center">
-                    <ImageIcon size={28} />
-                    <span className="text-xs font-medium">Sem imagem</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </aside>
-
-          <section className="flex min-h-[55vh] flex-col bg-bg-light lg:min-h-0">
-            <div className="grid grid-cols-1 gap-1 border-b border-border-primary bg-bg-gray-theme px-3 py-2 text-xs text-text-primary sm:grid-cols-[1fr_200px] sm:gap-0">
-              <p>
-                <span className="font-semibold">Empresa:</span>{" "}
-                {company?.fantasyName || "Hórus PDV"}
-              </p>
-              <p className="sm:text-right">
-                <span className="font-semibold">CNPJ:</span> {company?.cnpj || "-"}
-              </p>
-            </div>
-
-            <div
-              className={`border-b px-3 py-2 text-xs font-semibold ${
-                cashCanSell
-                  ? "border-success/20 bg-success/10 text-success"
-                  : "border-primary/20 bg-primary/10 text-primary"
-              }`}
-            >
-              {cashLabel}
-            </div>
-
-            <div className="border-b border-border-primary px-3 py-3">
-              <p className="text-xs font-semibold">Nome produto:</p>
-              <h2 className="text-center font-display text-xl font-semibold leading-none tracking-tight text-text-primary md:text-3xl">
-                {activeProductName || "AGUARDANDO PRODUTO"}
-              </h2>
-            </div>
-
-            <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
-              <p className="mb-1 text-sm font-semibold">Lista de itens:</p>
-              <div className="min-h-[180px] flex-1 overflow-auto rounded-xl border border-dashed border-border-secondary bg-bg-primary md:min-h-0">
-                {cart.length === 0 ? (
-                  <div className="px-2 py-6 text-center text-sm text-text-secondary">
-                    Nenhum item no cupom.
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2 p-2 md:hidden">
-                      {cart.map((item, index) => {
-                        const lineKey = item.lineId ?? item.id;
-                        const total =
-                          item.itemTotalOverride ??
-                          computeLineTotal(item.unitPrice, item.quantity);
-                        return (
-                          <article
-                            key={lineKey}
-                            className="rounded-xl border border-border-primary bg-bg-light p-2.5"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-text-secondary">
-                                  Item #{index + 1} • {item.code}
-                                </p>
-                                <p className="truncate text-sm font-semibold text-text-primary">
-                                  {item.name}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeItem(lineKey)}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-white"
-                                aria-label={`Remover ${item.name}`}
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                            <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                              <div>
-                                <p className="text-text-secondary">Qtd</p>
-                                <p className="font-semibold text-text-primary">
-                                  {formatQuantityPtBr(item.quantity)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-text-secondary">Vl. Unit</p>
-                                <p className="font-semibold text-text-primary">
-                                  {formatMoneyBr(item.unitPrice)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-text-secondary">Vl. Total</p>
-                                <p className="font-semibold text-text-primary">
-                                  {formatMoneyBr(total)}
-                                </p>
-                              </div>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-
-                    <table className="hidden min-w-[720px] w-full text-sm leading-[1.25] md:table md:text-base">
-                      <thead>
-                        <tr className="border-b border-border-primary bg-bg-gray-theme text-[11px] uppercase text-text-secondary md:text-xs">
-                          <th className="w-12 px-2 py-1 text-center">#</th>
-                          <th className="w-28 px-2 py-1 text-left">Código</th>
-                          <th className="px-2 py-1 text-left">Produto</th>
-                          <th className="w-16 px-2 py-1 text-center">Qtd</th>
-                          <th className="w-32 px-2 py-1 text-right">Vl. Unit</th>
-                          <th className="w-32 px-2 py-1 text-right">Vl. Total</th>
-                          <th className="w-12 px-1 py-1 text-center"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cart.map((item, index) => {
-                          const lineKey = item.lineId ?? item.id;
-                          const total =
-                            item.itemTotalOverride ??
-                            computeLineTotal(item.unitPrice, item.quantity);
-                          return (
-                            <tr key={lineKey} className="border-b border-border-primary">
-                              <td className="w-12 px-2 py-1 text-center">{index + 1}</td>
-                              <td className="w-28 px-2 py-1">{item.code}</td>
-                              <td className="px-2 py-1">{item.name}</td>
-                              <td className="w-16 px-2 py-1 text-center">
-                                {formatQuantityPtBr(item.quantity)}
-                              </td>
-                              <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(item.unitPrice)}</td>
-                              <td className="w-32 px-2 py-1 text-right">{formatMoneyBr(total)}</td>
-                              <td className="w-12 px-1 py-1 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => removeItem(lineKey)}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-primary text-white"
-                                  aria-label={`Remover ${item.name}`}
-                                  title="Remover item"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="md:sticky md:bottom-0 md:z-10 md:shadow-[0_-8px_18px_rgba(15,23,42,0.08)]">
-              <div
-                className="hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-primary bg-bg-gray-theme px-3 py-1.5 text-xs text-text-secondary md:flex"
-                aria-label="Atalhos de teclado"
-              >
-                {KEYBOARD_SHORTCUTS.map((shortcut) => (
-                  <span key={shortcut.key} className="inline-flex items-center gap-1.5">
-                    <kbd className="rounded-md border border-border-secondary bg-bg-light px-1.5 py-0.5 font-mono text-[11px] font-semibold text-text-primary">
-                      {shortcut.key}
-                    </kbd>
-                    {shortcut.label}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={toggleHighVisibility}
+                  aria-pressed={highVisibilityEnabled}
+                  className="pdv-toggle-pill inline-flex items-center gap-1.5 rounded-xl border border-white/40 bg-white/15 px-3 py-1.5 text-xs font-bold text-text-light transition hover:bg-white/25 md:text-sm"
+                  title="Alternar modo Alta Visibilidade (F7)"
+                >
+                  <Eye size={16} />
+                  <span>
+                    {highVisibilityEnabled
+                      ? "Alta Visibilidade: ON (F7)"
+                      : "Alta Visibilidade (F7)"}
                   </span>
-                ))}
-              </div>
+                </button>
 
-              <div className="grid grid-cols-[1fr_160px] border-t border-border-primary md:grid-cols-[1fr_220px]">
-                <div className="bg-bg-gray-theme px-3 py-2 text-right text-sm font-semibold uppercase text-text-primary">
-                  SUB TOTAL:
+                <button
+                  type="button"
+                  onClick={toggleScannerAutoFocus}
+                  aria-pressed={scannerAutoFocusEnabled}
+                  className="pdv-toggle-pill inline-flex items-center gap-1.5 rounded-xl border border-white/40 bg-white/15 px-3 py-1.5 text-xs font-bold text-text-light transition hover:bg-white/25 md:text-sm"
+                  title="Manter o leitor de código de barras sempre pronto para o próximo bipe"
+                >
+                  <ScanBarcode size={16} />
+                  <span>
+                    {scannerAutoFocusEnabled
+                      ? "Manter foco no leitor: ON"
+                      : "Manter foco no leitor: OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openCustomerDisplayWindow}
+                  className="pdv-toggle-pill inline-flex items-center gap-1.5 rounded-xl border border-white/40 bg-white/15 px-3 py-1.5 text-xs font-bold text-text-light transition hover:bg-white/25 md:text-sm"
+                  title="Abrir segunda tela para o cliente"
+                >
+                  <Monitor size={16} />
+                  <span>Visor do Cliente</span>
+                </button>
+
+                <div className="text-right text-xs md:text-sm pdv-tabular">
+                  <p className="capitalize">{dateLabel}</p>
+                  <p className="pdv-header-clock text-base font-semibold md:text-lg">
+                    {timeLabel}
+                  </p>
                 </div>
-                <div className="bg-accent px-3 py-2 text-right font-display text-3xl font-bold text-text-light md:text-4xl">
-                  R$ {formatMoneyBr(subtotal)}
-                </div>
               </div>
-
-              <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-4">
-                <button
-                  type="button"
-                  onClick={cancelSale}
-                  disabled={cart.length === 0}
-                  className="btn-cancel h-12 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  ✖ CANCELAR (F8)
-                </button>
-                <button
-                  type="button"
-                  onClick={printLastSale}
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
-                >
-                  <Printer size={16} />
-                  Imprimir última venda
-                </button>
-                <button
-                  type="button"
-                  onClick={openPayment}
-                  className="btn-success h-14 w-full rounded-xl text-lg tracking-wide disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 sm:h-12"
-                  disabled={!cashCanSell}
-                  title={cashCanSell ? undefined : cashLabel}
-                >
-                  PAGAMENTO (F12)
-                </button>
-              </div>
-
-              <footer className="space-y-0.5 border-t border-border-primary bg-bg-primary px-3 py-2 text-[11px] text-text-secondary sm:grid sm:grid-cols-3 sm:items-center sm:space-y-0 sm:text-xs">
-                <p>Usuário: {operatorName}</p>
-                <p className="sm:text-center">
-                  Estabelecimento: {company?.fantasyName || "Hórus PDV"}
-                </p>
-                <p className="sm:text-right">
-                  Prévia impressão: {printPreviewEnabled ? "Sim" : "Não"} • Caixa:{" "}
-                  {cashCanSell ? "PDV01 aberto" : "bloqueado"}
-                </p>
-              </footer>
             </div>
-          </section>
-        </main>
-      </div>
+          </header>
 
-      {checkoutOpen && (
-        <div className="fixed inset-0 z-layer-modal flex items-end bg-black/45 md:items-center md:justify-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="checkout-title"
-            className="max-h-[100dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-border-primary bg-bg-light p-4 md:max-h-[94dvh] md:max-w-xl md:rounded-2xl"
+          <main
+            className={`flex min-h-0 flex-1 flex-col ${
+              highVisibilityEnabled
+                ? "lg:grid lg:grid-cols-[360px_minmax(0,1fr)]"
+                : "lg:grid lg:grid-cols-[310px_minmax(0,1fr)]"
+            }`}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 id="checkout-title" className="text-lg font-semibold text-text-primary">Pagamento</h2>
-              <button
-                type="button"
-                onClick={() => void closeCheckout()}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-primary text-text-secondary"
-                aria-label="Fechar pagamento (Esc)"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void confirmPayment();
-              }}
-            >
-              <fieldset>
-                <legend className="mb-1.5 block text-sm text-text-secondary">Forma de pagamento</legend>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {PAYMENT_OPTIONS.map((option) => {
-                    const selected = paymentType === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={selected}
-                        disabled={pixPending && !selected}
-                        onClick={() => setPaymentType(option.value)}
-                        className={`flex h-14 flex-col disabled:cursor-not-allowed disabled:opacity-50 items-center justify-center rounded-xl border text-sm font-semibold transition ${
-                          selected
-                            ? "border-accent bg-accent text-text-light shadow-sm"
-                            : "border-border-secondary bg-bg-light text-text-primary hover:bg-hover-light"
-                        }`}
-                      >
-                        <span>{option.label}</span>
-                        <span className={`text-[11px] font-normal ${selected ? "text-text-light/80" : "text-text-tertiary"}`}>
-                          tecla {option.shortcut}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              {paymentType === "dinheiro" && (
-                <label className="block">
-                  <span className="mb-1.5 block text-sm text-text-secondary">Valor recebido</span>
-                  <input
-                    ref={cashGivenInputRef}
-                    value={cashGiven}
-                    inputMode="numeric"
-                    pattern="[0-9,.]*"
-                    onBeforeInput={preventNonDigitBeforeInput}
-                    onPaste={pasteCashGiven}
-                    onChange={(event) => setCashGiven(maskMoneyBr(event.target.value))}
-                    className="input-field w-full text-lg font-semibold"
-                    placeholder="0,00"
+            <aside className="shrink-0 border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
+              <label className="mb-2.5 block">
+                <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
+                  Produto:
+                </span>
+                <div className="relative">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
                   />
-                </label>
-              )}
+                  <input
+                    ref={productInputRef}
+                    value={productSearch}
+                    onChange={(event) => {
+                      setProductSearch(event.target.value);
+                      setSelectedProductId("");
+                      setShowProductOptions(true);
+                      setHighlightedProductIndex(0);
+                    }}
+                    onFocus={() => {
+                      // Evita reabrir o autocomplete automaticamente após adicionar item no mobile.
+                      const hasSearch = productSearch.trim().length > 0;
+                      setShowProductOptions(hasSearch);
+                      if (hasSearch && filteredProducts.length > 0) setHighlightedProductIndex(0);
+                    }}
+                    onBlur={() => window.setTimeout(() => setShowProductOptions(false), 120)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        submitProductEntry(undefined, { allowFuzzyFallback: false });
+                        return;
+                      }
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">CPF na nota (opcional)</span>
+                      if (!showProductOptions) return;
+
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        if (filteredProducts.length === 0) return;
+                        setHighlightedProductIndex((current) =>
+                          current >= filteredProducts.length - 1 ? 0 : current + 1,
+                        );
+                      }
+
+                      if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        if (filteredProducts.length === 0) return;
+                        setHighlightedProductIndex((current) =>
+                          current <= 0 ? filteredProducts.length - 1 : current - 1,
+                        );
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setShowProductOptions(false);
+                      }
+                    }}
+                    className="input-field pdv-search-input h-10 w-full pl-9 text-sm"
+                    autoComplete="off"
+                  />
+                  {showProductOptions && (
+                    <ul className="absolute left-0 right-0 top-full z-layer-popover mt-1 max-h-52 overflow-y-auto rounded-xl border border-border-secondary bg-bg-light text-text-primary shadow-lg">
+                      {filteredProducts.length > 0 ? (
+                        filteredProducts.map((item, index) => (
+                          <li
+                            key={item.id}
+                            className={`cursor-pointer border-b border-border-primary px-3 py-2 text-sm ${
+                              highlightedProductIndex === index
+                                ? "bg-hover-light"
+                                : "hover:bg-hover-light"
+                            }`}
+                            onMouseEnter={() => setHighlightedProductIndex(index)}
+                            onMouseDown={() => {
+                              selectProductOption(item);
+                            }}
+                          >
+                            <p className="font-semibold">{item.name}</p>
+                            <p className="text-xs text-text-secondary pdv-tabular">
+                              {item.code}
+                            </p>
+                          </li>
+                        ))
+                      ) : (
+                        <li className="px-3 py-2 text-xs text-text-secondary">
+                          Nenhum produto encontrado.
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                </div>
+              </label>
+
+              <label className="mb-2.5 block">
+                <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
+                  Quantidade (volume):
+                </span>
                 <input
-                  value={cpfNota}
-                  readOnly={pixPending}
-                  inputMode="numeric"
-                  onChange={(event) => setCpfNota(maskCpf(event.target.value))}
-                  className="input-field w-full"
-                  placeholder="000.000.000-00"
+                  ref={qtyInputRef}
+                  value={quantityInput}
+                  inputMode="decimal"
+                  onFocus={(event) => event.target.select()}
+                  onChange={(event) =>
+                    setQuantityInput(sanitizeDecimalInput(event.target.value, 3).slice(0, 10))
+                  }
+                  onBlur={() => {
+                    const cleaned = quantityInput.replace(/\.$/, "");
+                    const parsed = Number(cleaned.replace(",", "."));
+                    if (!cleaned || !Number.isFinite(parsed) || parsed <= 0) {
+                      setQuantityInput("1");
+                    } else if (cleaned !== quantityInput) {
+                      setQuantityInput(cleaned);
+                    }
+                  }}
+                  className="input-field pdv-qty-input pdv-tabular h-10 w-full text-lg font-semibold"
                 />
               </label>
 
-              {paymentType === "pix" && (
-                <PixChargePanel
-                  charge={pixCharge}
-                  generating={generatingPix}
-                  cancelling={cancellingPix}
-                  onGenerate={() => void generatePix()}
-                  onCancel={() => void cancelPix(false)}
+              <label className="mb-2.5 block">
+                <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
+                  Preço unitário:
+                </span>
+                <input
+                  value={selectedProduct ? formatMoneyBr(selectedProduct.salePrice) : "0,00"}
+                  className="input-field pdv-price-input pdv-tabular h-10 w-full text-lg font-semibold"
+                  disabled
                 />
-              )}
+              </label>
 
-              <div className="rounded-xl border border-border-primary bg-bg-primary p-3">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-text-secondary">Total</span>
-                  <span className="font-display text-2xl font-bold text-text-primary">
-                    R$ {formatMoneyBr(subtotal)}
-                  </span>
+              <label className="mb-2.5 block">
+                <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
+                  Preço total:
+                </span>
+                <input
+                  value={
+                    selectedProduct
+                      ? formatMoneyBr(computeLineTotal(selectedProduct.salePrice, quantity))
+                      : "0,00"
+                  }
+                  className="input-field pdv-price-input pdv-tabular h-10 w-full text-lg font-semibold"
+                  disabled
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={addItem}
+                className="btn-success pdv-btn-action h-11 w-full rounded-xl"
+              >
+                ADICIONAR ITEM (ENTER)
+              </button>
+
+              <div className="mt-3 border-t border-border-primary pt-2.5 text-sm">
+                <p className="pdv-field-label pdv-tabular font-semibold">
+                  Total volumes: {formatTotalVolumes(totalVolumes)}
+                </p>
+              </div>
+            </aside>
+
+            <section className="flex min-h-[55vh] flex-col bg-bg-light lg:min-h-0">
+              <div className="grid grid-cols-1 gap-1 border-b border-border-primary bg-bg-gray-theme px-3 py-2 text-xs text-text-primary sm:grid-cols-[1fr_220px] sm:gap-0 md:text-sm">
+                <p>
+                  <span className="font-semibold">Empresa:</span>{" "}
+                  {company?.fantasyName || "Hórus PDV"}
+                </p>
+                <p className="sm:text-right pdv-tabular">
+                  <span className="font-semibold">CNPJ:</span> {company?.cnpj || "-"}
+                </p>
+              </div>
+
+              <div
+                className={`pdv-cash-banner border-b px-3 py-2 text-sm font-semibold ${
+                  cashCanSell
+                    ? "border-success/20 bg-success/10 text-success"
+                    : "border-primary/20 bg-primary/10 text-primary"
+                }`}
+              >
+                {cashLabel}
+              </div>
+
+              <LastScannedCard
+                activeItem={lastScannedCartItem}
+                selectedProduct={selectedProduct}
+                previewImageUrl={previewProduct?.imageUrl}
+                previewQuantity={quantity}
+                formatMoney={formatMoneyBr}
+                highVisibility={highVisibilityEnabled}
+              />
+
+              <div className="flex min-h-0 flex-1 flex-col px-3 py-2.5">
+                <p className="pdv-field-label mb-1.5 text-sm font-semibold">Lista de itens:</p>
+                <div className="min-h-[180px] flex-1 overflow-auto rounded-xl border border-dashed border-border-secondary bg-bg-primary md:min-h-0">
+                  <CartItemsTable
+                    cart={cart}
+                    lastScannedItemId={lastScannedCartItem ? getCartLineKey(lastScannedCartItem) : null}
+                    formatMoney={formatMoneyBr}
+                    onRemoveItem={removeItem}
+                    highVisibility={highVisibilityEnabled}
+                  />
                 </div>
+              </div>
+
+              <div className="md:sticky md:bottom-0 md:z-10 md:shadow-[0_-8px_18px_rgba(15,23,42,0.08)]">
+                <div
+                  className="pdv-shortcuts-bar hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-primary bg-bg-gray-theme px-3 py-1.5 text-xs text-text-secondary md:flex"
+                  aria-label="Atalhos de teclado"
+                >
+                  {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                    <span key={shortcut.key} className="inline-flex items-center gap-1.5">
+                      <kbd className="rounded-md border border-border-secondary bg-bg-light px-1.5 py-0.5 font-mono text-[11px] font-semibold text-text-primary">
+                        {shortcut.key}
+                      </kbd>
+                      {shortcut.label}
+                    </span>
+                  ))}
+                </div>
+
+                <TotalBanner
+                  subtotal={subtotal}
+                  totalVolumes={totalVolumes}
+                  itemCount={cart.length}
+                  formatMoney={formatMoneyBr}
+                  highVisibility={highVisibilityEnabled}
+                />
+
+                <div className="grid grid-cols-1 gap-2 border-t border-border-primary px-3 py-3 sm:grid-cols-4">
+                  <button
+                    type="button"
+                    onClick={cancelSale}
+                    disabled={cart.length === 0}
+                    className="btn-cancel pdv-btn-action h-12 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    ✖ CANCELAR (F8)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={printLastSale}
+                    className="pdv-btn-action inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
+                  >
+                    <Printer size={16} />
+                    Imprimir última venda
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openPayment}
+                    className="btn-success pdv-btn-action h-14 w-full rounded-xl text-lg tracking-wide disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2 sm:h-12"
+                    disabled={!cashCanSell}
+                    title={cashCanSell ? undefined : cashLabel}
+                  >
+                    PAGAMENTO (F12)
+                  </button>
+                </div>
+
+                <footer className="pdv-footer space-y-0.5 border-t border-border-primary bg-bg-primary px-3 py-2 text-[11px] text-text-secondary sm:grid sm:grid-cols-3 sm:items-center sm:space-y-0 sm:text-xs">
+                  <p>Usuário: {operatorName}</p>
+                  <p className="sm:text-center">
+                    Estabelecimento: {company?.fantasyName || "Hórus PDV"}
+                  </p>
+                  <p className="sm:text-right">
+                    Alta visibilidade: {highVisibilityEnabled ? "Ativa" : "Padrão"} • Prévia:{" "}
+                    {printPreviewEnabled ? "Sim" : "Não"} • Caixa:{" "}
+                    {cashCanSell ? "PDV01 aberto" : "bloqueado"}
+                  </p>
+                </footer>
+              </div>
+            </section>
+          </main>
+        </div>
+
+        {checkoutOpen && (
+          <div className="fixed inset-0 z-layer-modal flex items-end bg-black/45 md:items-center md:justify-center">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="checkout-title"
+              className="max-h-[100dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-border-primary bg-bg-light p-4 md:max-h-[94dvh] md:max-w-xl md:rounded-2xl"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 id="checkout-title" className="text-lg font-semibold text-text-primary">
+                  Pagamento
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => void closeCheckout()}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-primary text-text-secondary"
+                  aria-label="Fechar pagamento (Esc)"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void confirmPayment();
+                }}
+              >
+                <fieldset>
+                  <legend className="pdv-field-label mb-1.5 block text-sm text-text-secondary">
+                    Forma de pagamento
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {PAYMENT_OPTIONS.map((option) => {
+                      const selected = paymentType === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={selected}
+                          disabled={pixPending && !selected}
+                          onClick={() => setPaymentType(option.value)}
+                          className={`flex h-14 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            selected
+                              ? "border-accent bg-accent text-text-light shadow-sm"
+                              : "border-border-secondary bg-bg-light text-text-primary hover:bg-hover-light"
+                          }`}
+                        >
+                          <span>{option.label}</span>
+                          <span
+                            className={`text-[11px] font-normal ${
+                              selected ? "text-text-light/80" : "text-text-tertiary"
+                            }`}
+                          >
+                            tecla {option.shortcut}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
                 {paymentType === "dinheiro" && (
-                  <div className="mt-2 flex items-baseline justify-between border-t border-border-primary pt-2">
-                    <span className="text-sm text-text-secondary">Troco</span>
-                    <span className="font-display text-3xl font-bold text-success">
-                      R$ {formatMoneyBr(changeValue)}
+                  <label className="block">
+                    <span className="pdv-field-label mb-1.5 block text-sm text-text-secondary">
+                      Valor recebido
+                    </span>
+                    <input
+                      ref={cashGivenInputRef}
+                      value={cashGiven}
+                      inputMode="numeric"
+                      pattern="[0-9,.]*"
+                      onBeforeInput={preventNonDigitBeforeInput}
+                      onPaste={pasteCashGiven}
+                      onChange={(event) => setCashGiven(maskMoneyBr(event.target.value))}
+                      className="input-field pdv-tabular w-full text-lg font-semibold"
+                      placeholder="0,00"
+                    />
+                  </label>
+                )}
+
+                <label className="block">
+                  <span className="pdv-field-label mb-1.5 block text-sm text-text-secondary">
+                    CPF na nota (opcional)
+                  </span>
+                  <input
+                    value={cpfNota}
+                    readOnly={pixPending}
+                    inputMode="numeric"
+                    onChange={(event) => setCpfNota(maskCpf(event.target.value))}
+                    className="input-field pdv-tabular w-full"
+                    placeholder="000.000.000-00"
+                  />
+                </label>
+
+                {paymentType === "pix" && (
+                  <PixChargePanel
+                    charge={pixCharge}
+                    generating={generatingPix}
+                    cancelling={cancellingPix}
+                    onGenerate={() => void generatePix()}
+                    onCancel={() => void cancelPix(false)}
+                  />
+                )}
+
+                <div className="rounded-xl border border-border-primary bg-bg-primary p-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-text-secondary">Total</span>
+                    <span className="pdv-tabular font-display text-2xl font-bold text-text-primary">
+                      R$ {formatMoneyBr(subtotal)}
                     </span>
                   </div>
-                )}
-              </div>
+                  {paymentType === "dinheiro" && (
+                    <div className="mt-2 flex items-baseline justify-between border-t border-border-primary pt-2">
+                      <span className="text-sm text-text-secondary">Troco</span>
+                      <span className="pdv-tabular font-display text-3xl font-bold text-success">
+                        R$ {formatMoneyBr(changeValue)}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-              <div className="grid gap-2 pt-1 sm:grid-cols-[1fr_2fr]">
-                <button type="button" onClick={() => void closeCheckout()} className="btn-cancel h-12">
-                  Voltar
-                </button>
-                <LoadingButton
-                  ref={confirmButtonRef}
-                  type="submit"
-                  isLoading={confirmingPayment}
-                  loadingLabel="Registrando..."
-                  disabled={paymentType === "pix" && pixPending}
-                  className="btn-success inline-flex h-12 items-center justify-center gap-2 text-base disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {paymentType !== "pix"
-                    ? "Confirmar"
-                    : pixPending
-                      ? "Aguardando PIX..."
-                      : pixCharge?.status === "PAID"
-                        ? "Registrar venda"
-                        : "Confirmar PIX recebido"}
-                </LoadingButton>
-              </div>
-            </form>
+                <div className="grid gap-2 pt-1 sm:grid-cols-[1fr_2fr]">
+                  <button
+                    type="button"
+                    onClick={() => void closeCheckout()}
+                    className="btn-cancel h-12"
+                  >
+                    Voltar
+                  </button>
+                  <LoadingButton
+                    ref={confirmButtonRef}
+                    type="submit"
+                    isLoading={confirmingPayment}
+                    loadingLabel="Registrando..."
+                    disabled={paymentType === "pix" && pixPending}
+                    className="btn-success inline-flex h-12 items-center justify-center gap-2 text-base disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {paymentType !== "pix"
+                      ? "Confirmar"
+                      : pixPending
+                        ? "Aguardando PIX..."
+                        : pixCharge?.status === "PAID"
+                          ? "Registrar venda"
+                          : "Confirmar PIX recebido"}
+                  </LoadingButton>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {receiptPreview ? (
-        <ReceiptPreviewModal
-          receipt={receiptPreview}
-          formatMoney={formatMoneyBr}
-          onClose={() => setReceiptPreview(null)}
-        />
-      ) : null}
+        {receiptPreview ? (
+          <ReceiptPreviewModal
+            receipt={receiptPreview}
+            formatMoney={formatMoneyBr}
+            onClose={() => {
+              setReceiptPreview(null);
+              if (scannerAutoFocusEnabled) {
+                focusProductInput();
+              }
+            }}
+          />
+        ) : null}
 
-      {statusDialog.Dialog}
-    </div>
+        {statusDialog.Dialog}
+      </div>
+    </HighVisibilityWrapper>
   );
 }
