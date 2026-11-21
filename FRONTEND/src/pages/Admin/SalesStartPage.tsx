@@ -35,6 +35,7 @@ import { productService } from "@/services/api/productService";
 import { salesHistoryService } from "@/services/api/salesHistoryService";
 import { getPrintPreviewEnabled } from "@/utils/pdvPreferences";
 import {
+  computeLineTotal,
   formatQuantityPtBr,
   parseScaleBarcode,
   roundQuantity,
@@ -200,7 +201,7 @@ export default function SalesStartPage({
       Math.round(
         cart.reduce(
           (sum, item) =>
-            sum + (item.itemTotalOverride ?? Math.round(item.unitPrice * item.quantity * 100) / 100),
+            sum + (item.itemTotalOverride ?? computeLineTotal(item.unitPrice, item.quantity)),
           0,
         ) * 100,
       ) / 100,
@@ -640,7 +641,7 @@ export default function SalesStartPage({
         change: paymentType === "dinheiro" ? changeValue : 0,
         items: cart.map((item) => ({
           ...item,
-          total: item.itemTotalOverride ?? Math.round(item.quantity * item.unitPrice * 100) / 100,
+          total: item.itemTotalOverride ?? computeLineTotal(item.unitPrice, item.quantity),
         })),
       };
 
@@ -992,7 +993,7 @@ export default function SalesStartPage({
                         const lineKey = item.lineId ?? item.id;
                         const total =
                           item.itemTotalOverride ??
-                          Math.round(item.quantity * item.unitPrice * 100) / 100;
+                          computeLineTotal(item.unitPrice, item.quantity);
                         return (
                           <article
                             key={lineKey}
@@ -1058,7 +1059,7 @@ export default function SalesStartPage({
                           const lineKey = item.lineId ?? item.id;
                           const total =
                             item.itemTotalOverride ??
-                            Math.round(item.quantity * item.unitPrice * 100) / 100;
+                            computeLineTotal(item.unitPrice, item.quantity);
                           return (
                             <tr key={lineKey} className="border-b border-border-primary">
                               <td className="w-12 px-2 py-1 text-center">{index + 1}</td>

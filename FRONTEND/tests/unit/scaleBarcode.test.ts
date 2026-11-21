@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  computeLineTotal,
   formatQuantityPtBr,
   isValidEan13CheckDigit,
   parseScaleBarcode,
@@ -88,4 +89,29 @@ test("roundQuantity and formatQuantityPtBr avoid float drift and format integers
   assert.equal(formatQuantityPtBr(0.45), "0,45");
   assert.equal(formatQuantityPtBr(0.455), "0,455");
   assert.equal(formatQuantityPtBr(1.2), "1,2");
+});
+
+test("computeLineTotal arredonda meio-para-cima em centavos, igual ao servidor", () => {
+  // 12,90 × 0,350 = 4,515: em float `Math.round(x * 100) / 100` dava 4,51; o servidor grava 4,52.
+  assert.equal(Math.round(12.9 * 0.35 * 100) / 100, 4.51);
+  assert.equal(computeLineTotal(12.9, 0.35), 4.52);
+  assert.equal(computeLineTotal(1.01, 0.5), 0.51); // 0,505
+  assert.equal(computeLineTotal(39.9, 0.125), 4.99); // 4,9875
+  assert.equal(computeLineTotal(10, 3), 30);
+  assert.equal(computeLineTotal(19.99, 0.001), 0.02); // 0,01999
+  assert.equal(computeLineTotal(Number.NaN, 1), 0);
+});
+
+test("computeLineTotal bate com decimal AwayFromZero em todas as combinações de preço e peso", () => {
+  // Referência em inteiros: centavos × milésimos, meio-para-cima.
+  for (let priceCents = 1; priceCents <= 5000; priceCents += 7) {
+    for (let milli = 1; milli <= 3000; milli += 13) {
+      const expectedCents = Math.floor((priceCents * milli + 500) / 1000);
+      assert.equal(
+        computeLineTotal(priceCents / 100, milli / 1000),
+        expectedCents / 100,
+        `${priceCents / 100} × ${milli / 1000}`,
+      );
+    }
+  }
 });

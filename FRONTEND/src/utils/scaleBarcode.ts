@@ -31,6 +31,20 @@ export function roundQuantity(quantity: number): number {
   return Math.round((quantity + Number.EPSILON) * 1000) / 1000;
 }
 
+/**
+ * Total da linha (preço × quantidade) arredondado meio-para-cima em centavos, igual ao
+ * servidor (decimal com MidpointRounding.AwayFromZero). Usa inteiros (centavos × milésimos)
+ * para evitar erro de ponto flutuante: 12,90 × 0,350 = 4,515 → 4,52 (em float daria 4,51).
+ */
+export function computeLineTotal(unitPrice: number, quantity: number): number {
+  if (!Number.isFinite(unitPrice) || !Number.isFinite(quantity)) return 0;
+  const priceCents = Math.round(unitPrice * 100);
+  const quantityMilli = Math.round(quantity * 1000);
+  const scaled = priceCents * quantityMilli; // centavos × 1000, inteiro exato
+  const sign = scaled < 0 ? -1 : 1;
+  return (sign * Math.round(Math.abs(scaled) / 1000)) / 100;
+}
+
 export function formatQuantityPtBr(quantity: number): string {
   if (!Number.isFinite(quantity)) return "0";
   const rounded = roundQuantity(quantity);
@@ -111,7 +125,7 @@ export function parseScaleBarcode<T extends ScaleProductMatchInput>(
       quantity = roundQuantity(totalValue / matched.salePrice);
     } else {
       quantity = roundQuantity(candidate.rawMeasure / 1000);
-      totalValue = Math.round(quantity * matched.salePrice * 100) / 100;
+      totalValue = computeLineTotal(matched.salePrice, quantity);
     }
 
     if (quantity <= 0 || totalValue <= 0) return null;
