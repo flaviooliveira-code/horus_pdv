@@ -910,7 +910,7 @@ export default function SalesStartPage({
             <label className="mb-2 block">
               <span className="mb-1 block text-xs font-semibold uppercase">Preço total:</span>
               <input
-                value={selectedProduct ? formatMoneyBr(selectedProduct.salePrice * quantity) : "0,00"}
+                value={selectedProduct ? formatMoneyBr(computeLineTotal(selectedProduct.salePrice, quantity)) : "0,00"}
                 className="input-field h-10 w-full text-lg font-semibold"
                 disabled
               />
