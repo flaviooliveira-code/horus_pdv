@@ -30,7 +30,6 @@ public class HistoricoVendasAB(Connection connection)
             """;
 
         await using var db = await connection.OpenConnectionAsync();
-        await EnsurePrintColumnsAsync(db);
         await using var command = new SqlCommand(sql, db);
         command.Parameters.AddWithValue("@CompanyId", companyId);
         command.Parameters.AddWithValue("@SaleNumber", string.IsNullOrWhiteSpace(saleNumber) ? DBNull.Value : saleNumber);
@@ -51,7 +50,6 @@ public class HistoricoVendasAB(Connection connection)
         string usuarioName = "")
     {
         await using var db = await connection.OpenConnectionAsync();
-        await EnsurePrintColumnsAsync(db);
         await using var transaction = (SqlTransaction)await db.BeginTransactionAsync();
 
         try
@@ -462,70 +460,6 @@ public class HistoricoVendasAB(Connection connection)
         ItemTotal = ReadString(reader, "ItemTotal"),
         SaleDate = reader.GetDateTimeOffset(reader.GetOrdinal("SaleDate")).LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss")
     };
-
-    private static async Task EnsurePrintColumnsAsync(SqlConnection db)
-    {
-        const string schemaSql = """
-            IF COL_LENGTH('Vendas', 'PaymentType') IS NULL
-                ALTER TABLE Vendas ADD PaymentType NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_PaymentType DEFAULT N'-';
-            IF COL_LENGTH('Vendas', 'TotalAmount') IS NULL
-                ALTER TABLE Vendas ADD TotalAmount NVARCHAR(30) NOT NULL CONSTRAINT DF_Vendas_TotalAmount DEFAULT N'0,00';
-            IF COL_LENGTH('Vendas', 'OperatorName') IS NULL
-                ALTER TABLE Vendas ADD OperatorName NVARCHAR(180) NOT NULL CONSTRAINT DF_Vendas_OperatorName DEFAULT N'Operador';
-            IF COL_LENGTH('VendaItens', 'UnitPrice') IS NULL
-                ALTER TABLE VendaItens ADD UnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitPrice DEFAULT N'0,00';
-            IF COL_LENGTH('VendaItens', 'UnitCostPrice') IS NULL
-            BEGIN
-                ALTER TABLE VendaItens ADD UnitCostPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_UnitCostPrice DEFAULT N'0,00';
-
-                -- Backfill inicial seguro executado uma única vez na criação da coluna para preservar o snapshot histórico
-                UPDATE i
-                   SET UnitCostPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
-                  FROM VendaItens i
-                  INNER JOIN Vendas v ON v.Id = i.VendaId
-                  INNER JOIN Produtos p ON p.ProductCode = i.ProductCode AND p.CompanyId = v.CompanyId
-                 WHERE NULLIF(LTRIM(RTRIM(i.UnitCostPrice)), '') IS NULL
-                    OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitCostPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
-            END;
-            IF COL_LENGTH('VendaItens', 'ItemTotal') IS NULL
-                ALTER TABLE VendaItens ADD ItemTotal NVARCHAR(30) NOT NULL CONSTRAINT DF_VendaItens_ItemTotal DEFAULT N'0,00';
-            """;
-
-        const string backfillSql = """
-            UPDATE i
-               SET UnitPrice = COALESCE(NULLIF(LTRIM(RTRIM(p.ProductSalePrice)), ''), NULLIF(LTRIM(RTRIM(p.ProductUnitPrice)), ''), N'0,00')
-              FROM VendaItens i
-              INNER JOIN Vendas v ON v.Id = i.VendaId
-              INNER JOIN Produtos p ON p.CompanyId = v.CompanyId AND p.ProductCode = i.ProductCode
-             WHERE NULLIF(LTRIM(RTRIM(i.UnitPrice)), '') IS NULL
-                OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00');
-
-            UPDATE i
-               SET ItemTotal = FORMAT(
-                    TRY_CONVERT(
-                        DECIMAL(18, 2),
-                        REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.')
-                    ) * i.Quantity,
-                    N'N2',
-                    N'pt-BR'
-               )
-              FROM VendaItens i
-             WHERE (NULLIF(LTRIM(RTRIM(i.ItemTotal)), '') IS NULL
-                OR REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.ItemTotal)), N'R$', N''), N'.', N''), N',', N'.') IN (N'0', N'0.00'))
-               AND TRY_CONVERT(
-                    DECIMAL(18, 2),
-                    REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(i.UnitPrice)), N'R$', N''), N'.', N''), N',', N'.')
-               ) IS NOT NULL;
-            """;
-
-        await using (var schemaCommand = new SqlCommand(schemaSql, db))
-        {
-            await schemaCommand.ExecuteNonQueryAsync();
-        }
-
-        await using var backfillCommand = new SqlCommand(backfillSql, db);
-        await backfillCommand.ExecuteNonQueryAsync();
-    }
 
     internal static bool TryParseMoney(string? value, out decimal parsed)
     {
