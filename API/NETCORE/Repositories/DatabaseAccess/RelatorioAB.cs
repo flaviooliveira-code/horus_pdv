@@ -3,6 +3,7 @@
  * Objetivo: gerar relatórios operacionais reais a partir das tabelas atuais do PDV.
  * Entradas esperadas: recebe identificador do relatório, filtros serializados e retorna colunas/linhas para o frontend.
  */
+using HORUSPDV_API.Services.Security;
 using Microsoft.Data.SqlClient;
 using System.Globalization;
 using System.Text;
@@ -14,8 +15,37 @@ public class RelatorioAB(Connection connection)
 {
     private static readonly CultureInfo PtBr = new("pt-BR");
 
-    public async Task<object> GerarAsync(string companyId, string reportId, Dictionary<string, JsonElement> filters)
-        => reportId switch
+    /// <summary>Relatórios contábeis (margem, CMV, despesas): só administrador, gerente ou financeiro.</summary>
+    private static readonly HashSet<string> SupervisorOnlyReports = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "lucro-real",
+        "dre-simplificado"
+    };
+
+    public const string RedactedValue = "-";
+
+    public static bool PodeGerar(string reportId, string? userRole)
+        => !SupervisorOnlyReports.Contains(reportId ?? string.Empty) || HorusRoles.IsSupervisor(userRole);
+
+    /// <summary>
+    /// Fechamento cego: enquanto o caixa está aberto, quem não é supervisor não pode ver o saldo esperado
+    /// nem a quebra/sobra projetada. Depois de fechado, os valores ficam visíveis para auditoria.
+    /// </summary>
+    public static bool DeveOcultarAuditoriaCaixa(bool sessaoAberta, string? userRole)
+        => sessaoAberta && !HorusRoles.IsSupervisor(userRole);
+
+    public async Task<object> GerarAsync(
+        string companyId,
+        string reportId,
+        Dictionary<string, JsonElement> filters,
+        string? userRole)
+    {
+        if (!PodeGerar(reportId, userRole))
+        {
+            throw new UnauthorizedAccessException("Relatório disponível apenas para administrador, gerente ou financeiro.");
+        }
+
+        return reportId switch
         {
             "vendas-periodo" => await GerarVendasPeriodoAsync(companyId, filters),
             "historico-vendas" => await GerarHistoricoVendasAsync(companyId, filters),
@@ -24,11 +54,12 @@ public class RelatorioAB(Connection connection)
             "estoque-critico" => await GerarEstoqueCriticoAsync(companyId, filters),
             "compras-fornecedor" => await GerarComprasFornecedorAsync(companyId),
             "movimento-estoque" => await GerarMovimentoEstoqueAsync(companyId),
-            "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters),
+            "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters, userRole),
             "lucro-real" => await GerarLucroRealAsync(companyId, filters),
             "dre-simplificado" => await GerarDreSimplificadoAsync(companyId, filters),
             _ => throw new InvalidOperationException("Relatório não encontrado.")
         };
+    }
 
     private async Task<object> GerarVendasPeriodoAsync(string companyId, Dictionary<string, JsonElement> filters)
     {
@@ -168,7 +199,10 @@ public class RelatorioAB(Connection connection)
             rows);
     }
 
-    private async Task<object> GerarDesempenhoCaixaAsync(string companyId, Dictionary<string, JsonElement> filters)
+    private async Task<object> GerarDesempenhoCaixaAsync(
+        string companyId,
+        Dictionary<string, JsonElement> filters,
+        string? userRole)
     {
         var startDate = GetDate(filters, "startDate") ?? DateTimeOffset.Now.AddDays(-30).Date;
         var endDate = (GetDate(filters, "endDate") ?? DateTimeOffset.Now.Date).AddDays(1);
@@ -179,18 +213,24 @@ public class RelatorioAB(Connection connection)
 
         var rows = (await ListarCaixasAsync(companyId))
             .Where(item => item.OpenedAt >= startDate && item.OpenedAt < endDate)
-            .Where(item => paymentMethods.Count == 0 || MatchesCashPaymentFilter(item, paymentMethods))
-            .Select(item => Row(
-                ("abertura", item.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")),
-                ("fechamento", item.ClosedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-"),
-                ("operador", item.OperatorName),
-                ("valorAbertura", FormatMoney(item.OpeningAmount)),
-                ("suprimentos", FormatMoney(item.TotalSuprimentos)),
-                ("sangrias", FormatMoney(item.TotalSangrias)),
-                ("saldoEsperado", FormatMoney(item.ExpectedCashAmount)),
-                ("valorFechamento", FormatMoney(item.ClosingAmount)),
-                ("quebraCaixa", FormatMoney(item.CashDifference)),
-                ("status", item.ClosedAt is null ? "Aberto" : "Fechado")))
+            // O filtro por forma de pagamento revelaria vendas da sessão aberta; para quem não pode ver, ela fica de fora.
+            .Where(item => paymentMethods.Count == 0
+                || (!DeveOcultarAuditoriaCaixa(item.ClosedAt is null, userRole) && MatchesCashPaymentFilter(item, paymentMethods)))
+            .Select(item =>
+            {
+                var ocultar = DeveOcultarAuditoriaCaixa(item.ClosedAt is null, userRole);
+                return Row(
+                    ("abertura", item.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")),
+                    ("fechamento", item.ClosedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-"),
+                    ("operador", item.OperatorName),
+                    ("valorAbertura", FormatMoney(item.OpeningAmount)),
+                    ("suprimentos", FormatMoney(item.TotalSuprimentos)),
+                    ("sangrias", FormatMoney(item.TotalSangrias)),
+                    ("saldoEsperado", ocultar ? RedactedValue : FormatMoney(item.ExpectedCashAmount)),
+                    ("valorFechamento", FormatMoney(item.ClosingAmount)),
+                    ("quebraCaixa", ocultar ? RedactedValue : FormatMoney(item.CashDifference)),
+                    ("status", item.ClosedAt is null ? "Aberto" : "Fechado"));
+            })
             .ToList();
 
         return Result(

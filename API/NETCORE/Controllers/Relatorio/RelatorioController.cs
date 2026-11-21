@@ -29,8 +29,12 @@ public class RelatorioController(RelatorioAB relatorioAB) : ControllerBase
             {
                 Success = true,
                 Message = "Relatório gerado com sucesso.",
-                Data = await relatorioAB.GerarAsync(currentUser.CompanyId, request.ReportId, request.Filters)
+                Data = await relatorioAB.GerarAsync(currentUser.CompanyId, request.ReportId, request.Filters, currentUser.Role)
             });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiResponse<object> { Success = false, Message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

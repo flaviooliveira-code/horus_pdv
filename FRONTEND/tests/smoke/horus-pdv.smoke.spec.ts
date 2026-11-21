@@ -239,7 +239,8 @@ async function validateAllPagesRender(page: Page) {
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible({
       timeout: 15_000,
     });
-    if (navigationLabel === "Fiscal NFC-e / NF-e" || navigationLabel === "Pagamentos Integrados") {
+    // Pagamentos Integrados deixou de ser "em desenvolvimento" com as cobranças PIX/boleto (#30).
+    if (navigationLabel === "Fiscal NFC-e / NF-e") {
       await expect(page.getByText(/em desenvolvimento/i).first()).toBeVisible();
     }
   }

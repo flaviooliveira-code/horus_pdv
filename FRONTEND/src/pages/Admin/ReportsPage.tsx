@@ -15,13 +15,20 @@ import {
   type ReportDefinition,
 } from "@/components/Admin/ReportsPage";
 import PageLayout from "@/layout/PageLayout";
+import { canManageExpenses, getStoredUserRole, isSupervisorRole } from "@/utils/roles";
 
 export default function ReportsPage() {
   // Guarda relatório selecionado para alternar entre catálogo e tela de filtros.
   const [activeReport, setActiveReport] = useState<ReportDefinition | null>(null);
   const [expensesDrawerOpen, setExpensesDrawerOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const availableReports = useMemo(() => reportCatalog, []);
+  // Mesmas regras da API: relatórios contábeis só para supervisão; despesas só para administrador/gerente.
+  const userRole = useMemo(() => getStoredUserRole(), []);
+  const showExpenses = canManageExpenses(userRole);
+  const availableReports = useMemo(
+    () => reportCatalog.filter((report) => !report.supervisorOnly || isSupervisorRole(userRole)),
+    [userRole],
+  );
 
   const filteredReports = useMemo(() => {
     // Filtro textual aplicado em título e descrição.
@@ -42,7 +49,7 @@ export default function ReportsPage() {
         <ReportFiltersView
           report={activeReport}
           onBack={() => setActiveReport(null)}
-          onOpenExpenses={() => setExpensesDrawerOpen(true)}
+          onOpenExpenses={showExpenses ? () => setExpensesDrawerOpen(true) : undefined}
         />
       ) : (
         <>
@@ -50,14 +57,16 @@ export default function ReportsPage() {
             title="Relatórios"
             description="Acompanhe faturamento, lucro bruto, CMV, DRE simplificado, estoque e indicadores comerciais do PDV."
             action={
-              <button
-                type="button"
-                onClick={() => setExpensesDrawerOpen(true)}
-                className="btn-secondary inline-flex items-center gap-2"
-              >
-                <Receipt size={16} />
-                Despesas Operacionais (DRE)
-              </button>
+              showExpenses ? (
+                <button
+                  type="button"
+                  onClick={() => setExpensesDrawerOpen(true)}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  <Receipt size={16} />
+                  Despesas Operacionais (DRE)
+                </button>
+              ) : undefined
             }
           />
           <ReportCardsGrid
@@ -69,10 +78,12 @@ export default function ReportsPage() {
         </>
       )}
 
-      <OperationalExpensesDrawer
-        open={expensesDrawerOpen}
-        onClose={() => setExpensesDrawerOpen(false)}
-      />
+      {showExpenses ? (
+        <OperationalExpensesDrawer
+          open={expensesDrawerOpen}
+          onClose={() => setExpensesDrawerOpen(false)}
+        />
+      ) : null}
     </PageLayout>
   );
 }

@@ -38,6 +38,8 @@ export type ReportDefinition = {
   description: string;
   icon: LucideIcon;
   filters: ReportFilter[];
+  /** Só administrador, gerente e financeiro (a API responde 403 para os demais). */
+  supervisorOnly?: boolean;
 };
 
 const periodFilters: ReportFilter[] = [
@@ -83,6 +85,7 @@ export const reportCatalog: ReportDefinition[] = [
     title: "Lucro Bruto e CMV",
     description: "Apura receita bruta, custo das mercadorias vendidas (CMV), lucro bruto e margem real por período ou produto.",
     icon: Calculator,
+    supervisorOnly: true,
     filters: [
       ...periodFilters,
       { id: "viewMode", label: "Visão de análise", type: "select", options: profitViewModeOptions },
@@ -100,6 +103,7 @@ export const reportCatalog: ReportDefinition[] = [
     title: "DRE Simplificado (Lucro Líquido)",
     description: "Demonstração do resultado do exercício com Receita Bruta, CMV, Lucro Bruto, Despesas Operacionais e Lucro Líquido.",
     icon: Landmark,
+    supervisorOnly: true,
     filters: [
       ...periodFilters,
       { id: "regime", label: "Regime contábil", type: "select", options: dreRegimeOptions },
