@@ -143,10 +143,10 @@ async function seedAuthenticatedSession(
 ) {
   await page.addInitScript(
     ({ user, activePage, theme, highVisibility }) => {
-      if (window.sessionStorage.getItem("__pr1_test_seeded") === "1") {
+      if (window.sessionStorage.getItem("__pdv_a11y_test_seeded") === "1") {
         return;
       }
-      window.sessionStorage.setItem("__pr1_test_seeded", "1");
+      window.sessionStorage.setItem("__pdv_a11y_test_seeded", "1");
       window.localStorage.setItem("horuspdv.auth.user", JSON.stringify(user));
       window.localStorage.setItem("horuspdv.auth.remember", "1");
       window.localStorage.setItem("horuspdv.activePage", activePage);
@@ -229,7 +229,7 @@ async function measureContrastRatio(page: Page, selector: string): Promise<numbe
   }, selector);
 }
 
-test.describe("PR 1 — Acessibilidade e Redesenho da Frente de Caixa", () => {
+test.describe("Acessibilidade e Redesenho da Frente de Caixa", () => {
   test("preserva seletores legados e conclui venda completa no PDV", async ({ page }) => {
     await installApiMocks(page);
     await seedAuthenticatedSession(page, { activePage: "vendas" });

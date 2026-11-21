@@ -2,8 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: /pr1-accessibility\.spec\.ts/,
-  outputDir: "/tmp/horus-pw-results",
+  testMatch: /pdv-accessibility\.spec\.ts/,
+  outputDir: "./test-results/accessibility",
   timeout: 90_000,
   expect: {
     timeout: 10_000,

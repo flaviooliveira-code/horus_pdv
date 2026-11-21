@@ -11,6 +11,15 @@
 /* =====================================================
    MODO ALTA VISIBILIDADE (TEMA CLARO — WCAG AAA >= 7:1)
    ===================================================== */
+/*
+ * Sem transição de cor no modo alta visibilidade: ao apertar F7 as cores trocam na hora,
+ * sem "piscar" em contraste intermediário (o .input-field tem transition duration-200).
+ */
+.pdv-high-visibility,
+.pdv-high-visibility * {
+  transition-property: none !important;
+}
+
 .pdv-high-visibility {
   --color-primary: #7f1d1d;
   --color-secondary: #312e81;

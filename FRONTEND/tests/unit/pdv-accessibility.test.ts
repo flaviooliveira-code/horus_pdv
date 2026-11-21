@@ -168,7 +168,7 @@ describe("pdvTypes formatters & barcode resolution", () => {
     },
   ];
 
-  it("formats integer and decimal quantities cleanly for PR1 and PR2", () => {
+  it("formats integer and decimal quantities cleanly", () => {
     assert.equal(formatQuantity(2), "2");
     assert.equal(formatQuantity(0.45), "0,450");
     assert.equal(formatQuantity(0.45 + 0.32), "0,770");
