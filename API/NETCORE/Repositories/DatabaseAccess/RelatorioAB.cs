@@ -113,7 +113,7 @@ public class RelatorioAB(Connection connection)
                 ("produto", group.Key.ProductName),
                 ("quantidade", group.Sum(item => item.Quantity)),
                 ("faturamento", FormatMoney(group.Sum(item => item.ItemTotal)))))
-            .OrderByDescending(row => Convert.ToInt32(row["quantidade"]))
+            .OrderByDescending(row => Convert.ToDecimal(row["quantidade"], CultureInfo.InvariantCulture))
             .ToList();
 
         return Result(
@@ -157,7 +157,7 @@ public class RelatorioAB(Connection connection)
                 ("estoque", item.Quantity),
                 ("valorVenda", FormatMoney(item.SalePrice)),
                 ("status", item.Quantity <= 0 ? "Sem estoque" : "Crítico")))
-            .OrderBy(row => Convert.ToInt32(row["estoque"]))
+            .OrderBy(row => Convert.ToDecimal(row["estoque"], CultureInfo.InvariantCulture))
             .ToList();
 
         return Result(
@@ -488,7 +488,7 @@ public class RelatorioAB(Connection connection)
                 reader.GetDateTimeOffset(reader.GetOrdinal("SaleDate")),
                 ReadString(reader, "ProductCode"),
                 ReadString(reader, "ProductName"),
-                ReadInt(reader, "Quantity"),
+                ReadDecimal(reader, "Quantity"),
                 ParseMoney(ReadString(reader, "UnitPrice")),
                 unitCost,
                 ParseMoney(ReadString(reader, "ItemTotal"))));
@@ -546,7 +546,7 @@ public class RelatorioAB(Connection connection)
                 ReadString(reader, "ProductCode"),
                 ReadString(reader, "ProductName"),
                 ReadString(reader, "ProductSupplier"),
-                ParseInt(ReadString(reader, "ProductQnt")),
+                ReadDecimal(reader, "ProductQnt"),
                 ParseMoney(ReadString(reader, "ProductUnitPrice")),
                 ParseMoney(ReadString(reader, "ProductSalePrice"))));
         }
@@ -740,14 +740,27 @@ public class RelatorioAB(Connection connection)
         return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
     }
 
-    private static int ReadInt(SqlDataReader reader, string name)
+    private static decimal ReadDecimal(SqlDataReader reader, string name)
     {
         var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? 0 : reader.GetInt32(ordinal);
+        if (reader.IsDBNull(ordinal)) return 0m;
+        var raw = reader.GetValue(ordinal);
+        return raw is string text
+            ? ParseDecimal(text)
+            : Convert.ToDecimal(raw, CultureInfo.InvariantCulture);
     }
 
-    private static int ParseInt(string value)
-        => int.TryParse(value, out var parsed) ? parsed : 0;
+    private static decimal ParseDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0m;
+        var trimmed = value.Trim();
+        var normalized = trimmed.Contains(',')
+            ? trimmed.Replace(".", string.Empty).Replace(',', '.')
+            : trimmed;
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0m;
+    }
 
     private static decimal ParseMoney(string value)
     {
@@ -822,7 +835,7 @@ public class RelatorioAB(Connection connection)
         DateTimeOffset SaleDate,
         string ProductCode,
         string ProductName,
-        int Quantity,
+        decimal Quantity,
         decimal UnitPrice,
         decimal UnitCostPrice,
         decimal ItemTotal);
@@ -831,7 +844,7 @@ public class RelatorioAB(Connection connection)
         string Code,
         string Name,
         string Supplier,
-        int Quantity,
+        decimal Quantity,
         decimal UnitPrice,
         decimal SalePrice);
 
@@ -871,7 +884,7 @@ public class RelatorioAB(Connection connection)
         DateTimeOffset SaleDate,
         string ProductCode,
         string ProductName,
-        int Quantity,
+        decimal Quantity,
         decimal UnitPrice,
         decimal UnitCostPrice,
         decimal ItemTotal);

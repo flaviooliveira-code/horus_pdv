@@ -17,4 +17,8 @@
         <Content Include="DataBase\Resumo.sql" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="HORUSPDV-API.Tests" />
+    </ItemGroup>
+
 </Project>

@@ -23,9 +23,25 @@ export type ProductDto = {
   productUnitPrice: string;
   productSalePrice: string;
   totalPriceOnProduct: string;
+  unitType?: string;
 };
 
 export type ProductPayload = Omit<ProductDto, "id">;
+
+export type ScaleBarcodeDecodeDto = {
+  barcode: string;
+  mode: "price" | "weight";
+  layout: string;
+  matchedCode: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  unitType: string;
+  unitPrice: number;
+  quantity: number;
+  totalValue: number;
+  product: ProductDto;
+};
 
 export type ProductConflictMode = "atualizar" | "ignorar";
 
@@ -83,6 +99,12 @@ export const productService = {
   },
   async remove(id: string) {
     await apiRequest<object>(`${PRODUTO_API_URL}/${id}`, { method: "DELETE" });
+  },
+  async decodeScaleBarcode(barcode: string, mode: "price" | "weight" = "price") {
+    const response = await apiRequest<ScaleBarcodeDecodeDto>(
+      `${PRODUTO_API_URL}/decodificar-balanca/${encodeURIComponent(barcode)}?mode=${encodeURIComponent(mode)}`,
+    );
+    return response.data;
   },
   async validateImportBatch(items: ProductImportRowPayload[], conflictMode: ProductConflictMode) {
     const response = await apiRequest<ProductImportBatchResultDto>(

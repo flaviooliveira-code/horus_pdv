@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
     <RootNamespace>HORUSPDV_API.Tests</RootNamespace>
   </PropertyGroup>
 
@@ -17,6 +18,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NETCORE\HORUSPDV-API.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
 
 </Project>

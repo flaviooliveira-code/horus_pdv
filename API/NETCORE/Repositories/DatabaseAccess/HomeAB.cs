@@ -109,7 +109,7 @@ public class HomeAB(Connection connection)
         var rows = new List<HomeProductRow>();
         while (await reader.ReadAsync())
         {
-            rows.Add(new HomeProductRow(ParseInt(ReadString(reader, "ProductQnt"))));
+            rows.Add(new HomeProductRow(ReadDecimal(reader, "ProductQnt")));
         }
 
         return rows;
@@ -130,8 +130,27 @@ public class HomeAB(Connection connection)
         return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
     }
 
-    private static int ParseInt(string value)
-        => int.TryParse(value, out var parsed) ? parsed : 0;
+    private static decimal ReadDecimal(SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        if (reader.IsDBNull(ordinal)) return 0m;
+        var raw = reader.GetValue(ordinal);
+        return raw is string text
+            ? ParseDecimal(text)
+            : Convert.ToDecimal(raw, CultureInfo.InvariantCulture);
+    }
+
+    private static decimal ParseDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0m;
+        var trimmed = value.Trim();
+        var normalized = trimmed.Contains(',')
+            ? trimmed.Replace(".", string.Empty).Replace(',', '.')
+            : trimmed;
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0m;
+    }
 
     private static decimal ParseMoney(string value)
     {
@@ -145,5 +164,5 @@ public class HomeAB(Connection connection)
         => value.ToString("C", PtBr);
 
     private sealed record HomeSaleRow(DateTimeOffset SaleDate, string CustomerCpf, decimal TotalAmount);
-    private sealed record HomeProductRow(int Quantity);
+    private sealed record HomeProductRow(decimal Quantity);
 }

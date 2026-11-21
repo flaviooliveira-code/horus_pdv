@@ -582,3 +582,75 @@ BEGIN
     CREATE INDEX IX_CaixaMovimentacoes_Sessao ON CaixaMovimentacoes (CompanyId, CaixaSessaoId, DataHora);
 END;
 
+GO
+
+USE HorusPdv;
+
+IF EXISTS (
+    SELECT 1
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = N'VendaItens'
+      AND COLUMN_NAME = N'Quantity'
+      AND DATA_TYPE = N'int'
+)
+BEGIN
+    ALTER TABLE VendaItens ALTER COLUMN Quantity DECIMAL(10,3) NOT NULL;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = N'Produtos'
+      AND COLUMN_NAME = N'ProductQnt'
+      AND DATA_TYPE <> N'decimal'
+)
+BEGIN
+    EXEC(N'
+        UPDATE Produtos
+           SET ProductQnt = COALESCE(
+               CONVERT(
+                   NVARCHAR(30),
+                   TRY_CONVERT(
+                       DECIMAL(12,3),
+                       CASE
+                           WHEN CHARINDEX(N'','', ProductQnt) > 0
+                               THEN REPLACE(REPLACE(LTRIM(RTRIM(ProductQnt)), N''.'', N''''), N'','', N''.'')
+                           ELSE LTRIM(RTRIM(ProductQnt))
+                       END
+                   )
+               ),
+               N''0''
+           );
+    ');
+
+    IF OBJECT_ID(N'DF_Produtos_ProductQnt', N'D') IS NOT NULL
+    BEGIN
+        ALTER TABLE Produtos DROP CONSTRAINT DF_Produtos_ProductQnt;
+    END;
+
+    DECLARE @dfProductQnt SYSNAME;
+    SELECT @dfProductQnt = dc.name
+      FROM sys.default_constraints dc
+     INNER JOIN sys.columns c
+        ON c.object_id = dc.parent_object_id
+       AND c.column_id = dc.parent_column_id
+     WHERE dc.parent_object_id = OBJECT_ID(N'Produtos')
+       AND c.name = N'ProductQnt';
+
+    IF @dfProductQnt IS NOT NULL
+    BEGIN
+        -- EXEC(...) só aceita literais e variáveis concatenados; a chamada a QUOTENAME vai para uma variável antes.
+        DECLARE @dropDfSql NVARCHAR(400) = N'ALTER TABLE Produtos DROP CONSTRAINT ' + QUOTENAME(@dfProductQnt) + N';';
+        EXEC(@dropDfSql);
+    END;
+
+    ALTER TABLE Produtos ALTER COLUMN ProductQnt DECIMAL(12,3) NOT NULL;
+    ALTER TABLE Produtos ADD CONSTRAINT DF_Produtos_ProductQnt DEFAULT 0 FOR ProductQnt;
+END;
+
+IF COL_LENGTH(N'Produtos', N'UnitType') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD UnitType NVARCHAR(10) NOT NULL CONSTRAINT DF_Produtos_UnitType DEFAULT N'UN';
+END;
+GO
+

@@ -4,6 +4,7 @@
   * Entradas esperadas: recebe dados da venda, itens, empresa e callbacks para fechar/imprimir o recibo.
 */
 import { Printer, ReceiptText, X } from "lucide-react";
+import { formatQuantityPtBr } from "@/utils/scaleBarcode";
 
 export type PaymentType = "dinheiro" | "pix" | "debito" | "credito" | string;
 
@@ -84,7 +85,7 @@ function buildReceiptPrintHtml(receipt: SaleReceipt, formatMoney: (value: number
           <div class="line grid">
             <span>${String(index + 1).padStart(2, "0")}</span>
             <span>${escapeHtml(item.name)}</span>
-            <span class="right">${item.quantity}</span>
+            <span class="right">${formatQuantityPtBr(item.quantity)}</span>
             <span class="right">${formatMoney(item.total)}</span>
           </div>
           <div class="item-meta">${escapeHtml(item.code)} - UN ${formatMoney(item.unitPrice)}</div>
@@ -107,7 +108,7 @@ function buildReceiptPrintHtml(receipt: SaleReceipt, formatMoney: (value: number
       .brand { font-size: 14px; font-weight: 800; text-transform: uppercase; }
       .divider { border-top: 1px dashed #475569; margin: 10px 0; }
       .line { display: flex; justify-content: space-between; gap: 8px; }
-      .grid { display: grid; grid-template-columns: 24px 1fr 34px 54px; gap: 4px; }
+      .grid { display: grid; grid-template-columns: 24px 1fr 48px 54px; gap: 4px; }
       .right { text-align: right; }
       .bold { font-weight: 800; }
       .item { margin-top: 7px; }
@@ -243,7 +244,7 @@ export default function ReceiptPreviewModal({
                     <div className="grid grid-cols-[28px_1fr_44px_64px] gap-1">
                       <span>{String(index + 1).padStart(2, "0")}</span>
                       <span className="truncate">{item.name}</span>
-                      <span className="text-right">{item.quantity}</span>
+                      <span className="text-right">{formatQuantityPtBr(item.quantity)}</span>
                       <span className="text-right">{formatMoney(item.total)}</span>
                     </div>
                     <p className="pl-7 text-[11px]">
