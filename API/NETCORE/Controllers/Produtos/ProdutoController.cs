@@ -14,7 +14,9 @@ namespace HORUSPDV_API.Controllers.Produtos;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ProdutoController(IProdutoService produtoService) : ControllerBase
+public class ProdutoController(
+    IProdutoService produtoService,
+    IBarcodeCatalogLookupService barcodeCatalogLookupService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<List<ProdutoModel>>), StatusCodes.Status200OK)]
@@ -133,6 +135,27 @@ public class ProdutoController(IProdutoService produtoService) : ControllerBase
         {
             return BadRequest(new ApiResponse<ScaleBarcodeDecodeResponse> { Success = false, Message = ex.Message });
         }
+    }
+
+    [HttpGet("consultar-codigo/{barcode}")]
+    [ProducesResponseType(typeof(ApiResponse<BarcodeLookupResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ConsultarCodigo(string barcode, CancellationToken cancellationToken)
+    {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(new ApiResponse<BarcodeLookupResponse> { Success = false, Message = "Sessão não encontrada." });
+        }
+
+        var result = await barcodeCatalogLookupService.LookupAsync(barcode, cancellationToken);
+        return Ok(new ApiResponse<BarcodeLookupResponse>
+        {
+            Success = true,
+            Message = result.Found
+                ? $"Produto encontrado via {result.Source}."
+                : "Nenhuma informação encontrada nas bases públicas para este código.",
+            Data = result
+        });
     }
 
     private AuthenticatedUser? GetCurrentUser()

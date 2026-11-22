@@ -28,8 +28,7 @@ BEGIN
         ReferencePoint NVARCHAR(180) NOT NULL CONSTRAINT DF_Fornecedores_ReferencePoint DEFAULT N'',
         Telephone NVARCHAR(30) NOT NULL CONSTRAINT DF_Fornecedores_Telephone DEFAULT N'',
         Cellphone NVARCHAR(30) NOT NULL CONSTRAINT DF_Fornecedores_Cellphone DEFAULT N'',
-        Email NVARCHAR(180) NOT NULL CONSTRAINT DF_Fornecedores_Email DEFAULT N'',
-        CONSTRAINT UQ_Fornecedores_Company_Cnpj UNIQUE (CompanyId, Cnpj)
+        Email NVARCHAR(180) NOT NULL CONSTRAINT DF_Fornecedores_Email DEFAULT N''
     );
 END;
 
@@ -44,11 +43,12 @@ BEGIN
     (
         Id NVARCHAR(40) NOT NULL CONSTRAINT PK_Produtos PRIMARY KEY,
         CompanyId NVARCHAR(40) NOT NULL CONSTRAINT DF_Produtos_CompanyId DEFAULT N'empresa-principal',
-        ProductImageUrl NVARCHAR(500) NOT NULL CONSTRAINT DF_Produtos_ProductImageUrl DEFAULT N'',
+        ProductImageUrl NVARCHAR(MAX) NOT NULL CONSTRAINT DF_Produtos_ProductImageUrl DEFAULT N'',
         ProductImageName NVARCHAR(180) NOT NULL CONSTRAINT DF_Produtos_ProductImageName DEFAULT N'',
         ProductName NVARCHAR(180) NOT NULL CONSTRAINT DF_Produtos_ProductName DEFAULT N'',
         ProductCode NVARCHAR(80) NOT NULL,
         ProductSupplier NVARCHAR(180) NOT NULL CONSTRAINT DF_Produtos_ProductSupplier DEFAULT N'',
+        ProductCategory NVARCHAR(100) NOT NULL CONSTRAINT DF_Produtos_ProductCategory DEFAULT N'',
         SupplierId NVARCHAR(40) NULL,
         ProductDescription NVARCHAR(500) NOT NULL CONSTRAINT DF_Produtos_ProductDescription DEFAULT N'',
         ProductQnt NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ProductQnt DEFAULT N'0',
@@ -652,5 +652,44 @@ IF COL_LENGTH(N'Produtos', N'UnitType') IS NULL
 BEGIN
     ALTER TABLE Produtos ADD UnitType NVARCHAR(10) NOT NULL CONSTRAINT DF_Produtos_UnitType DEFAULT N'UN';
 END;
+
+IF COL_LENGTH(N'Produtos', N'ProductCategory') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD ProductCategory NVARCHAR(100) NOT NULL CONSTRAINT DF_Produtos_ProductCategory DEFAULT N'';
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'Produtos')
+      AND name = N'ProductImageUrl'
+      AND max_length <> -1
+)
+BEGIN
+    ALTER TABLE Produtos ALTER COLUMN ProductImageUrl NVARCHAR(MAX) NOT NULL;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE name = N'UQ_Fornecedores_Company_Cnpj'
+      AND parent_object_id = OBJECT_ID(N'Fornecedores')
+)
+BEGIN
+    ALTER TABLE Fornecedores DROP CONSTRAINT UQ_Fornecedores_Company_Cnpj;
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'UX_Fornecedores_Company_Cnpj'
+      AND object_id = OBJECT_ID(N'Fornecedores')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_Fornecedores_Company_Cnpj
+        ON Fornecedores (CompanyId, Cnpj)
+        WHERE Cnpj <> N'';
+END;
 GO
+
 

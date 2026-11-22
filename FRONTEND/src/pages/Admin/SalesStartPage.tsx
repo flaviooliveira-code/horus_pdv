@@ -83,6 +83,7 @@ const PAYMENT_OPTIONS: Array<{ value: PaymentType; label: string; shortcut: stri
 const KEYBOARD_SHORTCUTS: Array<{ key: string; label: string }> = [
   { key: "F2", label: "Produto" },
   { key: "F4", label: "Quantidade" },
+  { key: "F6", label: "Preço avulso" },
   { key: "F7", label: "Alta visibilidade" },
   { key: "Enter", label: "Adicionar" },
   { key: "F8", label: "Cancelar" },
@@ -167,6 +168,7 @@ export default function SalesStartPage({
   const statusDialog = useStatusDialog();
   const productInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
+  const unitPriceInputRef = useRef<HTMLInputElement | null>(null);
   const displayWindowRef = useRef<Window | null>(null);
   const displayChannelRef = useRef<BroadcastChannel | null>(null);
   const hidBufferRef = useRef<{ buffer: string; lastKeyAt: number }>({
@@ -183,10 +185,11 @@ export default function SalesStartPage({
   const [showProductOptions, setShowProductOptions] = useState(false);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
   const [quantityInput, setQuantityInput] = useState("1");
+  const [unitPriceInput, setUnitPriceInput] = useState("");
   const [cart, setCart] = useState<PdvCartItem[]>(readPendingCart);
   const [lastScannedItemId, setLastScannedItemId] = useState<string | null>(() => {
     const initialCart = readPendingCart();
-    return initialCart.length > 0 ? initialCart[initialCart.length - 1].id : null;
+    return initialCart.length > 0 ? getCartLineKey(initialCart[initialCart.length - 1]) : null;
   });
   const [displayStatus, setDisplayStatus] = useState<
     "idle" | "active" | "completed" | "cancelled"
@@ -222,6 +225,11 @@ export default function SalesStartPage({
     setCashGiven(maskMoneyBr(event.clipboardData.getData("text")));
   };
 
+  const pasteUnitPrice = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    setUnitPriceInput(maskMoneyBr(event.clipboardData.getData("text")));
+  };
+
   const selectedProduct = useMemo(
     () => products.find((item) => item.id === selectedProductId) ?? null,
     [products, selectedProductId],
@@ -232,6 +240,17 @@ export default function SalesStartPage({
     if (!Number.isFinite(parsed) || parsed <= 0) return 1;
     return roundQuantity(parsed) || 1;
   }, [quantityInput]);
+
+  const parsedCustomUnitPrice = useMemo(() => {
+    if (!unitPriceInput.trim()) return 0;
+    const parsed = parseMoneyBr(unitPriceInput);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : 0;
+  }, [parseMoneyBr, unitPriceInput]);
+
+  const activeUnitPrice = useMemo(() => {
+    if (parsedCustomUnitPrice > 0) return parsedCustomUnitPrice;
+    return selectedProduct && selectedProduct.salePrice > 0 ? selectedProduct.salePrice : 0;
+  }, [parsedCustomUnitPrice, selectedProduct]);
 
   const filteredProducts = useMemo(
     () => filterProductsByQuery(productSearch, products),
@@ -289,6 +308,7 @@ export default function SalesStartPage({
         salePrice: parseMoneyBr(item.productSalePrice || "0"),
         imageUrl: item.productImageUrl,
         unitType: item.unitType,
+        category: item.productCategory,
       })),
     );
   }, [parseMoneyBr]);
@@ -575,13 +595,28 @@ export default function SalesStartPage({
     }
   };
 
-  const selectProductOption = useCallback((product: PdvProduct) => {
-    setSelectedProductId(product.id);
-    setProductSearch(product.name);
-    setShowProductOptions(false);
-    setHighlightedProductIndex(0);
-    qtyInputRef.current?.focus();
-  }, []);
+  const selectProductOption = useCallback(
+    (product: PdvProduct) => {
+      setSelectedProductId(product.id);
+      setProductSearch(product.name);
+      setShowProductOptions(false);
+      setHighlightedProductIndex(0);
+      if (product.salePrice > 0) {
+        setUnitPriceInput(formatMoneyBr(product.salePrice));
+        window.setTimeout(() => {
+          qtyInputRef.current?.focus();
+          qtyInputRef.current?.select();
+        }, 0);
+      } else {
+        setUnitPriceInput("");
+        window.setTimeout(() => {
+          unitPriceInputRef.current?.focus();
+          unitPriceInputRef.current?.select();
+        }, 0);
+      }
+    },
+    [formatMoneyBr],
+  );
 
   const finishProductEntry = useCallback(() => {
     setDisplayStatus("active");
@@ -590,14 +625,41 @@ export default function SalesStartPage({
     setProductSearch("");
     setShowProductOptions(false);
     setQuantityInput("1");
+    setUnitPriceInput("");
     productInputRef.current?.focus();
   }, []);
 
   const addProductToCart = useCallback(
-    (product: PdvProduct, qty: number): boolean => {
-      // Linhas de etiqueta de balança têm total próprio e não se juntam às linhas comuns.
+    (product: PdvProduct, qty: number, customUnitPrice?: number): boolean => {
+      const requestedPrice =
+        customUnitPrice !== undefined && customUnitPrice > 0
+          ? Math.round(customUnitPrice * 100) / 100
+          : product.salePrice > 0
+            ? product.salePrice
+            : 0;
+
+      if (requestedPrice <= 0) {
+        setSelectedProductId(product.id);
+        setProductSearch(product.name);
+        setShowProductOptions(false);
+        setUnitPriceInput("");
+        Toast.info(`"${product.name}" tem preço variável. Informe o preço avulso e pressione Enter.`);
+        window.setTimeout(() => {
+          unitPriceInputRef.current?.focus();
+          unitPriceInputRef.current?.select();
+        }, 0);
+        return false;
+      }
+
+      const isCustomPrice =
+        product.salePrice <= 0 || Math.abs(requestedPrice - product.salePrice) >= 0.005;
+
+      // Linhas de etiqueta de balança têm total próprio; linhas com preço avulso agrupam apenas se o preço unitário for idêntico.
       const existing = cart.find(
-        (item) => item.id === product.id && item.itemTotalOverride === undefined,
+        (item) =>
+          item.id === product.id &&
+          item.itemTotalOverride === undefined &&
+          Math.abs(item.unitPrice - requestedPrice) < 0.005,
       );
       const qtyInCart = roundQuantity(
         cart.filter((item) => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0),
@@ -611,19 +673,28 @@ export default function SalesStartPage({
         return false;
       }
 
+      const newLineId = isCustomPrice
+        ? `${product.id}-price-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        : undefined;
+
       setCart((current) => {
         const currentExisting = current.find(
-          (item) => item.id === product.id && item.itemTotalOverride === undefined,
+          (item) =>
+            item.id === product.id &&
+            item.itemTotalOverride === undefined &&
+            Math.abs(item.unitPrice - requestedPrice) < 0.005,
         );
         if (!currentExisting) {
           return [
             ...current,
             {
               id: product.id,
+              ...(newLineId ? { lineId: newLineId } : {}),
               code: product.code,
               name: product.name,
               quantity: qty,
-              unitPrice: product.salePrice,
+              unitPrice: requestedPrice,
+              ...(isCustomPrice ? { unitPriceOverride: requestedPrice } : {}),
             },
           ];
         }
@@ -634,7 +705,7 @@ export default function SalesStartPage({
         );
       });
 
-      setLastScannedItemId(existing ? getCartLineKey(existing) : product.id);
+      setLastScannedItemId(existing ? getCartLineKey(existing) : (newLineId ?? product.id));
       finishProductEntry();
       return true;
     },
@@ -697,7 +768,9 @@ export default function SalesStartPage({
       });
 
       if (resolution.type === "add") {
-        return addProductToCart(resolution.product, quantity);
+        const customPrice =
+          !rawQuery && parsedCustomUnitPrice > 0 ? parsedCustomUnitPrice : undefined;
+        return addProductToCart(resolution.product, quantity, customPrice);
       }
 
       if (resolution.type === "select_option") {
@@ -719,6 +792,7 @@ export default function SalesStartPage({
       addScaleLabelToCart,
       focusProductInput,
       highlightedProductIndex,
+      parsedCustomUnitPrice,
       productSearch,
       products,
       quantity,
@@ -774,6 +848,9 @@ export default function SalesStartPage({
     }
     setCart([]);
     setLastScannedItemId(null);
+    setSelectedProductId("");
+    setProductSearch("");
+    setUnitPriceInput("");
     setDisplayStatus("cancelled");
     setLastCompletedSale(null);
     setCpfNota("");
@@ -898,6 +975,9 @@ export default function SalesStartPage({
           productCode: item.code,
           productName: item.name,
           quantity: item.quantity,
+          ...(item.unitPriceOverride !== undefined
+            ? { unitPriceOverride: item.unitPriceOverride }
+            : {}),
           ...(item.itemTotalOverride !== undefined
             ? { itemTotalOverride: item.itemTotalOverride }
             : {}),
@@ -963,6 +1043,7 @@ export default function SalesStartPage({
     setProductSearch("");
     setShowProductOptions(false);
     setQuantityInput("1");
+    setUnitPriceInput("");
     setPaymentType("dinheiro");
     setCpfNota("");
     setCashGiven("");
@@ -1028,6 +1109,12 @@ export default function SalesStartPage({
         qtyInputRef.current?.focus();
         return;
       }
+      if (event.key === "F6") {
+        event.preventDefault();
+        unitPriceInputRef.current?.focus();
+        unitPriceInputRef.current?.select();
+        return;
+      }
       if (event.key === "F7") {
         event.preventDefault();
         toggleHighVisibility();
@@ -1044,7 +1131,7 @@ export default function SalesStartPage({
         return;
       }
       if (event.key === "Enter" && isInput && !checkoutOpen) {
-        if (target === qtyInputRef.current) {
+        if (target === qtyInputRef.current || target === unitPriceInputRef.current) {
           event.preventDefault();
           submitProductEntry(undefined, { allowFuzzyFallback: true });
           return;
@@ -1195,6 +1282,7 @@ export default function SalesStartPage({
                     onChange={(event) => {
                       setProductSearch(event.target.value);
                       setSelectedProductId("");
+                      setUnitPriceInput("");
                       setShowProductOptions(true);
                       setHighlightedProductIndex(0);
                     }}
@@ -1257,6 +1345,10 @@ export default function SalesStartPage({
                             <p className="font-semibold">{item.name}</p>
                             <p className="text-xs text-text-secondary pdv-tabular">
                               {item.code}
+                              {item.category ? ` · ${item.category}` : ""}
+                              {item.salePrice > 0
+                                ? ` · R$ ${formatMoneyBr(item.salePrice)}`
+                                : " · Preço avulso"}
                             </p>
                           </li>
                         ))
@@ -1296,13 +1388,35 @@ export default function SalesStartPage({
               </label>
 
               <label className="mb-2.5 block">
-                <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
-                  Preço unitário:
+                <span className="pdv-field-label mb-1 flex items-center justify-between gap-2 text-xs font-semibold uppercase">
+                  <span>Preço unitário (F6):</span>
+                  {selectedProduct && selectedProduct.salePrice <= 0 ? (
+                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold normal-case text-amber-700 dark:text-amber-300">
+                      Informe o preço avulso
+                    </span>
+                  ) : selectedProduct &&
+                    parsedCustomUnitPrice > 0 &&
+                    Math.abs(parsedCustomUnitPrice - selectedProduct.salePrice) >= 0.005 ? (
+                    <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold normal-case text-accent">
+                      Preço avulso
+                    </span>
+                  ) : null}
                 </span>
                 <input
-                  value={selectedProduct ? formatMoneyBr(selectedProduct.salePrice) : "0,00"}
+                  ref={unitPriceInputRef}
+                  value={unitPriceInput}
+                  inputMode="numeric"
+                  pattern="[0-9,.]*"
+                  onFocus={(event) => event.target.select()}
+                  onBeforeInput={preventNonDigitBeforeInput}
+                  onPaste={pasteUnitPrice}
+                  onChange={(event) => setUnitPriceInput(maskMoneyBr(event.target.value))}
+                  placeholder={
+                    selectedProduct && selectedProduct.salePrice > 0
+                      ? formatMoneyBr(selectedProduct.salePrice)
+                      : "0,00 (avulso)"
+                  }
                   className="input-field pdv-price-input pdv-tabular h-10 w-full text-lg font-semibold"
-                  disabled
                 />
               </label>
 
@@ -1312,8 +1426,8 @@ export default function SalesStartPage({
                 </span>
                 <input
                   value={
-                    selectedProduct
-                      ? formatMoneyBr(computeLineTotal(selectedProduct.salePrice, quantity))
+                    activeUnitPrice > 0
+                      ? formatMoneyBr(computeLineTotal(activeUnitPrice, quantity))
                       : "0,00"
                   }
                   className="input-field pdv-price-input pdv-tabular h-10 w-full text-lg font-semibold"

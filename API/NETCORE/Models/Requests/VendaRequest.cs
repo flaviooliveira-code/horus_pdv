@@ -22,5 +22,7 @@ public class VendaItemRequest
     public string ProductCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    /// <summary>Preço unitário avulso informado no caixa (ex.: produtos fatiados ou preço variável).</summary>
+    public decimal? UnitPriceOverride { get; set; }
     public decimal? ItemTotalOverride { get; set; }
 }

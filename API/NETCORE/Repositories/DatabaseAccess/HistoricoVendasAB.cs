@@ -321,6 +321,12 @@ public class HistoricoVendasAB(Connection connection)
                 throw new InvalidOperationException("Quantidade da venda deve ser maior que zero e ter no máximo 3 casas decimais.");
             }
 
+            if (rawItem.UnitPriceOverride is { } unitOverrideVal &&
+                (unitOverrideVal <= 0m || decimal.Round(unitOverrideVal, 2) != unitOverrideVal))
+            {
+                throw new InvalidOperationException("Preço avulso do item inválido.");
+            }
+
             if (rawItem.ItemTotalOverride is { } overrideVal &&
                 (overrideVal <= 0m || decimal.Round(overrideVal, 2) != overrideVal))
             {
@@ -332,7 +338,7 @@ public class HistoricoVendasAB(Connection connection)
             .GroupBy(item => item.ProductCode.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var records = new List<VendaItemRecord>(groupedRequests.Count);
+        var records = new List<VendaItemRecord>(rawItems.Count);
         foreach (var group in groupedRequests)
         {
             var productCode = group.Key;
@@ -364,10 +370,23 @@ public class HistoricoVendasAB(Connection connection)
             await reader.CloseAsync();
 
             var serverUnitPrice = ParseMoney(effectiveUnitPriceText);
-            var finalGroupTotal = Math.Round(
-                group.Sum(rawItem => ResolveValidatedItemTotal(serverUnitPrice, rawItem.Quantity, rawItem.ItemTotalOverride)),
-                2,
-                MidpointRounding.AwayFromZero);
+            var resolvedLines = group
+                .Select(rawItem =>
+                {
+                    var pricing = ResolveSaleLinePricing(
+                        serverUnitPrice,
+                        rawItem.Quantity,
+                        rawItem.UnitPriceOverride,
+                        rawItem.ItemTotalOverride,
+                        productName);
+                    return new
+                    {
+                        rawItem.Quantity,
+                        pricing.EffectiveUnitPrice,
+                        pricing.FinalItemTotal
+                    };
+                })
+                .ToList();
 
             if (currentStock < totalQuantity)
             {
@@ -394,18 +413,56 @@ public class HistoricoVendasAB(Connection connection)
             update.Parameters.AddWithValue("@CompanyId", companyId);
             await update.ExecuteNonQueryAsync();
 
-            records.Add(new VendaItemRecord
+            // Agrupa linhas com o mesmo preço unitário, preservando preços avulsos distintos (ex.: fatias de tamanhos diferentes).
+            foreach (var priceGroup in resolvedLines.GroupBy(line => line.EffectiveUnitPrice))
             {
-                ProductCode = productCode,
-                ProductName = productName,
-                UnitPrice = effectiveUnitPriceText,
-                UnitCostPrice = unitCostPriceText,
-                Quantity = totalQuantity,
-                FinalItemTotal = finalGroupTotal
-            });
+                var lineQuantity = Math.Round(priceGroup.Sum(line => line.Quantity), 3, MidpointRounding.AwayFromZero);
+                var lineTotal = Math.Round(priceGroup.Sum(line => line.FinalItemTotal), 2, MidpointRounding.AwayFromZero);
+                records.Add(new VendaItemRecord
+                {
+                    ProductCode = productCode,
+                    ProductName = productName,
+                    UnitPrice = priceGroup.Key.ToString("N2", PtBr),
+                    UnitCostPrice = unitCostPriceText,
+                    Quantity = lineQuantity,
+                    FinalItemTotal = lineTotal
+                });
+            }
         }
 
         return records;
+    }
+
+    internal static (decimal EffectiveUnitPrice, decimal FinalItemTotal) ResolveSaleLinePricing(
+        decimal serverUnitPrice,
+        decimal quantity,
+        decimal? unitPriceOverride,
+        decimal? itemTotalOverride,
+        string productName = "")
+    {
+        decimal effectiveUnitPrice;
+        if (unitPriceOverride is { } customPrice)
+        {
+            if (customPrice <= 0m || decimal.Round(customPrice, 2) != customPrice)
+            {
+                throw new InvalidOperationException("Preço avulso do item inválido.");
+            }
+
+            effectiveUnitPrice = customPrice;
+        }
+        else
+        {
+            if (serverUnitPrice <= 0m)
+            {
+                var label = string.IsNullOrWhiteSpace(productName) ? "Produto" : $"Produto {productName}";
+                throw new InvalidOperationException($"{label} está sem preço fixo. Informe o preço avulso no caixa.");
+            }
+
+            effectiveUnitPrice = serverUnitPrice;
+        }
+
+        var finalTotal = ResolveValidatedItemTotal(effectiveUnitPrice, quantity, itemTotalOverride);
+        return (effectiveUnitPrice, finalTotal);
     }
 
     internal static decimal ResolveValidatedItemTotal(

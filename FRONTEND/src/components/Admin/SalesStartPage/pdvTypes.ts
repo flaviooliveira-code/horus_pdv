@@ -14,16 +14,19 @@ export type PdvProduct = {
   salePrice: number;
   imageUrl?: string;
   unitType?: string;
+  category?: string;
 };
 
 export type PdvCartItem = {
   id: string;
-  /** Identifica a linha quando o mesmo produto aparece mais de uma vez (etiquetas de balança). */
+  /** Identifica a linha quando o mesmo produto aparece mais de uma vez (etiquetas de balança ou preço avulso). */
   lineId?: string;
   code: string;
   name: string;
   quantity: number;
   unitPrice: number;
+  /** Preço unitário avulso informado no caixa (ex.: produtos fatiados ou sem preço fixo). */
+  unitPriceOverride?: number;
   /** Total impresso na etiqueta da balança; o servidor valida contra o preço cadastrado. */
   itemTotalOverride?: number;
 };
@@ -83,7 +86,8 @@ export function filterProductsByQuery(rawQuery: string, products: PdvProduct[]):
   return products.filter(
     (item) =>
       item.name.toLowerCase().includes(normalized) ||
-      item.code.toLowerCase().includes(normalized),
+      item.code.toLowerCase().includes(normalized) ||
+      (item.category ?? "").toLowerCase().includes(normalized),
   );
 }
 
