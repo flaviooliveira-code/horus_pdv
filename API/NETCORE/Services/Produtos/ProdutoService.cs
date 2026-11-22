@@ -42,6 +42,24 @@ public class ProdutoService(
         return ToModel(await produtosAB.SalvarAsync(companyId, MapRequest(id, request, resolvedCode)));
     }
 
+    public async Task<ProdutoModel?> AplicarPrecoDeCustoAsync(string companyId, string id)
+    {
+        var current = await produtosAB.ObterAsync(companyId, id);
+        if (current is null)
+        {
+            return null;
+        }
+
+        var unitCost = ParseDecimal(current.ProductUnitPrice);
+        if (unitCost <= 0m)
+        {
+            throw new InvalidOperationException("Produto não possui preço de custo cadastrado maior que zero.");
+        }
+
+        current.ProductSalePrice = unitCost.ToString("N2", PtBr);
+        return ToModel(await produtosAB.SalvarAsync(companyId, current));
+    }
+
     public Task<bool> ExcluirAsync(string companyId, string id)
         => produtosAB.ExcluirAsync(companyId, id);
 
@@ -100,6 +118,12 @@ public class ProdutoService(
                 throw new InvalidOperationException("Preço de venda não pode ser negativo.");
             }
         }
+
+        ProdutoExpirationHelper.NormalizeAndResolve(
+            request.ExpirationMode,
+            request.ManufactureDate,
+            request.ShelfLifeDays,
+            request.ExpirationDate);
     }
 
     private async Task<string> ValidateBusinessRulesAndResolveCodeAsync(
@@ -191,6 +215,12 @@ public class ProdutoService(
             ? (quantity * unitPrice).ToString("N2", PtBr)
             : request.TotalPriceOnProduct.Trim();
 
+        var expiration = ProdutoExpirationHelper.NormalizeAndResolve(
+            request.ExpirationMode,
+            request.ManufactureDate,
+            request.ShelfLifeDays,
+            request.ExpirationDate);
+
         return new ProdutoAD
         {
             Id = id,
@@ -205,26 +235,40 @@ public class ProdutoService(
             ProductUnitPrice = formattedUnitPrice,
             ProductSalePrice = formattedSalePrice,
             TotalPriceOnProduct = totalPrice,
-            UnitType = NormalizeUnitType(request.UnitType)
+            UnitType = NormalizeUnitType(request.UnitType),
+            ExpirationMode = expiration.ExpirationMode,
+            ManufactureDate = expiration.ManufactureDate,
+            ShelfLifeDays = expiration.ShelfLifeDays,
+            ExpirationDate = expiration.ExpirationDate
         };
     }
 
-    private static ProdutoModel ToModel(ProdutoAD source) => new()
+    private static ProdutoModel ToModel(ProdutoAD source)
     {
-        Id = source.Id,
-        ProductImageUrl = source.ProductImageUrl,
-        ProductImageName = source.ProductImageName,
-        ProductName = source.ProductName,
-        ProductCode = source.ProductCode,
-        ProductSupplier = source.ProductSupplier,
-        ProductCategory = source.ProductCategory,
-        ProductDescription = source.ProductDescription,
-        ProductQnt = source.ProductQnt,
-        ProductUnitPrice = source.ProductUnitPrice,
-        ProductSalePrice = source.ProductSalePrice,
-        TotalPriceOnProduct = source.TotalPriceOnProduct,
-        UnitType = string.IsNullOrWhiteSpace(source.UnitType) ? "UN" : source.UnitType.Trim().ToUpperInvariant()
-    };
+        var evaluation = ProdutoExpirationHelper.Evaluate(source.ExpirationDate);
+        return new ProdutoModel
+        {
+            Id = source.Id,
+            ProductImageUrl = source.ProductImageUrl,
+            ProductImageName = source.ProductImageName,
+            ProductName = source.ProductName,
+            ProductCode = source.ProductCode,
+            ProductSupplier = source.ProductSupplier,
+            ProductCategory = source.ProductCategory,
+            ProductDescription = source.ProductDescription,
+            ProductQnt = source.ProductQnt,
+            ProductUnitPrice = source.ProductUnitPrice,
+            ProductSalePrice = source.ProductSalePrice,
+            TotalPriceOnProduct = source.TotalPriceOnProduct,
+            UnitType = string.IsNullOrWhiteSpace(source.UnitType) ? "UN" : source.UnitType.Trim().ToUpperInvariant(),
+            ExpirationMode = source.ExpirationMode,
+            ManufactureDate = source.ManufactureDate,
+            ShelfLifeDays = source.ShelfLifeDays,
+            ExpirationDate = source.ExpirationDate,
+            ExpirationStatus = evaluation.Status,
+            DaysUntilExpiration = evaluation.DaysUntilExpiration
+        };
+    }
 
     internal static string NormalizeUnitType(string? unitType)
     {

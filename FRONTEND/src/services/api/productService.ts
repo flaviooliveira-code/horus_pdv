@@ -25,9 +25,15 @@ export type ProductDto = {
   productSalePrice: string;
   totalPriceOnProduct: string;
   unitType?: string;
+  expirationMode?: string;
+  manufactureDate?: string;
+  shelfLifeDays?: number | null;
+  expirationDate?: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
 };
 
-export type ProductPayload = Omit<ProductDto, "id">;
+export type ProductPayload = Omit<ProductDto, "id" | "expirationStatus" | "daysUntilExpiration">;
 
 export type BarcodeLookupDto = {
   barcode: string;
@@ -63,23 +69,35 @@ export type ProductImportRowPayload = {
   rowNumber: number;
   productCode: string;
   productName: string;
+  productCategory?: string;
   productSupplier: string;
   productDescription: string;
   productQnt: string;
   productUnitPrice: string;
   productSalePrice: string;
+  expirationMode?: string;
+  manufactureDate?: string;
+  shelfLifeDays?: string;
+  expirationDate?: string;
 };
 
 export type ProductImportRowStatusDto = {
   rowNumber: number;
   productCode: string;
   productName: string;
+  productCategory?: string;
   action: "CRIAR" | "ATUALIZAR" | "IGNORAR" | "ERRO";
   isValid: boolean;
   errors: string[];
   parsedQuantity: number;
   parsedUnitCost: number;
   parsedSalePrice: number;
+  expirationMode?: string;
+  manufactureDate?: string;
+  shelfLifeDays?: number | null;
+  expirationDate?: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
 };
 
 export type ProductImportBatchResultDto = {
@@ -108,6 +126,12 @@ export const productService = {
     const response = await apiRequest<ProductDto>(`${PRODUTO_API_URL}/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
+    });
+    return response.data;
+  },
+  async applyCostPrice(id: string) {
+    const response = await apiRequest<ProductDto>(`${PRODUTO_API_URL}/${id}/aplicar-preco-custo`, {
+      method: "POST",
     });
     return response.data;
   },

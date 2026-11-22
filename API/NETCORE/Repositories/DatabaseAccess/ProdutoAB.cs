@@ -19,7 +19,7 @@ public class ProdutoAB(Connection connection)
         const string sql = """
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
                    ProductCategory, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
-                   TotalPriceOnProduct, UnitType
+                   TotalPriceOnProduct, UnitType, ExpirationMode, ManufactureDate, ShelfLifeDays, ExpirationDate
             FROM Produtos
             WHERE CompanyId = @CompanyId
             ORDER BY ProductName;
@@ -43,7 +43,7 @@ public class ProdutoAB(Connection connection)
         const string sql = """
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
                    ProductCategory, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
-                   TotalPriceOnProduct, UnitType
+                   TotalPriceOnProduct, UnitType, ExpirationMode, ManufactureDate, ShelfLifeDays, ExpirationDate
             FROM Produtos
             WHERE Id = @Id AND CompanyId = @CompanyId;
             """;
@@ -73,7 +73,7 @@ public class ProdutoAB(Connection connection)
         var sql = $"""
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
                    ProductCategory, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
-                   TotalPriceOnProduct, UnitType
+                   TotalPriceOnProduct, UnitType, ExpirationMode, ManufactureDate, ShelfLifeDays, ExpirationDate
             FROM Produtos
             WHERE CompanyId = @CompanyId
               AND ProductCode IN ({string.Join(", ", paramNames)});
@@ -116,7 +116,11 @@ public class ProdutoAB(Connection connection)
                        ProductUnitPrice = @ProductUnitPrice,
                        ProductSalePrice = @ProductSalePrice,
                        TotalPriceOnProduct = @TotalPriceOnProduct,
-                       UnitType = @UnitType
+                       UnitType = @UnitType,
+                       ExpirationMode = @ExpirationMode,
+                       ManufactureDate = @ManufactureDate,
+                       ShelfLifeDays = @ShelfLifeDays,
+                       ExpirationDate = @ExpirationDate
                  WHERE Id = @Id AND CompanyId = @CompanyId;
             END
             ELSE
@@ -124,11 +128,11 @@ public class ProdutoAB(Connection connection)
                 INSERT INTO Produtos
                     (Id, CompanyId, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
                      ProductCategory, SupplierId, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
-                     TotalPriceOnProduct, UnitType)
+                     TotalPriceOnProduct, UnitType, ExpirationMode, ManufactureDate, ShelfLifeDays, ExpirationDate)
                 VALUES
                     (@Id, @CompanyId, @ProductImageUrl, @ProductImageName, @ProductName, @ProductCode, @ProductSupplier,
                      @ProductCategory, @SupplierId, @ProductDescription, @ProductQnt, @ProductUnitPrice, @ProductSalePrice,
-                     @TotalPriceOnProduct, @UnitType);
+                     @TotalPriceOnProduct, @UnitType, @ExpirationMode, @ManufactureDate, @ShelfLifeDays, @ExpirationDate);
             END;
             """;
 
@@ -271,6 +275,16 @@ public class ProdutoAB(Connection connection)
         command.Parameters.AddWithValue("@ProductSalePrice", product.ProductSalePrice);
         command.Parameters.AddWithValue("@TotalPriceOnProduct", product.TotalPriceOnProduct);
         command.Parameters.AddWithValue("@UnitType", unitType);
+        command.Parameters.AddWithValue("@ExpirationMode", product.ExpirationMode ?? string.Empty);
+
+        var mfgParam = command.Parameters.Add("@ManufactureDate", SqlDbType.Date);
+        mfgParam.Value = TryParseSqlDate(product.ManufactureDate, out var mfgDate) ? mfgDate : DBNull.Value;
+
+        var shelfParam = command.Parameters.Add("@ShelfLifeDays", SqlDbType.Int);
+        shelfParam.Value = product.ShelfLifeDays is > 0 ? product.ShelfLifeDays.Value : DBNull.Value;
+
+        var expParam = command.Parameters.Add("@ExpirationDate", SqlDbType.Date);
+        expParam.Value = TryParseSqlDate(product.ExpirationDate, out var expDate) ? expDate : DBNull.Value;
     }
 
     private static ProdutoAD Map(SqlDataReader source) => new()
@@ -287,8 +301,38 @@ public class ProdutoAB(Connection connection)
         ProductUnitPrice = ReadString(source, "ProductUnitPrice"),
         ProductSalePrice = ReadString(source, "ProductSalePrice"),
         TotalPriceOnProduct = ReadString(source, "TotalPriceOnProduct"),
-        UnitType = ReadUnitType(source)
+        UnitType = ReadUnitType(source),
+        ExpirationMode = ReadString(source, "ExpirationMode"),
+        ManufactureDate = ReadIsoDate(source, "ManufactureDate"),
+        ShelfLifeDays = ReadNullableInt(source, "ShelfLifeDays"),
+        ExpirationDate = ReadIsoDate(source, "ExpirationDate")
     };
+
+    private static bool TryParseSqlDate(string? raw, out DateTime parsed)
+    {
+        parsed = default;
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        return DateTime.TryParseExact(
+            raw.Trim(),
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out parsed);
+    }
+
+    private static string ReadIsoDate(SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? string.Empty
+            : reader.GetDateTime(ordinal).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    private static int? ReadNullableInt(SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+    }
 
     private static string ReadString(SqlDataReader reader, string name)
     {

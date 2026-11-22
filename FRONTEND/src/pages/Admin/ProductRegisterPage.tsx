@@ -4,7 +4,16 @@
  * Entradas esperadas: não recebe props; opera com estado local de lista, filtros de categoria e formulário em drawer.
  */
 
-import { Copy, FileSpreadsheet, Pencil, Plus, Search, Tag, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Copy,
+  FileSpreadsheet,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import ProductFormDrawer, {
@@ -19,8 +28,13 @@ import TablePagination from "@/components/Pagination/TablePagination";
 import { Toast, useStatusDialog } from "@/hooks/Dialog";
 import useInputMasks from "@/hooks/InputMasks/useInputMasks";
 import PageLayout from "@/layout/PageLayout";
-import { productService } from "@/services/api/productService";
+import { productService, type ProductDto } from "@/services/api/productService";
 import { supplierService, type SupplierPayload } from "@/services/api/supplierService";
+import {
+  computeEffectiveExpirationDate,
+  evaluateProductExpiration,
+  formatIsoDateBr,
+} from "@/utils/productExpiration";
 import { formatQuantityPtBr } from "@/utils/scaleBarcode";
 
 const EMPTY_FORM: ProductFormData = {
@@ -36,6 +50,10 @@ const EMPTY_FORM: ProductFormData = {
   productSalePrice: "",
   totalPriceOnProduct: "",
   unitType: "UN",
+  expirationMode: "",
+  manufactureDate: "",
+  shelfLifeDays: null,
+  expirationDate: "",
 };
 
 const DEFAULT_SUGGESTED_CATEGORIES = [
@@ -51,25 +69,39 @@ const DEFAULT_SUGGESTED_CATEGORIES = [
   "Outros",
 ];
 
-function normalizeProduct(item: {
-  id: string;
-  productImageUrl: string;
-  productImageName: string;
-  productName: string;
-  productCode: string;
-  productSupplier: string;
-  productCategory?: string;
-  productDescription: string;
-  productQnt: string;
-  productUnitPrice: string;
-  productSalePrice: string;
-  totalPriceOnProduct: string;
-  unitType?: string;
-}): ProductFormItem {
+function getProductEffectiveExpirationDate(product: {
+  expirationMode?: string;
+  manufactureDate?: string;
+  shelfLifeDays?: number | null;
+  expirationDate?: string;
+}): string {
+  return (
+    product.expirationDate ||
+    computeEffectiveExpirationDate({
+      expirationMode: product.expirationMode,
+      manufactureDate: product.manufactureDate,
+      shelfLifeDays: product.shelfLifeDays,
+      expirationDate: product.expirationDate,
+    })
+  );
+}
+
+function normalizeProduct(item: ProductDto): ProductFormItem {
+  const expirationMode =
+    item.expirationMode === "FIXED_DATE" || item.expirationMode === "DAYS_FROM_MANUFACTURE"
+      ? item.expirationMode
+      : "";
+
   return {
     ...item,
     productCategory: item.productCategory ?? "",
     unitType: item.unitType === "KG" ? "KG" : "UN",
+    expirationMode,
+    manufactureDate: item.manufactureDate ?? "",
+    shelfLifeDays: item.shelfLifeDays ?? null,
+    expirationDate: item.expirationDate ?? "",
+    expirationStatus: item.expirationStatus,
+    daysUntilExpiration: item.daysUntilExpiration ?? null,
   };
 }
 
@@ -88,6 +120,8 @@ export default function ProductRegisterPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkApplyingCost, setBulkApplyingCost] = useState(false);
+  const [applyingCostIds, setApplyingCostIds] = useState<Set<string>>(() => new Set());
   const [deletingProductIds, setDeletingProductIds] = useState<Set<string>>(() => new Set());
   const [form, setForm] = useState<ProductFormData>(EMPTY_FORM);
   const [pinCategory, setPinCategory] = useState(false);
@@ -147,13 +181,34 @@ export default function ProductRegisterPage() {
     return list;
   }, [existingCategories]);
 
+  const expiringAlertProducts = useMemo(() => {
+    return products.filter((product) => {
+      const effectiveDate = getProductEffectiveExpirationDate(product);
+      const evaluation = evaluateProductExpiration(effectiveDate);
+      return evaluation.status === "EXPIRING_SOON" || evaluation.status === "EXPIRED";
+    });
+  }, [products]);
+
+  const eligibleCostLiquidationProducts = useMemo(() => {
+    return expiringAlertProducts.filter((product) => {
+      const cost = parseMoneyBr(product.productUnitPrice);
+      const sale = parseMoneyBr(product.productSalePrice);
+      return cost > 0 && Math.abs(sale - cost) >= 0.005;
+    });
+  }, [expiringAlertProducts, parseMoneyBr]);
+
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     return products.filter((product) => {
-      if (selectedCategoryFilter === "__NONE__" && product.productCategory.trim()) {
+      if (selectedCategoryFilter === "__EXPIRING__") {
+        const effectiveDate = getProductEffectiveExpirationDate(product);
+        const evaluation = evaluateProductExpiration(effectiveDate);
+        if (evaluation.status !== "EXPIRING_SOON" && evaluation.status !== "EXPIRED") {
+          return false;
+        }
+      } else if (selectedCategoryFilter === "__NONE__" && product.productCategory.trim()) {
         return false;
-      }
-      if (
+      } else if (
         selectedCategoryFilter !== "ALL" &&
         selectedCategoryFilter !== "__NONE__" &&
         product.productCategory.trim().toLowerCase() !== selectedCategoryFilter.toLowerCase()
@@ -207,6 +262,69 @@ export default function ProductRegisterPage() {
     });
   };
 
+  const handleApplyCostPrice = async (product: ProductFormItem) => {
+    setApplyingCostIds((current) => new Set(current).add(product.id));
+    try {
+      const updated = await productService.applyCostPrice(product.id);
+      if (updated) {
+        const normalizedUpdated = normalizeProduct(updated);
+        setProducts((current) =>
+          current.map((item) => (item.id === product.id ? normalizedUpdated : item)),
+        );
+      }
+      Toast.success(`"${product.productName}" ajustado para preço de custo.`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Erro ao aplicar preço de custo.");
+    } finally {
+      setApplyingCostIds((current) => {
+        const next = new Set(current);
+        next.delete(product.id);
+        return next;
+      });
+    }
+  };
+
+  const handleApplyCostPriceAllExpiring = async () => {
+    if (eligibleCostLiquidationProducts.length === 0) return;
+    const confirmed = await statusDialog.confirm(
+      `Aplicar o preço de custo como preço de venda em ${eligibleCostLiquidationProducts.length} produto(s) vencido(s) ou prestes a vencer?`,
+    );
+    if (!confirmed) return;
+
+    setBulkApplyingCost(true);
+    try {
+      const results = await Promise.allSettled(
+        eligibleCostLiquidationProducts.map((product) =>
+          productService.applyCostPrice(product.id),
+        ),
+      );
+      const updatedMap = new Map<string, ProductFormItem>();
+      let successCount = 0;
+      results.forEach((result) => {
+        if (result.status === "fulfilled" && result.value) {
+          const normalized = normalizeProduct(result.value);
+          updatedMap.set(normalized.id, normalized);
+          successCount += 1;
+        }
+      });
+      if (updatedMap.size > 0) {
+        setProducts((current) =>
+          current.map((item) => updatedMap.get(item.id) ?? item),
+        );
+      }
+      const failedCount = eligibleCostLiquidationProducts.length - successCount;
+      if (failedCount > 0) {
+        Toast.error(`${failedCount} produto(s) não puderam ser ajustado(s).`);
+      } else {
+        Toast.success(
+          `${successCount} produto(s) colocados a preço de custo com sucesso.`,
+        );
+      }
+    } finally {
+      setBulkApplyingCost(false);
+    }
+  };
+
   const openCreateDrawer = useCallback(() => {
     setEditingId(null);
     setForm((current) => ({
@@ -214,7 +332,9 @@ export default function ProductRegisterPage() {
       productCategory:
         pinCategory
           ? current.productCategory
-          : selectedCategoryFilter !== "ALL" && selectedCategoryFilter !== "__NONE__"
+          : selectedCategoryFilter !== "ALL" &&
+              selectedCategoryFilter !== "__NONE__" &&
+              selectedCategoryFilter !== "__EXPIRING__"
             ? selectedCategoryFilter
             : "",
     }));
@@ -225,9 +345,22 @@ export default function ProductRegisterPage() {
   const openEditDrawer = useCallback((product: ProductFormItem) => {
     setEditingId(product.id);
     setForm({
-      ...product,
+      productImageUrl: product.productImageUrl,
+      productImageName: product.productImageName,
+      productName: product.productName,
+      productCode: product.productCode,
+      productSupplier: product.productSupplier,
       productCategory: product.productCategory ?? "",
+      productDescription: product.productDescription,
+      productQnt: product.productQnt,
+      productUnitPrice: product.productUnitPrice,
+      productSalePrice: product.productSalePrice,
+      totalPriceOnProduct: product.totalPriceOnProduct,
       unitType: product.unitType === "KG" ? "KG" : "UN",
+      expirationMode: product.expirationMode ?? "",
+      manufactureDate: product.manufactureDate ?? "",
+      shelfLifeDays: product.shelfLifeDays ?? null,
+      expirationDate: product.expirationDate ?? "",
     });
     setFocusResetToken((token) => token + 1);
     setDrawerOpen(true);
@@ -236,11 +369,22 @@ export default function ProductRegisterPage() {
   const openDuplicateDrawer = useCallback((product: ProductFormItem) => {
     setEditingId(null);
     setForm({
-      ...product,
-      productCode: "",
+      productImageUrl: product.productImageUrl,
+      productImageName: product.productImageName,
       productName: `${product.productName} (cópia)`,
+      productCode: "",
+      productSupplier: product.productSupplier,
       productCategory: product.productCategory ?? "",
+      productDescription: product.productDescription,
+      productQnt: product.productQnt,
+      productUnitPrice: product.productUnitPrice,
+      productSalePrice: product.productSalePrice,
+      totalPriceOnProduct: product.totalPriceOnProduct,
       unitType: product.unitType === "KG" ? "KG" : "UN",
+      expirationMode: product.expirationMode ?? "",
+      manufactureDate: product.manufactureDate ?? "",
+      shelfLifeDays: product.shelfLifeDays ?? null,
+      expirationDate: product.expirationDate ?? "",
     });
     setFocusResetToken((token) => token + 1);
     setDrawerOpen(true);
@@ -402,15 +546,22 @@ export default function ProductRegisterPage() {
       if (!validateForm()) return;
 
       const payload: ProductFormData = {
-        ...form,
+        productImageUrl: form.productImageUrl,
+        productImageName: form.productImageName,
         productName: form.productName.trim(),
         productCode: form.productCode.trim(),
-        productCategory: form.productCategory.trim(),
         productSupplier: form.productSupplier.trim(),
+        productCategory: form.productCategory.trim(),
         productDescription: form.productDescription.trim(),
         productQnt: form.productQnt.trim() || "0",
         productUnitPrice: form.productUnitPrice.trim() || "0,00",
         productSalePrice: form.productSalePrice.trim() || "0,00",
+        totalPriceOnProduct: form.totalPriceOnProduct,
+        unitType: form.unitType,
+        expirationMode: form.expirationMode,
+        manufactureDate: form.manufactureDate,
+        shelfLifeDays: form.shelfLifeDays,
+        expirationDate: form.expirationDate,
       };
 
       setSaving(true);
@@ -490,6 +641,49 @@ export default function ProductRegisterPage() {
         }
       />
 
+      {expiringAlertProducts.length > 0 ? (
+        <section className="card border border-amber-500/40 bg-amber-500/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-500" />
+              <div className="text-xs sm:text-sm">
+                <p className="font-semibold text-text-primary">
+                  {expiringAlertProducts.length} produto(s) vencido(s) ou prestes a vencer (até 7
+                  dias)
+                </p>
+                <p className="text-text-secondary">
+                  Liquide esses itens a preço de custo para evitar prejuízo no estoque.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategoryFilter("__EXPIRING__");
+                  setCurrentPage(1);
+                }}
+                className="btn-outline-secondary text-xs"
+              >
+                Filtrar prestes a vencer ({expiringAlertProducts.length})
+              </button>
+              {eligibleCostLiquidationProducts.length > 0 ? (
+                <LoadingButton
+                  type="button"
+                  onClick={handleApplyCostPriceAllExpiring}
+                  isLoading={bulkApplyingCost}
+                  loadingLabel="Aplicando..."
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"
+                >
+                  <Tag size={14} />
+                  Vender todos a preço de custo ({eligibleCostLiquidationProducts.length})
+                </LoadingButton>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="card space-y-3 p-4 md:p-5">
         <label className="relative mx-auto block w-full max-w-xl">
           <Search
@@ -508,7 +702,7 @@ export default function ProductRegisterPage() {
           />
         </label>
 
-        {existingCategories.length > 0 ? (
+        {existingCategories.length > 0 || expiringAlertProducts.length > 0 ? (
           <div className="flex flex-wrap items-center justify-center gap-1.5">
             <button
               type="button"
@@ -524,6 +718,23 @@ export default function ProductRegisterPage() {
             >
               Todas ({products.length})
             </button>
+            {expiringAlertProducts.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategoryFilter("__EXPIRING__");
+                  setCurrentPage(1);
+                }}
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  selectedCategoryFilter === "__EXPIRING__"
+                    ? "border-amber-500 bg-amber-500 text-slate-950"
+                    : "border-amber-500/45 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                }`}
+              >
+                <AlertTriangle size={11} />
+                Prestes a vencer ({expiringAlertProducts.length})
+              </button>
+            ) : null}
             {existingCategories.map(([category, count]) => (
               <button
                 key={category}
@@ -581,7 +792,7 @@ export default function ProductRegisterPage() {
           </div>
         ) : null}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead className="bg-bg-primary text-left text-text-secondary">
               <tr>
                 <th className="w-12 px-4 py-3">
@@ -599,93 +810,141 @@ export default function ProductRegisterPage() {
                 <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Fornecedor</th>
                 <th className="px-4 py-3">Estoque</th>
+                <th className="px-4 py-3">Validade</th>
                 <th className="px-4 py-3">Preço Venda</th>
                 <th className="px-4 py-3">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedProducts.map((product) => (
-                <tr key={product.id} className="border-t border-border-primary">
-                  <td className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedProductIds.has(product.id)}
-                      onChange={() => toggleProductSelection(product.id)}
-                      aria-label={`Selecionar ${product.productName}`}
-                      className="h-4 w-4 rounded border-border-secondary accent-accent"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="h-12 w-12 overflow-hidden rounded-lg border border-border-primary bg-bg-light">
-                      {product.productImageUrl ? (
-                        <img
-                          src={product.productImageUrl}
-                          alt={product.productName}
-                          className="h-full w-full object-cover"
-                        />
+              {paginatedProducts.map((product) => {
+                const effectiveDate = getProductEffectiveExpirationDate(product);
+                const evaluation = evaluateProductExpiration(effectiveDate);
+                const costValue = parseMoneyBr(product.productUnitPrice);
+                const saleValue = parseMoneyBr(product.productSalePrice);
+                const canApplyCost =
+                  costValue > 0 && Math.abs(saleValue - costValue) >= 0.005;
+
+                return (
+                  <tr key={product.id} className="border-t border-border-primary">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.has(product.id)}
+                        onChange={() => toggleProductSelection(product.id)}
+                        aria-label={`Selecionar ${product.productName}`}
+                        className="h-4 w-4 rounded border-border-secondary accent-accent"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-12 w-12 overflow-hidden rounded-lg border border-border-primary bg-bg-light">
+                        {product.productImageUrl ? (
+                          <img
+                            src={product.productImageUrl}
+                            alt={product.productName}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] text-text-tertiary">
+                            Sem
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-text-primary">{product.productName}</td>
+                    <td className="px-4 py-3">
+                      {product.productCategory ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+                          <Tag size={11} />
+                          {product.productCategory}
+                        </span>
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[10px] text-text-tertiary">
-                          Sem
-                        </div>
+                        <span className="text-text-tertiary">—</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-text-primary">{product.productName}</td>
-                  <td className="px-4 py-3">
-                    {product.productCategory ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                        <Tag size={11} />
-                        {product.productCategory}
-                      </span>
-                    ) : (
-                      <span className="text-text-tertiary">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">{product.productCode}</td>
-                  <td className="px-4 py-3 text-text-secondary">
-                    {product.productSupplier || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {formatQuantityPtBr(Number(String(product.productQnt).replace(",", ".")))} {product.unitType}
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    {parseMoneyBr(product.productSalePrice) > 0 ? (
-                      product.productSalePrice
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
-                        Avulso no caixa
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <RowActionsMenu
-                      items={[
-                        {
-                          key: "edit",
-                          label: "Editar",
-                          icon: <Pencil size={13} />,
-                          onClick: () => openEditDrawer(product),
-                        },
-                        {
-                          key: "duplicate",
-                          label: "Duplicar",
-                          icon: <Copy size={13} />,
-                          onClick: () => openDuplicateDrawer(product),
-                        },
-                        {
-                          key: "delete",
-                          label: "Excluir",
-                          icon: <Trash2 size={13} />,
-                          onClick: () => handleDelete(product),
-                          loading: deletingProductIds.has(product.id),
-                          loadingLabel: "Excluindo...",
-                          danger: true,
-                        },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">{product.productCode}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {product.productSupplier || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatQuantityPtBr(Number(String(product.productQnt).replace(",", ".")))} {product.unitType}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {effectiveDate ? (
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-text-primary">
+                            {formatIsoDateBr(effectiveDate)}
+                            {product.expirationMode === "DAYS_FROM_MANUFACTURE"
+                              ? ` (${product.shelfLifeDays ?? 30}d fab.)`
+                              : ""}
+                          </div>
+                          {evaluation.status === "EXPIRED" ||
+                          evaluation.status === "EXPIRING_SOON" ? (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                evaluation.status === "EXPIRED"
+                                  ? "bg-rose-500/15 text-rose-500"
+                                  : "bg-amber-500/15 text-amber-500"
+                              }`}
+                            >
+                              {evaluation.label}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-text-tertiary">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-medium">
+                      {saleValue > 0 ? (
+                        product.productSalePrice
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                          Avulso no caixa
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "edit",
+                            label: "Editar",
+                            icon: <Pencil size={13} />,
+                            onClick: () => openEditDrawer(product),
+                          },
+                          ...(canApplyCost
+                            ? [
+                                {
+                                  key: "apply-cost",
+                                  label: "Vender a preço de custo",
+                                  icon: <Tag size={13} />,
+                                  onClick: () => handleApplyCostPrice(product),
+                                  loading: applyingCostIds.has(product.id),
+                                  loadingLabel: "Aplicando...",
+                                },
+                              ]
+                            : []),
+                          {
+                            key: "duplicate",
+                            label: "Duplicar",
+                            icon: <Copy size={13} />,
+                            onClick: () => openDuplicateDrawer(product),
+                          },
+                          {
+                            key: "delete",
+                            label: "Excluir",
+                            icon: <Trash2 size={13} />,
+                            onClick: () => handleDelete(product),
+                            loading: deletingProductIds.has(product.id),
+                            loadingLabel: "Excluindo...",
+                            danger: true,
+                          },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

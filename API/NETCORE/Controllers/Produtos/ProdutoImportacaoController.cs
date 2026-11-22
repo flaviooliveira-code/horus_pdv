@@ -7,6 +7,7 @@ using System.Globalization;
 using HORUSPDV_API.Models.Response;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Repositories.DatabaseAccess;
+using HORUSPDV_API.Services.Produtos;
 using HORUSPDV_API.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 
@@ -85,14 +86,18 @@ public class ProdutoImportacaoController(ProdutoAB produtoAB) : ControllerBase
                         continue;
                     }
 
+                    var hasRowExpiration = !string.IsNullOrWhiteSpace(row.ExpirationDate) ||
+                                           !string.IsNullOrWhiteSpace(row.ExpirationMode);
                     var updatedAd = new ProdutoAD
                     {
                         Id = existingProduct.Id,
                         ProductImageUrl = existingProduct.ProductImageUrl,
                         ProductImageName = existingProduct.ProductImageName,
-                        // A planilha não traz unidade/categoria: preserva KG/UN e categoria do produto existente.
+                        // A planilha não traz unidade: preserva KG/UN do produto existente.
                         UnitType = existingProduct.UnitType,
-                        ProductCategory = existingProduct.ProductCategory,
+                        ProductCategory = string.IsNullOrWhiteSpace(row.ProductCategory)
+                            ? existingProduct.ProductCategory
+                            : row.ProductCategory,
                         ProductCode = row.ProductCode,
                         ProductName = row.ProductName,
                         ProductSupplier = row.ProductSupplier,
@@ -100,7 +105,11 @@ public class ProdutoImportacaoController(ProdutoAB produtoAB) : ControllerBase
                         ProductQnt = row.ProductQnt,
                         ProductUnitPrice = row.ProductUnitPrice,
                         ProductSalePrice = row.ProductSalePrice,
-                        TotalPriceOnProduct = row.TotalPriceOnProduct
+                        TotalPriceOnProduct = row.TotalPriceOnProduct,
+                        ExpirationMode = hasRowExpiration ? row.ExpirationMode : existingProduct.ExpirationMode,
+                        ManufactureDate = hasRowExpiration ? row.ManufactureDate : existingProduct.ManufactureDate,
+                        ShelfLifeDays = hasRowExpiration ? row.ShelfLifeDays : existingProduct.ShelfLifeDays,
+                        ExpirationDate = hasRowExpiration ? row.ExpirationDate : existingProduct.ExpirationDate
                     };
 
                     await produtoAB.SalvarAsync(currentUser.CompanyId, updatedAd);
@@ -115,12 +124,17 @@ public class ProdutoImportacaoController(ProdutoAB produtoAB) : ControllerBase
                         ProductImageName = string.Empty,
                         ProductCode = row.ProductCode,
                         ProductName = row.ProductName,
+                        ProductCategory = row.ProductCategory,
                         ProductSupplier = row.ProductSupplier,
                         ProductDescription = row.ProductDescription,
                         ProductQnt = row.ProductQnt,
                         ProductUnitPrice = row.ProductUnitPrice,
                         ProductSalePrice = row.ProductSalePrice,
-                        TotalPriceOnProduct = row.TotalPriceOnProduct
+                        TotalPriceOnProduct = row.TotalPriceOnProduct,
+                        ExpirationMode = row.ExpirationMode,
+                        ManufactureDate = row.ManufactureDate,
+                        ShelfLifeDays = row.ShelfLifeDays,
+                        ExpirationDate = row.ExpirationDate
                     };
 
                     await produtoAB.SalvarAsync(currentUser.CompanyId, createdAd);
@@ -151,11 +165,16 @@ public class ProdutoImportacaoItemRequest
 {
     public string ProductCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public string ProductCategory { get; set; } = string.Empty;
     public string ProductSupplier { get; set; } = string.Empty;
     public string ProductDescription { get; set; } = string.Empty;
     public string ProductQnt { get; set; } = "0";
     public string ProductUnitPrice { get; set; } = "0,00";
     public string ProductSalePrice { get; set; } = "0,00";
+    public string ExpirationMode { get; set; } = string.Empty;
+    public string ManufactureDate { get; set; } = string.Empty;
+    public string ShelfLifeDays { get; set; } = string.Empty;
+    public string ExpirationDate { get; set; } = string.Empty;
 }
 
 public class ProdutoImportacaoBatchRequest
@@ -169,12 +188,19 @@ public class ProdutoImportacaoRowStatusDto
     public int RowNumber { get; set; }
     public string ProductCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public string ProductCategory { get; set; } = string.Empty;
     public string ProductSupplier { get; set; } = string.Empty;
     public string ProductDescription { get; set; } = string.Empty;
     public string ProductQnt { get; set; } = "0";
     public string ProductUnitPrice { get; set; } = "0,00";
     public string ProductSalePrice { get; set; } = "0,00";
     public string TotalPriceOnProduct { get; set; } = "0,00";
+    public string ExpirationMode { get; set; } = string.Empty;
+    public string ManufactureDate { get; set; } = string.Empty;
+    public int? ShelfLifeDays { get; set; }
+    public string ExpirationDate { get; set; } = string.Empty;
+    public string ExpirationStatus { get; set; } = "NONE";
+    public int? DaysUntilExpiration { get; set; }
     public bool IsValid { get; set; }
     public bool ExistsInCatalog { get; set; }
     public string Action { get; set; } = "CRIAR"; // CRIAR | ATUALIZAR | IGNORAR | ERRO
@@ -258,7 +284,8 @@ public static class ProdutoImportacaoService
             var errors = new List<string>();
             var code = (raw.ProductCode ?? string.Empty).Trim();
             var name = (raw.ProductName ?? string.Empty).Trim();
-            var supplier = string.IsNullOrWhiteSpace(raw.ProductSupplier) ? "Fornecedor Geral" : raw.ProductSupplier.Trim();
+            var category = (raw.ProductCategory ?? string.Empty).Trim();
+            var supplier = (raw.ProductSupplier ?? string.Empty).Trim();
             var description = string.IsNullOrWhiteSpace(raw.ProductDescription) ? name : raw.ProductDescription.Trim();
 
             if (string.IsNullOrWhiteSpace(code))
@@ -294,6 +321,31 @@ public static class ProdutoImportacaoService
                 errors.Add("Preço de venda deve ser maior que zero.");
             }
 
+            var parsedShelfDays = ProdutoExpirationHelper.ParseShelfLifeIndicator(raw.ShelfLifeDays, out var shelfDaysInvalid);
+            if (shelfDaysInvalid)
+            {
+                errors.Add("Prazo de validade inválido (use Sim, 30 ou quantidade de dias).");
+            }
+
+            var resolvedExpiration = new ProdutoExpirationHelper.ResolvedExpiration(string.Empty, string.Empty, null, string.Empty);
+            if (!shelfDaysInvalid)
+            {
+                try
+                {
+                    resolvedExpiration = ProdutoExpirationHelper.NormalizeAndResolve(
+                        raw.ExpirationMode,
+                        raw.ManufactureDate,
+                        parsedShelfDays,
+                        raw.ExpirationDate);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    errors.Add(ex.Message);
+                }
+            }
+
+            var expEvaluation = ProdutoExpirationHelper.Evaluate(resolvedExpiration.ExpirationDate);
+
             var exists = !string.IsNullOrWhiteSpace(code) && existingCatalogCodes.Contains(code);
             var isValid = errors.Count == 0;
             var action = !isValid
@@ -311,12 +363,19 @@ public static class ProdutoImportacaoService
                 RowNumber = i + 1,
                 ProductCode = code,
                 ProductName = name,
+                ProductCategory = category,
                 ProductSupplier = supplier,
                 ProductDescription = description,
                 ProductQnt = safeQnt.ToString(CultureInfo.InvariantCulture),
                 ProductUnitPrice = safeUnit.ToString("N2", PtBr),
                 ProductSalePrice = safeSale.ToString("N2", PtBr),
                 TotalPriceOnProduct = (safeUnit * safeQnt).ToString("N2", PtBr),
+                ExpirationMode = resolvedExpiration.ExpirationMode,
+                ManufactureDate = resolvedExpiration.ManufactureDate,
+                ShelfLifeDays = resolvedExpiration.ShelfLifeDays,
+                ExpirationDate = resolvedExpiration.ExpirationDate,
+                ExpirationStatus = expEvaluation.Status,
+                DaysUntilExpiration = expEvaluation.DaysUntilExpiration,
                 IsValid = isValid,
                 ExistsInCatalog = exists,
                 Action = action,

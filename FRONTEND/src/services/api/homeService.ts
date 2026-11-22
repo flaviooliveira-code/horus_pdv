@@ -15,9 +15,30 @@ export type HomeKpiDto = {
   trend: number[];
 };
 
+export type HomeExpiringProductDto = {
+  id: string;
+  productCode: string;
+  productName: string;
+  quantity: number;
+  unitType: string;
+  unitCostPrice: number;
+  salePrice: number;
+  unitCostFormatted: string;
+  salePriceFormatted: string;
+  expirationDate: string;
+  expirationMode: string;
+  expirationStatus: "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration: number;
+  canApplyCostPrice: boolean;
+  alreadyAtCostPrice: boolean;
+};
+
 export const homeService = {
   async get() {
-    const response = await apiRequest<{ cards: HomeKpiDto[] }>(HOME_API_URL);
+    const response = await apiRequest<{
+      cards: HomeKpiDto[];
+      expiringProducts?: HomeExpiringProductDto[];
+    }>(HOME_API_URL);
     return response.data;
   },
 };

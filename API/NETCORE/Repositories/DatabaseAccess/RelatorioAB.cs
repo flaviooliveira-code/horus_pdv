@@ -3,6 +3,7 @@
  * Objetivo: gerar relatórios operacionais reais a partir das tabelas atuais do PDV.
  * Entradas esperadas: recebe identificador do relatório, filtros serializados e retorna colunas/linhas para o frontend.
  */
+using HORUSPDV_API.Services.Produtos;
 using HORUSPDV_API.Services.Security;
 using Microsoft.Data.SqlClient;
 using System.Globalization;
@@ -52,6 +53,7 @@ public class RelatorioAB(Connection connection)
             "produtos-mais-vendidos" => await GerarProdutosMaisVendidosAsync(companyId, filters),
             "clientes-frequentes" => await GerarClientesFrequentesAsync(companyId, filters),
             "estoque-critico" => await GerarEstoqueCriticoAsync(companyId, filters),
+            "validade-produtos" => await GerarValidadeProdutosAsync(companyId, filters),
             "compras-fornecedor" => await GerarComprasFornecedorAsync(companyId),
             "movimento-estoque" => await GerarMovimentoEstoqueAsync(companyId),
             "desempenho-caixa" => await GerarDesempenhoCaixaAsync(companyId, filters, userRole),
@@ -162,6 +164,65 @@ public class RelatorioAB(Connection connection)
 
         return Result(
             Columns(("codigo", "Código"), ("produto", "Produto"), ("estoque", "Estoque"), ("valorVenda", "Preço venda"), ("status", "Status")),
+            rows);
+    }
+
+    private async Task<object> GerarValidadeProdutosAsync(string companyId, Dictionary<string, JsonElement> filters)
+    {
+        var onlyExpiringSoon = GetBool(filters, "onlyExpiringSoon");
+        var products = await ListarProdutosAsync(companyId);
+
+        var rows = products
+            .Select(item => new
+            {
+                Product = item,
+                Eval = ProdutoExpirationHelper.Evaluate(item.ExpirationDate)
+            })
+            .Where(entry => entry.Eval.Status != ProdutoExpirationHelper.StatusNone && entry.Eval.DaysUntilExpiration is not null)
+            .Where(entry => !onlyExpiringSoon || entry.Eval.Status is ProdutoExpirationHelper.StatusExpired or ProdutoExpirationHelper.StatusExpiringSoon)
+            .OrderBy(entry => entry.Eval.DaysUntilExpiration!.Value)
+            .ThenByDescending(entry => entry.Product.Quantity)
+            .Select(entry =>
+            {
+                var days = entry.Eval.DaysUntilExpiration!.Value;
+                var expDate = ProdutoExpirationHelper.ParseFlexibleDate(entry.Product.ExpirationDate);
+                var statusText = days < 0
+                    ? $"Vencido há {Math.Abs(days)} dia(s)"
+                    : days == 0
+                        ? "Vence hoje"
+                        : days <= ProdutoExpirationHelper.DefaultExpiringAlertDays
+                            ? $"Vence em {days} dia(s)"
+                            : $"No prazo ({days} dia(s))";
+                var recommendation = entry.Eval.Status is ProdutoExpirationHelper.StatusExpired or ProdutoExpirationHelper.StatusExpiringSoon
+                    ? (entry.Product.UnitPrice > 0m && entry.Product.SalePrice > entry.Product.UnitPrice
+                        ? $"Vender a preço de custo ({FormatMoney(entry.Product.UnitPrice)})"
+                        : entry.Product.UnitPrice > 0m
+                            ? "Já está a preço de custo"
+                            : "Aplicar desconto / conferir")
+                    : "Manter preço normal";
+
+                return Row(
+                    ("codigo", entry.Product.Code),
+                    ("produto", entry.Product.Name),
+                    ("estoque", entry.Product.Quantity),
+                    ("vencimento", expDate?.ToString("dd/MM/yyyy", PtBr) ?? "-"),
+                    ("custoUnitario", FormatMoney(entry.Product.UnitPrice)),
+                    ("precoVenda", FormatMoney(entry.Product.SalePrice)),
+                    ("status", statusText),
+                    ("acao", recommendation));
+            })
+            .ToList();
+
+        return Result(
+            Columns(
+                ("codigo", "Código"),
+                ("produto", "Produto"),
+                ("estoque", "Estoque"),
+                ("vencimento", "Vencimento"),
+                ("custoUnitario", "Preço custo"),
+                ("precoVenda", "Preço venda"),
+                ("status", "Situação"),
+                ("acao", "Recomendação")),
             rows);
     }
 
@@ -529,7 +590,8 @@ public class RelatorioAB(Connection connection)
     private async Task<List<ReportProductRow>> ListarProdutosAsync(string companyId)
     {
         const string sql = """
-            SELECT ProductCode, ProductName, ProductSupplier, ProductQnt, ProductUnitPrice, ProductSalePrice
+            SELECT ProductCode, ProductName, ProductSupplier, ProductQnt, ProductUnitPrice, ProductSalePrice,
+                   ExpirationMode, ExpirationDate
             FROM Produtos
             WHERE CompanyId = @CompanyId
             ORDER BY ProductName;
@@ -542,13 +604,20 @@ public class RelatorioAB(Connection connection)
         var rows = new List<ReportProductRow>();
         while (await reader.ReadAsync())
         {
+            var expOrdinal = reader.GetOrdinal("ExpirationDate");
+            var expirationDate = reader.IsDBNull(expOrdinal)
+                ? string.Empty
+                : reader.GetDateTime(expOrdinal).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
             rows.Add(new ReportProductRow(
                 ReadString(reader, "ProductCode"),
                 ReadString(reader, "ProductName"),
                 ReadString(reader, "ProductSupplier"),
                 ReadDecimal(reader, "ProductQnt"),
                 ParseMoney(ReadString(reader, "ProductUnitPrice")),
-                ParseMoney(ReadString(reader, "ProductSalePrice"))));
+                ParseMoney(ReadString(reader, "ProductSalePrice")),
+                ReadString(reader, "ExpirationMode"),
+                expirationDate));
         }
 
         return rows;
@@ -846,7 +915,9 @@ public class RelatorioAB(Connection connection)
         string Supplier,
         decimal Quantity,
         decimal UnitPrice,
-        decimal SalePrice);
+        decimal SalePrice,
+        string ExpirationMode,
+        string ExpirationDate);
 
     private static decimal ReadDecimalColumn(SqlDataReader reader, string name)
     {

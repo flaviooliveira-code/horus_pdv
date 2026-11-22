@@ -55,6 +55,10 @@ BEGIN
         ProductUnitPrice NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ProductUnitPrice DEFAULT N'0,00',
         ProductSalePrice NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ProductSalePrice DEFAULT N'0,00',
         TotalPriceOnProduct NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_TotalPriceOnProduct DEFAULT N'0,00',
+        ExpirationMode NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ExpirationMode DEFAULT N'',
+        ManufactureDate DATE NULL,
+        ShelfLifeDays INT NULL,
+        ExpirationDate DATE NULL,
         CONSTRAINT UQ_Produtos_Company_ProductCode UNIQUE (CompanyId, ProductCode),
         CONSTRAINT FK_Produtos_Fornecedores FOREIGN KEY (SupplierId) REFERENCES Fornecedores (Id) ON DELETE SET NULL
     );
@@ -656,6 +660,26 @@ END;
 IF COL_LENGTH(N'Produtos', N'ProductCategory') IS NULL
 BEGIN
     ALTER TABLE Produtos ADD ProductCategory NVARCHAR(100) NOT NULL CONSTRAINT DF_Produtos_ProductCategory DEFAULT N'';
+END;
+
+IF COL_LENGTH(N'Produtos', N'ExpirationMode') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD ExpirationMode NVARCHAR(30) NOT NULL CONSTRAINT DF_Produtos_ExpirationMode DEFAULT N'';
+END;
+
+IF COL_LENGTH(N'Produtos', N'ManufactureDate') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD ManufactureDate DATE NULL;
+END;
+
+IF COL_LENGTH(N'Produtos', N'ShelfLifeDays') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD ShelfLifeDays INT NULL;
+END;
+
+IF COL_LENGTH(N'Produtos', N'ExpirationDate') IS NULL
+BEGIN
+    ALTER TABLE Produtos ADD ExpirationDate DATE NULL;
 END;
 
 IF EXISTS (

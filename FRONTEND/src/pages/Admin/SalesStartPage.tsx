@@ -5,7 +5,7 @@
  * Entradas esperadas: recebe flag opcional de modo standalone para ajustar comportamento da aba PDV.
  */
 
-import { Eye, Monitor, Printer, ScanBarcode, Search, X } from "lucide-react";
+import { AlertTriangle, Eye, Monitor, Printer, ScanBarcode, Search, Tag, X } from "lucide-react";
 import {
   type ClipboardEvent,
   type FormEvent,
@@ -55,6 +55,7 @@ import {
   publishCustomerDisplayState,
   subscribeCustomerDisplay,
 } from "@/utils/customerDisplayChannel";
+import { evaluateProductExpiration, formatIsoDateBr } from "@/utils/productExpiration";
 import {
   HIGH_VISIBILITY_CHANGE_EVENT,
   PRINT_PREVIEW_CHANGE_EVENT,
@@ -219,6 +220,7 @@ export default function SalesStartPage({
     getScannerAutoFocusEnabled(),
   );
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() => readDocumentThemeMode());
+  const [expiringModalOpen, setExpiringModalOpen] = useState(false);
 
   const pasteCashGiven = (event: ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault();
@@ -234,6 +236,27 @@ export default function SalesStartPage({
     () => products.find((item) => item.id === selectedProductId) ?? null,
     [products, selectedProductId],
   );
+
+  const expiringProducts = useMemo(() => {
+    return products
+      .filter(
+        (item) =>
+          item.stock > 0 &&
+          (item.expirationStatus === "EXPIRING_SOON" || item.expirationStatus === "EXPIRED"),
+      )
+      .sort((a, b) => (a.daysUntilExpiration ?? 0) - (b.daysUntilExpiration ?? 0));
+  }, [products]);
+
+  const selectedProductExpiration = useMemo(() => {
+    if (
+      !selectedProduct ||
+      (selectedProduct.expirationStatus !== "EXPIRING_SOON" &&
+        selectedProduct.expirationStatus !== "EXPIRED")
+    ) {
+      return null;
+    }
+    return evaluateProductExpiration(selectedProduct.expirationDate);
+  }, [selectedProduct]);
 
   const quantity = useMemo(() => {
     const parsed = Number(String(quantityInput).replace(",", "."));
@@ -300,16 +323,24 @@ export default function SalesStartPage({
   const loadProducts = useCallback(async () => {
     const items = await productService.list();
     setProducts(
-      items.map((item) => ({
-        id: item.id,
-        name: item.productName,
-        code: item.productCode,
-        stock: Number(String(item.productQnt || "0").replace(",", ".")),
-        salePrice: parseMoneyBr(item.productSalePrice || "0"),
-        imageUrl: item.productImageUrl,
-        unitType: item.unitType,
-        category: item.productCategory,
-      })),
+      items.map((item) => {
+        const evalExp = item.expirationDate ? evaluateProductExpiration(item.expirationDate) : null;
+        return {
+          id: item.id,
+          name: item.productName,
+          code: item.productCode,
+          stock: Number(String(item.productQnt || "0").replace(",", ".")),
+          salePrice: parseMoneyBr(item.productSalePrice || "0"),
+          unitCost: parseMoneyBr(item.productUnitPrice || "0"),
+          imageUrl: item.productImageUrl,
+          unitType: item.unitType,
+          category: item.productCategory,
+          expirationMode: item.expirationMode,
+          expirationDate: item.expirationDate,
+          expirationStatus: item.expirationStatus ?? evalExp?.status ?? "NONE",
+          daysUntilExpiration: item.daysUntilExpiration ?? evalExp?.daysUntilExpiration ?? null,
+        };
+      }),
     );
   }, [parseMoneyBr]);
 
@@ -694,6 +725,10 @@ export default function SalesStartPage({
               name: product.name,
               quantity: qty,
               unitPrice: requestedPrice,
+              unitCost: product.unitCost,
+              expirationDate: product.expirationDate,
+              expirationStatus: product.expirationStatus,
+              daysUntilExpiration: product.daysUntilExpiration ?? null,
               ...(isCustomPrice ? { unitPriceOverride: requestedPrice } : {}),
             },
           ];
@@ -707,9 +742,24 @@ export default function SalesStartPage({
 
       setLastScannedItemId(existing ? getCartLineKey(existing) : (newLineId ?? product.id));
       finishProductEntry();
+      if (product.expirationStatus === "EXPIRED" || product.expirationStatus === "EXPIRING_SOON") {
+        const evaluation = product.expirationDate
+          ? evaluateProductExpiration(product.expirationDate)
+          : null;
+        const label =
+          evaluation?.label ||
+          (product.expirationStatus === "EXPIRED" ? "vencido" : "prestes a vencer");
+        const canSuggestCost =
+          product.unitCost && product.unitCost > 0 && requestedPrice > product.unitCost + 0.005;
+        Toast.info(
+          canSuggestCost
+            ? `Atenção: "${product.name}" (${label}). Clique em Custo na lista para vender a R$ ${formatMoneyBr(product.unitCost!)}.`
+            : `Atenção: "${product.name}" (${label}).`,
+        );
+      }
       return true;
     },
-    [cart, finishProductEntry],
+    [cart, finishProductEntry, formatMoneyBr],
   );
 
   /** Etiqueta EAN-13 de balança (prefixo 2): adiciona uma linha com peso e total da etiqueta. */
@@ -740,6 +790,10 @@ export default function SalesStartPage({
           name: scaleMatch.product.name,
           quantity: scaleMatch.quantity,
           unitPrice: scaleMatch.unitPrice,
+          unitCost: scaleMatch.product.unitCost,
+          expirationDate: scaleMatch.product.expirationDate,
+          expirationStatus: scaleMatch.product.expirationStatus,
+          daysUntilExpiration: scaleMatch.product.daysUntilExpiration ?? null,
           itemTotalOverride: scaleMatch.totalValue,
         },
       ]);
@@ -817,6 +871,30 @@ export default function SalesStartPage({
       }
       return next;
     });
+    if (scannerAutoFocusEnabled) {
+      focusProductInput();
+    }
+  };
+
+  const applyCostPriceToCartLine = (lineKey: string, unitCost: number) => {
+    if (unitCost <= 0) return;
+    const roundedCost = Math.round(unitCost * 100) / 100;
+    let updatedKey = lineKey;
+    setCart((current) =>
+      current.map((item) => {
+        if (getCartLineKey(item) !== lineKey) return item;
+        const nextLineId = item.lineId ?? `${item.id}-cost-${Date.now()}`;
+        updatedKey = nextLineId;
+        return {
+          ...item,
+          lineId: nextLineId,
+          unitPrice: roundedCost,
+          unitPriceOverride: roundedCost,
+        };
+      }),
+    );
+    setLastScannedItemId((current) => (current === lineKey ? updatedKey : current));
+    Toast.success(`Preço ajustado para o custo (R$ ${formatMoneyBr(roundedCost)}).`);
     if (scannerAutoFocusEnabled) {
       focusProductInput();
     }
@@ -1249,6 +1327,18 @@ export default function SalesStartPage({
                   <span>Visor do Cliente</span>
                 </button>
 
+                {expiringProducts.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpiringModalOpen(true)}
+                    className="pdv-toggle-pill inline-flex items-center gap-1.5 rounded-xl border border-amber-300/80 bg-amber-400/95 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-amber-300 md:text-sm"
+                    title="Produtos vencidos ou prestes a vencer para venda a preço de custo"
+                  >
+                    <AlertTriangle size={16} />
+                    <span>Vencendo ({expiringProducts.length})</span>
+                  </button>
+                ) : null}
+
                 <div className="text-right text-xs md:text-sm pdv-tabular">
                   <p className="capitalize">{dateLabel}</p>
                   <p className="pdv-header-clock text-base font-semibold md:text-lg">
@@ -1342,13 +1432,32 @@ export default function SalesStartPage({
                               selectProductOption(item);
                             }}
                           >
-                            <p className="font-semibold">{item.name}</p>
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <p className="font-semibold">{item.name}</p>
+                              {item.expirationStatus === "EXPIRED" ||
+                              item.expirationStatus === "EXPIRING_SOON" ? (
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                    item.expirationStatus === "EXPIRED"
+                                      ? "bg-rose-500/15 text-rose-500"
+                                      : "bg-amber-500/15 text-amber-600 dark:text-amber-300"
+                                  }`}
+                                >
+                                  {item.expirationStatus === "EXPIRED"
+                                    ? "Vencido"
+                                    : "Prestes a vencer"}
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="text-xs text-text-secondary pdv-tabular">
                               {item.code}
                               {item.category ? ` · ${item.category}` : ""}
                               {item.salePrice > 0
                                 ? ` · R$ ${formatMoneyBr(item.salePrice)}`
                                 : " · Preço avulso"}
+                              {item.expirationDate
+                                ? ` · Val. ${formatIsoDateBr(item.expirationDate)}`
+                                : ""}
                             </p>
                           </li>
                         ))
@@ -1420,6 +1529,36 @@ export default function SalesStartPage({
                 />
               </label>
 
+              {selectedProductExpiration ? (
+                <div
+                  className={`mb-2.5 rounded-xl border p-2.5 text-xs ${
+                    selectedProductExpiration.status === "EXPIRED"
+                      ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                      : "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {selectedProductExpiration.label} ({selectedProductExpiration.formattedDate})
+                  </p>
+                  {selectedProduct?.unitCost && selectedProduct.unitCost > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUnitPriceInput(formatMoneyBr(selectedProduct.unitCost!));
+                        window.setTimeout(() => {
+                          qtyInputRef.current?.focus();
+                          qtyInputRef.current?.select();
+                        }, 0);
+                      }}
+                      className="mt-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"
+                    >
+                      <Tag size={12} />
+                      Usar preço de custo (R$ {formatMoneyBr(selectedProduct.unitCost)})
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
               <label className="mb-2.5 block">
                 <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
                   Preço total:
@@ -1488,6 +1627,7 @@ export default function SalesStartPage({
                     lastScannedItemId={lastScannedCartItem ? getCartLineKey(lastScannedCartItem) : null}
                     formatMoney={formatMoneyBr}
                     onRemoveItem={removeItem}
+                    onApplyCostPrice={applyCostPriceToCartLine}
                     highVisibility={highVisibilityEnabled}
                   />
                 </div>
@@ -1712,6 +1852,139 @@ export default function SalesStartPage({
             </div>
           </div>
         )}
+
+        {expiringModalOpen ? (
+          <div
+            className="fixed inset-0 z-layer-modal flex items-center justify-center bg-black/55 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Produtos vencidos ou prestes a vencer"
+            onClick={() => setExpiringModalOpen(false)}
+          >
+            <div
+              className="w-full max-w-2xl rounded-2xl border border-border-primary bg-bg-light p-5 text-text-primary shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-border-primary pb-3">
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                    <AlertTriangle size={18} />
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-bold text-text-primary">
+                      Produtos vencidos ou prestes a vencer ({expiringProducts.length})
+                    </h2>
+                    <p className="text-xs text-text-secondary">
+                      Selecione um item para lançar no caixa a preço de custo ou atualize o preço
+                      cadastrado para liquidação imediata.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpiringModalOpen(false)}
+                  className="rounded-lg p-1.5 text-text-secondary transition hover:bg-hover-light hover:text-text-primary"
+                  aria-label="Fechar alertas de validade"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mt-4 max-h-[60vh] space-y-2.5 overflow-y-auto pr-1">
+                {expiringProducts.map((item) => {
+                  const evaluation = evaluateProductExpiration(item.expirationDate);
+                  const isExpired =
+                    item.expirationStatus === "EXPIRED" || evaluation.status === "EXPIRED";
+                  const cost = item.unitCost ?? 0;
+                  const canUpdateToCost = cost > 0 && Math.abs(item.salePrice - cost) >= 0.005;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex flex-col justify-between gap-3 rounded-xl border border-border-primary bg-bg-primary p-3 sm:flex-row sm:items-center"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate font-semibold text-text-primary">
+                            {item.name}
+                          </span>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              isExpired
+                                ? "bg-rose-500/15 text-rose-500"
+                                : "bg-amber-500/15 text-amber-500"
+                            }`}
+                          >
+                            {evaluation.label || (isExpired ? "Vencido" : "Prestes a vencer")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-secondary pdv-tabular">
+                          Cód. {item.code} • Estoque: {formatQuantity(item.stock)}{" "}
+                          {item.unitType || "un"} • Validade:{" "}
+                          <strong>{formatIsoDateBr(item.expirationDate) || "-"}</strong>
+                        </p>
+                        <p className="text-xs text-text-secondary pdv-tabular">
+                          Venda atual:{" "}
+                          <strong className="text-text-primary">
+                            R$ {formatMoneyBr(item.salePrice)}
+                          </strong>{" "}
+                          • Custo:{" "}
+                          <strong className="text-text-primary">
+                            {cost > 0 ? `R$ ${formatMoneyBr(cost)}` : "Não informado"}
+                          </strong>
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {cost > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProductId(item.id);
+                              setProductSearch(item.name);
+                              setShowProductOptions(false);
+                              setUnitPriceInput(formatMoneyBr(cost));
+                              setExpiringModalOpen(false);
+                              window.setTimeout(() => {
+                                qtyInputRef.current?.focus();
+                                qtyInputRef.current?.select();
+                              }, 0);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"
+                          >
+                            <Tag size={13} />
+                            Lançar a custo (R$ {formatMoneyBr(cost)})
+                          </button>
+                        ) : null}
+                        {canUpdateToCost ? (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await productService.applyCostPrice(item.id);
+                                await loadProducts();
+                                Toast.success(`"${item.name}" atualizado para preço de custo.`);
+                              } catch (error) {
+                                Toast.error(
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Erro ao atualizar preço.",
+                                );
+                              }
+                            }}
+                            className="rounded-lg border border-border-secondary px-2.5 py-1.5 text-xs font-medium text-text-primary transition hover:bg-hover-light"
+                          >
+                            Fixar preço no catálogo
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {receiptPreview ? (
           <ReceiptPreviewModal

@@ -12,9 +12,14 @@ export type PdvProduct = {
   code: string;
   stock: number;
   salePrice: number;
+  unitCost?: number;
   imageUrl?: string;
   unitType?: string;
   category?: string;
+  expirationMode?: string;
+  expirationDate?: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
 };
 
 export type PdvCartItem = {
@@ -25,6 +30,10 @@ export type PdvCartItem = {
   name: string;
   quantity: number;
   unitPrice: number;
+  unitCost?: number;
+  expirationDate?: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
   /** Preço unitário avulso informado no caixa (ex.: produtos fatiados ou sem preço fixo). */
   unitPriceOverride?: number;
   /** Total impresso na etiqueta da balança; o servidor valida contra o preço cadastrado. */

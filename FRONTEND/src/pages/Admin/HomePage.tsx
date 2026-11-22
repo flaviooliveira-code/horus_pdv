@@ -5,6 +5,7 @@
  */
 
 import {
+  AlertTriangle,
   ArrowRight,
   BadgeDollarSign,
   CreditCard,
@@ -16,6 +17,7 @@ import {
   Repeat2,
   ShoppingCart,
   Store,
+  Tag,
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
@@ -23,8 +25,11 @@ import { useEffect, useState } from "react";
 import type { PageKey } from "@/components/AppSidebar/AppSidebar";
 import PageHeader from "@/components/Admin/PageHeader";
 import KpiTrendCard from "@/components/Admin/KpiTrendCard";
+import { Toast } from "@/hooks/Dialog";
 import PageLayout from "@/layout/PageLayout";
-import { homeService, type HomeKpiDto } from "@/services/api/homeService";
+import { homeService, type HomeExpiringProductDto, type HomeKpiDto } from "@/services/api/homeService";
+import { productService } from "@/services/api/productService";
+import { evaluateProductExpiration, formatIsoDateBr } from "@/utils/productExpiration";
 
 // Atalhos principais para reduzir cliques no fluxo operacional do dia a dia.
 const shortcuts = [
@@ -112,10 +117,38 @@ type HomePageProps = {
 
 export default function HomePage({ onNavigate, onOpenSalesInNewTab }: HomePageProps) {
   const [cards, setCards] = useState<HomeKpiDto[]>([]);
+  const [expiringProducts, setExpiringProducts] = useState<HomeExpiringProductDto[]>([]);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
 
   useEffect(() => {
-    homeService.get().then((data) => setCards(data?.cards ?? [])).catch(() => setCards([]));
+    homeService
+      .get()
+      .then((data) => {
+        setCards(data?.cards ?? []);
+        setExpiringProducts(data?.expiringProducts ?? []);
+      })
+      .catch(() => {
+        setCards([]);
+        setExpiringProducts([]);
+      });
   }, []);
+
+  const handleApplyCostPrice = async (item: HomeExpiringProductDto) => {
+    try {
+      setApplyingId(item.id);
+      await productService.applyCostPrice(item.id);
+      const refreshed = await homeService.get();
+      setCards(refreshed?.cards ?? []);
+      setExpiringProducts(refreshed?.expiringProducts ?? []);
+      Toast.success(
+        `Preço de "${item.productName}" ajustado para o custo (${item.unitCostFormatted}).`,
+      );
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "Erro ao aplicar preço de custo.");
+    } finally {
+      setApplyingId(null);
+    }
+  };
 
   return (
     <PageLayout className="space-y-4 py-4 md:space-y-6 md:py-6 lg:py-8">
@@ -136,6 +169,111 @@ export default function HomePage({ onNavigate, onOpenSalesInNewTab }: HomePagePr
           />
         ))}
       </section>
+
+      {expiringProducts.length > 0 && (
+        <section
+          aria-label="Alertas de vencimento"
+          className="card border border-amber-500/35 bg-amber-500/5 p-4 md:p-5"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-text-primary md:text-base">
+                  Produtos vencidos ou prestes a vencer ({expiringProducts.length})
+                </h2>
+                <p className="text-xs text-text-secondary">
+                  Itens com estoque vencido ou com validade próxima (até 7 dias). Liquide a preço de
+                  custo para evitar perda.
+                </p>
+              </div>
+            </div>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate("cadastro-produto")}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-default bg-bg-secondary px-3 py-1.5 text-xs font-semibold text-text-primary transition hover:border-brand-accent/60 hover:text-brand-accent"
+              >
+                Gerenciar no cadastro
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 grid gap-2.5 md:grid-cols-2">
+            {expiringProducts.slice(0, 8).map((item) => {
+              const evaluation = evaluateProductExpiration(item.expirationDate);
+              const isExpired = item.expirationStatus === "EXPIRED" || evaluation.status === "EXPIRED";
+              const formattedDate = formatIsoDateBr(item.expirationDate) || evaluation.formattedDate;
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col justify-between gap-2.5 rounded-xl border border-border-default bg-bg-secondary/90 p-3 sm:flex-row sm:items-center"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-text-primary">
+                        {item.productName}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          isExpired
+                            ? "bg-rose-500/15 text-rose-400"
+                            : "bg-amber-500/15 text-amber-400"
+                        }`}
+                      >
+                        {evaluation.label || (isExpired ? "Vencido" : "Prestes a vencer")}
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-secondary">
+                      {item.productCode ? `Cód. ${item.productCode} • ` : ""}
+                      Estoque: <strong className="text-text-primary">{item.quantity}</strong>{" "}
+                      {item.unitType || "un"} • Validade:{" "}
+                      <strong className="text-text-primary">{formattedDate || "-"}</strong>
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      Custo: <strong className="text-text-primary">{item.unitCostFormatted}</strong>{" "}
+                      • Venda atual:{" "}
+                      <strong className="text-text-primary">{item.salePriceFormatted}</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    {item.alreadyAtCostPrice ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-semibold text-emerald-400">
+                        <Tag className="h-3.5 w-3.5" />
+                        Já a preço de custo
+                      </span>
+                    ) : item.canApplyCostPrice ? (
+                      <button
+                        type="button"
+                        disabled={applyingId === item.id}
+                        onClick={() => void handleApplyCostPrice(item)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60"
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                        {applyingId === item.id ? "Aplicando..." : "Vender a preço de custo"}
+                      </button>
+                    ) : (
+                      <span className="rounded-lg bg-bg-primary px-2.5 py-1.5 text-xs text-text-secondary">
+                        Sem custo cadastrado
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {expiringProducts.length > 8 && (
+            <p className="mt-2.5 text-xs text-text-secondary">
+              Exibindo 8 de {expiringProducts.length} produtos em alerta de validade. Acesse o
+              cadastro de produtos ou relatórios para ver a lista completa.
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="card p-4 md:p-5">
         <h2 className="text-base font-semibold text-text-primary">Ações rápidas</h2>

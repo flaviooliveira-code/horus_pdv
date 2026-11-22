@@ -8,6 +8,7 @@
 import {
   AlertTriangle,
   Barcode,
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   LoaderCircle,
@@ -15,6 +16,7 @@ import {
   PinOff,
   Search,
   Sparkles,
+  Tag,
   Trash2,
   Upload,
   X,
@@ -38,6 +40,13 @@ import { productService } from "@/services/api/productService";
 import { type SupplierPayload } from "@/services/api/supplierService";
 import { lookupAddressByCep } from "@/utils/cepLookup";
 import { onlyDigits } from "@/utils/inputMasks";
+import {
+  computeEffectiveExpirationDate,
+  DEFAULT_SHELF_LIFE_DAYS,
+  evaluateProductExpiration,
+  formatIsoDateBr,
+  getTodayIsoDate,
+} from "@/utils/productExpiration";
 import { isValidCnpj, isValidEmail } from "@/utils/validators";
 
 export type ProductFormItem = {
@@ -54,9 +63,18 @@ export type ProductFormItem = {
   productSalePrice: string;
   totalPriceOnProduct: string;
   unitType: "UN" | "KG";
+  expirationMode: "" | "FIXED_DATE" | "DAYS_FROM_MANUFACTURE";
+  manufactureDate: string;
+  shelfLifeDays: number | null;
+  expirationDate: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
 };
 
-export type ProductFormData = Omit<ProductFormItem, "id">;
+export type ProductFormData = Omit<
+  ProductFormItem,
+  "id" | "expirationStatus" | "daysUntilExpiration"
+>;
 export type QuickSupplierDraft = SupplierPayload;
 
 const EMPTY_SUPPLIER_DRAFT: QuickSupplierDraft = {
@@ -345,6 +363,22 @@ export default function ProductFormDrawer({
     return Math.round(((sale - cost) / cost) * 100);
   }, [parseMoneyBr, value.productSalePrice, value.productUnitPrice]);
 
+  const effectiveExpirationDate = useMemo(
+    () =>
+      computeEffectiveExpirationDate({
+        expirationMode: value.expirationMode,
+        manufactureDate: value.manufactureDate,
+        shelfLifeDays: value.shelfLifeDays,
+        expirationDate: value.expirationDate,
+      }),
+    [value.expirationDate, value.expirationMode, value.manufactureDate, value.shelfLifeDays],
+  );
+
+  const expirationEvaluation = useMemo(
+    () => evaluateProductExpiration(effectiveExpirationDate),
+    [effectiveExpirationDate],
+  );
+
   const supplierMissingFields = useMemo(() => {
     const missing: string[] = [];
     if (!supplierDraft.cnpj.trim()) missing.push("CNPJ");
@@ -402,6 +436,93 @@ export default function ProductFormDrawer({
     if (cost <= 0) return;
     const suggestedSale = cost * (1 + percent / 100);
     setField("productSalePrice", formatMoneyBr(suggestedSale));
+  };
+
+  const applyCostPriceToSale = () => {
+    const cost = parseMoneyBr(value.productUnitPrice);
+    if (cost <= 0) return;
+    setField("productSalePrice", formatMoneyBr(cost));
+  };
+
+  const selectExpirationMode = (nextMode: "" | "FIXED_DATE" | "DAYS_FROM_MANUFACTURE") => {
+    const current = latestValueRef.current;
+    if (nextMode === "") {
+      const next: ProductFormData = {
+        ...current,
+        expirationMode: "",
+        manufactureDate: "",
+        shelfLifeDays: null,
+        expirationDate: "",
+      };
+      latestValueRef.current = next;
+      onChange(next);
+      return;
+    }
+
+    if (nextMode === "FIXED_DATE") {
+      const preservedDate =
+        computeEffectiveExpirationDate(current) || current.expirationDate || "";
+      const next: ProductFormData = {
+        ...current,
+        expirationMode: "FIXED_DATE",
+        manufactureDate: "",
+        shelfLifeDays: null,
+        expirationDate: preservedDate,
+      };
+      latestValueRef.current = next;
+      onChange(next);
+      return;
+    }
+
+    const manufactureDate = current.manufactureDate || getTodayIsoDate();
+    const shelfLifeDays =
+      current.shelfLifeDays && current.shelfLifeDays > 0
+        ? current.shelfLifeDays
+        : DEFAULT_SHELF_LIFE_DAYS;
+    const computedDate = computeEffectiveExpirationDate({
+      expirationMode: "DAYS_FROM_MANUFACTURE",
+      manufactureDate,
+      shelfLifeDays,
+    });
+    const next: ProductFormData = {
+      ...current,
+      expirationMode: "DAYS_FROM_MANUFACTURE",
+      manufactureDate,
+      shelfLifeDays,
+      expirationDate: computedDate,
+    };
+    latestValueRef.current = next;
+    onChange(next);
+  };
+
+  const updateExpirationDateField = (nextDate: string) => {
+    const next: ProductFormData = {
+      ...latestValueRef.current,
+      expirationMode: "FIXED_DATE",
+      manufactureDate: "",
+      shelfLifeDays: null,
+      expirationDate: nextDate,
+    };
+    latestValueRef.current = next;
+    onChange(next);
+  };
+
+  const updateManufactureExpiration = (nextManufactureDate: string, nextDays: number | null) => {
+    const resolvedDays = nextDays && nextDays > 0 ? nextDays : DEFAULT_SHELF_LIFE_DAYS;
+    const computedDate = computeEffectiveExpirationDate({
+      expirationMode: "DAYS_FROM_MANUFACTURE",
+      manufactureDate: nextManufactureDate,
+      shelfLifeDays: resolvedDays,
+    });
+    const next: ProductFormData = {
+      ...latestValueRef.current,
+      expirationMode: "DAYS_FROM_MANUFACTURE",
+      manufactureDate: nextManufactureDate,
+      shelfLifeDays: resolvedDays,
+      expirationDate: computedDate,
+    };
+    latestValueRef.current = next;
+    onChange(next);
   };
 
   const handleEnterNext = (
@@ -851,6 +972,165 @@ export default function ProductFormDrawer({
                 Deixe o preço de venda vazio para definir o valor avulso na frente de caixa (ideal para produtos fatiados ou variáveis).
               </p>
             )}
+          </section>
+
+          {/* Validade / Vencimento */}
+          <section className="card rounded-2xl p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarClock size={16} className="text-text-secondary" />
+                <h4 className="text-sm font-semibold text-text-secondary">
+                  Validade / Vencimento (opcional)
+                </h4>
+              </div>
+              {effectiveExpirationDate ? (
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    expirationEvaluation.status === "EXPIRED"
+                      ? "bg-rose-500/15 text-rose-500"
+                      : expirationEvaluation.status === "EXPIRING_SOON"
+                        ? "bg-amber-500/15 text-amber-500"
+                        : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+                  }`}
+                >
+                  Vence em {formatIsoDateBr(effectiveExpirationDate)}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => selectExpirationMode("")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  !value.expirationMode
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border-secondary text-text-secondary hover:bg-hover-light hover:text-text-primary"
+                }`}
+              >
+                Sem validade
+              </button>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => selectExpirationMode("FIXED_DATE")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  value.expirationMode === "FIXED_DATE"
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border-secondary text-text-secondary hover:bg-hover-light hover:text-text-primary"
+                }`}
+              >
+                Data de vencimento
+              </button>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => selectExpirationMode("DAYS_FROM_MANUFACTURE")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  value.expirationMode === "DAYS_FROM_MANUFACTURE"
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border-secondary text-text-secondary hover:bg-hover-light hover:text-text-primary"
+                }`}
+              >
+                30 dias da fabricação
+              </button>
+            </div>
+
+            {value.expirationMode === "FIXED_DATE" ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-text-secondary">
+                    Data de vencimento
+                  </span>
+                  <input
+                    type="date"
+                    value={value.expirationDate}
+                    onChange={(event) => updateExpirationDateField(event.target.value)}
+                    className="input-field w-full"
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {value.expirationMode === "DAYS_FROM_MANUFACTURE" ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-text-secondary">
+                    Data de fabricação (padrão: hoje)
+                  </span>
+                  <input
+                    type="date"
+                    value={value.manufactureDate}
+                    onChange={(event) =>
+                      updateManufactureExpiration(event.target.value, value.shelfLifeDays)
+                    }
+                    className="input-field w-full"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-text-secondary">
+                    Duração (dias após fabricação)
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={value.shelfLifeDays ?? DEFAULT_SHELF_LIFE_DAYS}
+                    onChange={(event) => {
+                      const raw = Number.parseInt(event.target.value, 10);
+                      updateManufactureExpiration(
+                        value.manufactureDate || getTodayIsoDate(),
+                        Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SHELF_LIFE_DAYS,
+                      );
+                    }}
+                    className="input-field w-full"
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {effectiveExpirationDate &&
+            (expirationEvaluation.status === "EXPIRED" ||
+              expirationEvaluation.status === "EXPIRING_SOON") ? (
+              <div
+                className={`mt-3 flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${
+                  expirationEvaluation.status === "EXPIRED"
+                    ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                }`}
+              >
+                <div className="flex items-start gap-2 text-xs">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">
+                      {expirationEvaluation.label} ({expirationEvaluation.formattedDate})
+                    </p>
+                    <p className="opacity-90">
+                      Produto vencido ou próximo ao vencimento. Sugestão: vender a preço de custo.
+                    </p>
+                  </div>
+                </div>
+                {costValue > 0 ? (
+                  Math.abs(parseMoneyBr(value.productSalePrice) - costValue) >= 0.005 ? (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={applyCostPriceToSale}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"
+                    >
+                      <Tag size={13} />
+                      Aplicar preço de custo (R$ {formatMoneyBr(costValue)})
+                    </button>
+                  ) : (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      <Tag size={13} />
+                      Já está a preço de custo
+                    </span>
+                  )
+                ) : null}
+              </div>
+            ) : null}
           </section>
 
           {/* Seção recolhível: Mais detalhes (opcional) */}
