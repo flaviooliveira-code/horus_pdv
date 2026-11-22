@@ -89,15 +89,24 @@ export function findExactProductByCode(rawQuery: string, products: PdvProduct[])
   return products.find((item) => item.code.trim().toLowerCase() === normalized) ?? null;
 }
 
+function normalizeSearchText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export function filterProductsByQuery(rawQuery: string, products: PdvProduct[]): PdvProduct[] {
-  const normalized = rawQuery.trim().toLowerCase();
+  const normalized = normalizeSearchText(rawQuery);
   if (!normalized) return products;
-  return products.filter(
-    (item) =>
-      item.name.toLowerCase().includes(normalized) ||
-      item.code.toLowerCase().includes(normalized) ||
-      (item.category ?? "").toLowerCase().includes(normalized),
-  );
+  const terms = normalized.split(/\s+/).filter(Boolean);
+  return products.filter((item) => {
+    const haystack = normalizeSearchText(
+      `${item.code} ${item.name} ${item.category ?? ""}`,
+    );
+    return terms.every((term) => haystack.includes(term));
+  });
 }
 
 export function resolveProductSubmission(params: {

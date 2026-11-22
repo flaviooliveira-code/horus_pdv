@@ -328,3 +328,20 @@ describe("customerDisplayChannel", () => {
     unsubscribe();
   });
 });
+
+describe("filterProductsByQuery", () => {
+  const catalog: PdvProduct[] = [
+    { id: "1", code: "7891000100103", name: "Leite Integral 1L", stock: 10, salePrice: 5.5, category: "Laticínios" },
+    { id: "2", code: "7891000200205", name: "Pão Francês", stock: 30, salePrice: 0.9, category: "Padaria" },
+    { id: "3", code: "10042", name: "Refrigerante Cola 2L", stock: 12, salePrice: 9.0, category: "Bebidas" },
+  ];
+
+  it("matches by code, name, or category (accent-insensitive and multi-term)", () => {
+    assert.equal(filterProductsByQuery("7891000200205", catalog)[0]?.id, "2");
+    assert.equal(filterProductsByQuery("pao", catalog)[0]?.id, "2");
+    assert.equal(filterProductsByQuery("laticinios", catalog)[0]?.id, "1");
+    assert.equal(filterProductsByQuery("bebidas cola", catalog)[0]?.id, "3");
+    assert.equal(filterProductsByQuery("", catalog).length, 3);
+  });
+});
+

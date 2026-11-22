@@ -221,6 +221,7 @@ export default function SalesStartPage({
   );
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() => readDocumentThemeMode());
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
 
   const pasteCashGiven = (event: ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault();
@@ -236,6 +237,15 @@ export default function SalesStartPage({
     () => products.find((item) => item.id === selectedProductId) ?? null,
     [products, selectedProductId],
   );
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((item) => {
+      const category = item.category?.trim();
+      if (category) set.add(category);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [products]);
 
   const expiringProducts = useMemo(() => {
     return products
@@ -275,10 +285,17 @@ export default function SalesStartPage({
     return selectedProduct && selectedProduct.salePrice > 0 ? selectedProduct.salePrice : 0;
   }, [parsedCustomUnitPrice, selectedProduct]);
 
-  const filteredProducts = useMemo(
-    () => filterProductsByQuery(productSearch, products),
-    [products, productSearch],
-  );
+  const filteredProducts = useMemo(() => {
+    const byCategory =
+      selectedCategoryFilter === "ALL"
+        ? products
+        : products.filter(
+            (item) =>
+              (item.category?.trim().toLowerCase() ?? "") ===
+              selectedCategoryFilter.toLowerCase(),
+          );
+    return filterProductsByQuery(productSearch, byCategory);
+  }, [products, productSearch, selectedCategoryFilter]);
 
   const subtotal = useMemo(
     () => Math.round(cart.reduce((sum, item) => sum + getCartLineTotal(item), 0) * 100) / 100,
@@ -1357,10 +1374,35 @@ export default function SalesStartPage({
             }`}
           >
             <aside className="shrink-0 border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
-              <label className="mb-2.5 block">
-                <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
-                  Produto:
-                </span>
+              <div className="mb-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="pdv-field-label text-xs font-semibold uppercase">
+                    Produto:
+                  </span>
+                  {availableCategories.length > 0 ? (
+                    <select
+                      aria-label="Filtrar produtos por categoria"
+                      value={selectedCategoryFilter}
+                      onChange={(event) => {
+                        const nextCategory = event.target.value;
+                        setSelectedCategoryFilter(nextCategory);
+                        setHighlightedProductIndex(0);
+                        setShowProductOptions(nextCategory !== "ALL" || productSearch.trim().length > 0);
+                        window.setTimeout(() => {
+                          productInputRef.current?.focus();
+                        }, 0);
+                      }}
+                      className="max-w-[155px] rounded-lg border border-border-secondary bg-bg-light px-2 py-1 text-xs font-medium text-text-primary outline-none focus:border-accent"
+                    >
+                      <option value="ALL">Todas categorias</option>
+                      {availableCategories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
                 <div className="relative">
                   <Search
                     size={16}
@@ -1378,9 +1420,10 @@ export default function SalesStartPage({
                     }}
                     onFocus={() => {
                       // Evita reabrir o autocomplete automaticamente após adicionar item no mobile.
-                      const hasSearch = productSearch.trim().length > 0;
-                      setShowProductOptions(hasSearch);
-                      if (hasSearch && filteredProducts.length > 0) setHighlightedProductIndex(0);
+                      const shouldOpen =
+                        productSearch.trim().length > 0 || selectedCategoryFilter !== "ALL";
+                      setShowProductOptions(shouldOpen);
+                      if (shouldOpen && filteredProducts.length > 0) setHighlightedProductIndex(0);
                     }}
                     onBlur={() => window.setTimeout(() => setShowProductOptions(false), 120)}
                     onKeyDown={(event) => {
@@ -1413,6 +1456,7 @@ export default function SalesStartPage({
                         setShowProductOptions(false);
                       }
                     }}
+                    placeholder="Código, nome ou categoria"
                     className="input-field pdv-search-input h-10 w-full pl-9 text-sm"
                     autoComplete="off"
                   />
@@ -1469,7 +1513,7 @@ export default function SalesStartPage({
                     </ul>
                   )}
                 </div>
-              </label>
+              </div>
 
               <label className="mb-2.5 block">
                 <span className="pdv-field-label mb-1 block text-xs font-semibold uppercase">
