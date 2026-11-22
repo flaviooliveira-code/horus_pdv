@@ -60,6 +60,7 @@ builder.Services.AddScoped<HorusEmailService>();
 builder.Services.AddHttpClient<HorusRecaptchaService>();
 builder.Services.AddHttpClient<HorusPaymentGatewayService>(client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<HorusPaymentProviderClient>(client => client.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddHttpClient<IBarcodeCatalogLookupService, BarcodeCatalogLookupService>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<ScaleBarcodeParser>();
 builder.Services.AddScoped<IProdutoService, ProdutoService>();
 builder.Services.AddScoped<IClienteService, ClienteService>();

@@ -18,6 +18,7 @@ export type ProductDto = {
   productName: string;
   productCode: string;
   productSupplier: string;
+  productCategory?: string;
   productDescription: string;
   productQnt: string;
   productUnitPrice: string;
@@ -27,6 +28,19 @@ export type ProductDto = {
 };
 
 export type ProductPayload = Omit<ProductDto, "id">;
+
+export type BarcodeLookupDto = {
+  barcode: string;
+  found: boolean;
+  source: string;
+  productName: string;
+  brand: string;
+  productCategory: string;
+  productDescription: string;
+  productImageUrl: string;
+  suggestedUnitType: string;
+  suggestedSalePrice?: number | null;
+};
 
 export type ScaleBarcodeDecodeDto = {
   barcode: string;
@@ -103,6 +117,12 @@ export const productService = {
   async decodeScaleBarcode(barcode: string, mode: "price" | "weight" = "price") {
     const response = await apiRequest<ScaleBarcodeDecodeDto>(
       `${PRODUTO_API_URL}/decodificar-balanca/${encodeURIComponent(barcode)}?mode=${encodeURIComponent(mode)}`,
+    );
+    return response.data;
+  },
+  async lookupBarcode(barcode: string) {
+    const response = await apiRequest<BarcodeLookupDto>(
+      `${PRODUTO_API_URL}/consultar-codigo/${encodeURIComponent(barcode)}`,
     );
     return response.data;
   },

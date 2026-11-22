@@ -3,7 +3,7 @@
  * Objetivo: padronizar seleção pesquisável para listas de entidades do sistema.
   * Entradas esperadas: recebe lista de opções, valor atual, callbacks de seleção e configuração de criação rápida.
 */
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Plus, Search } from "lucide-react";
 
 type SearchableSelectFieldProps<TOption> = {
@@ -19,6 +19,9 @@ type SearchableSelectFieldProps<TOption> = {
   emptyMessage?: string;
   disabled?: boolean;
   required?: boolean;
+  allowCustomValue?: boolean;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   className?: string;
   inputClassName?: string;
   dropdownClassName?: string;
@@ -47,6 +50,9 @@ export default function SearchableSelectField<TOption>({
   emptyMessage = "Nenhum resultado encontrado.",
   disabled = false,
   required = false,
+  allowCustomValue = false,
+  inputRef: externalInputRef,
+  onKeyDown,
   className = "",
   inputClassName = "",
   dropdownClassName = "",
@@ -55,16 +61,18 @@ export default function SearchableSelectField<TOption>({
 }: SearchableSelectFieldProps<TOption>) {
   const inputId = useId();
   const blurTimeoutRef = useRef<number | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const internalInputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = externalInputRef ?? internalInputRef;
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
 
   const selectedOption = useMemo(
     () => options.find((option) => getOptionValue(option) === value) || null,
     [getOptionValue, options, value],
   );
 
-  const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : "";
+  const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : allowCustomValue ? value : "";
 
   useEffect(() => {
     if (isOpen) return;
@@ -76,7 +84,7 @@ export default function SearchableSelectField<TOption>({
     inputRef.current?.setCustomValidity(
       required && !value ? "Selecione uma opção da lista." : "",
     );
-  }, [required, value]);
+  }, [inputRef, required, value]);
 
   useEffect(
     () => () => {
@@ -98,6 +106,9 @@ export default function SearchableSelectField<TOption>({
     });
   }, [getOptionDescription, getOptionLabel, getOptionSearchText, options, search]);
 
+  const safeHighlightedIndex =
+    filteredOptions.length === 0 ? -1 : Math.min(highlightedIndex, filteredOptions.length - 1);
+
   const handleSelect = (option: TOption) => {
     const nextValue = getOptionValue(option);
     onChange(nextValue, option);
@@ -108,7 +119,15 @@ export default function SearchableSelectField<TOption>({
   const handleBlur = () => {
     blurTimeoutRef.current = window.setTimeout(() => {
       setIsOpen(false);
-      setSearch(selectedLabel);
+      if (allowCustomValue) {
+        const trimmed = search.trim();
+        if (trimmed !== value) {
+          onChange(trimmed, null);
+        }
+        setSearch(trimmed);
+      } else {
+        setSearch(selectedLabel);
+      }
     }, 120);
   };
 
@@ -116,6 +135,67 @@ export default function SearchableSelectField<TOption>({
     if (!onCreateOption) return;
     onCreateOption(search.trim());
     setIsOpen(false);
+  };
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        setHighlightedIndex(0);
+      } else if (filteredOptions.length > 0) {
+        setHighlightedIndex((current) => (current + 1) % filteredOptions.length);
+      }
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (isOpen && filteredOptions.length > 0) {
+        setHighlightedIndex((current) =>
+          current <= 0 ? filteredOptions.length - 1 : current - 1,
+        );
+      }
+      return;
+    }
+
+    if (event.key === "Escape" && isOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsOpen(false);
+      return;
+    }
+
+    if (event.key === "Enter" && isOpen) {
+      const trimmed = search.trim();
+      const exactMatch = filteredOptions.find(
+        (option) => normalizeSearchValue(getOptionLabel(option)) === normalizeSearchValue(trimmed),
+      );
+      if (exactMatch) {
+        event.preventDefault();
+        handleSelect(exactMatch);
+        onKeyDown?.(event);
+        return;
+      }
+
+      if (allowCustomValue && trimmed) {
+        event.preventDefault();
+        onChange(trimmed, null);
+        setSearch(trimmed);
+        setIsOpen(false);
+        onKeyDown?.(event);
+        return;
+      }
+
+      if (safeHighlightedIndex >= 0 && filteredOptions[safeHighlightedIndex]) {
+        event.preventDefault();
+        handleSelect(filteredOptions[safeHighlightedIndex]);
+        onKeyDown?.(event);
+        return;
+      }
+    }
+
+    onKeyDown?.(event);
   };
 
   const field = (
@@ -130,16 +210,24 @@ export default function SearchableSelectField<TOption>({
           id={inputId}
           value={search}
           onChange={(event) => {
-            setSearch(event.target.value);
+            const nextText = event.target.value;
+            setSearch(nextText);
+            setHighlightedIndex(0);
             setIsOpen(true);
-            if (!event.target.value.trim() && value) {
+            if (allowCustomValue) {
+              onChange(nextText, null);
+            } else if (!nextText.trim() && value) {
               onChange("", null);
             }
           }}
           onFocus={() => {
-            if (!disabled) setIsOpen(true);
+            if (!disabled) {
+              setIsOpen(true);
+              setHighlightedIndex(0);
+            }
           }}
           onBlur={handleBlur}
+          onKeyDown={handleInputKeyDown}
           className={`input-field w-full pl-9 ${inputClassName}`}
           placeholder={placeholder}
           autoComplete="off"
@@ -153,16 +241,18 @@ export default function SearchableSelectField<TOption>({
           className={`absolute left-0 right-0 z-layer-popover mt-1 max-h-56 overflow-y-auto rounded-xl border border-border-primary bg-bg-light shadow-lg ${dropdownClassName}`}
         >
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((option) => {
+            filteredOptions.map((option, index) => {
               const optionValue = getOptionValue(option);
               const description = getOptionDescription?.(option);
               const isSelected = optionValue === value;
+              const isHighlighted = index === safeHighlightedIndex;
               return (
                 <li
                   key={optionValue}
                   className={`cursor-pointer px-3 py-2 text-sm transition hover:bg-hover-light ${
-                    isSelected ? "bg-accent/10" : ""
+                    isSelected ? "bg-accent/10" : isHighlighted ? "bg-hover-light" : ""
                   }`}
+                  onMouseEnter={() => setHighlightedIndex(index)}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     handleSelect(option);
@@ -179,7 +269,9 @@ export default function SearchableSelectField<TOption>({
             })
           ) : (
             <li className="px-3 py-2 text-sm text-text-secondary">
-              {emptyMessage}
+              {allowCustomValue && search.trim()
+                ? `Pressione Enter ou Tab para usar "${search.trim()}".`
+                : emptyMessage}
             </li>
           )}
           {onCreateOption ? (
@@ -193,7 +285,9 @@ export default function SearchableSelectField<TOption>({
                 }}
               >
                 <Plus size={14} />
-                {createActionLabel || "Cadastrar novo"}
+                {search.trim()
+                  ? `${createActionLabel || "Cadastrar novo"}: "${search.trim()}"`
+                  : createActionLabel || "Cadastrar novo"}
               </button>
             </li>
           ) : null}

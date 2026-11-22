@@ -60,6 +60,7 @@ type AddressContactFieldsProps = {
   loadingCep: boolean;
   onChange: (field: keyof AddressContactValue, fieldValue: string) => void;
   onFillAddressFromCep: () => void;
+  optionalFields?: boolean;
 };
 
 export default function AddressContactFields({
@@ -67,9 +68,11 @@ export default function AddressContactFields({
   loadingCep,
   onChange,
   onFillAddressFromCep,
+  optionalFields = false,
 }: AddressContactFieldsProps) {
   const { maskCep, maskTelephoneBr, maskCellphoneBr, onlyDigits, sanitizeIntegerInput } =
     useInputMasks();
+  const req = optionalFields ? "" : " *";
   // Evita consultas repetidas do mesmo CEP durante digitação.
   const lastAutoLookupCepRef = useRef("");
   // Debounce para não disparar busca de CEP a cada tecla.
@@ -106,11 +109,13 @@ export default function AddressContactFields({
   return (
     <>
       <section className="card rounded-2xl p-4">
-        <h4 className="text-sm font-semibold text-text-secondary">Endereço</h4>
+        <h4 className="text-sm font-semibold text-text-secondary">
+          Endereço{optionalFields ? " (opcional)" : ""}
+        </h4>
         <div className="mt-3 grid gap-3 md:grid-cols-4">
           <label className="block">
             <span className="mb-1.5 block text-sm text-text-secondary">
-              CEP *
+              CEP{req}
             </span>
             <input
               value={value.cep}
@@ -132,7 +137,7 @@ export default function AddressContactFields({
           </label>
           <label className="block md:col-span-2">
             <span className="mb-1.5 block text-sm text-text-secondary">
-              Cidade *
+              Cidade{req}
             </span>
             <input
               value={value.city}
@@ -142,7 +147,7 @@ export default function AddressContactFields({
             />
           </label>
           <SearchableSelectField
-            label="UF *"
+            label={`UF${req}`}
             value={value.state}
             options={STATE_SELECT_OPTIONS}
             onChange={(nextValue) => onChange("state", nextValue)}
@@ -153,7 +158,7 @@ export default function AddressContactFields({
           />
           <label className="block md:col-span-2">
             <span className="mb-1.5 block text-sm text-text-secondary">
-              Endereço *
+              Endereço{req}
             </span>
             <input
               value={value.address}
@@ -164,7 +169,7 @@ export default function AddressContactFields({
           </label>
           <label className="block md:col-span-2">
             <span className="mb-1.5 block text-sm text-text-secondary">
-              Bairro *
+              Bairro{req}
             </span>
             <input
               value={value.neighborhood}
@@ -188,7 +193,7 @@ export default function AddressContactFields({
           </label>
           <label className="block">
             <span className="mb-1.5 block text-sm text-text-secondary">
-              Número *
+              Número{req}
             </span>
             <input
               value={value.number}
@@ -216,7 +221,9 @@ export default function AddressContactFields({
       </section>
 
       <section className="card rounded-2xl p-4">
-        <h4 className="text-sm font-semibold text-text-secondary">Contato</h4>
+        <h4 className="text-sm font-semibold text-text-secondary">
+          Contato{optionalFields ? " (opcional)" : ""}
+        </h4>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <label className="block">
             <span className="mb-1.5 block text-sm text-text-secondary">
@@ -233,7 +240,7 @@ export default function AddressContactFields({
           </label>
           <label className="block">
             <span className="mb-1.5 block text-sm text-text-secondary">
-              Celular *
+              Celular{req}
             </span>
             <input
               value={value.cellphone}

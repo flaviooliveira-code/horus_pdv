@@ -18,7 +18,8 @@ public class ProdutoAB(Connection connection)
     {
         const string sql = """
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
-                   ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct, UnitType
+                   ProductCategory, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
+                   TotalPriceOnProduct, UnitType
             FROM Produtos
             WHERE CompanyId = @CompanyId
             ORDER BY ProductName;
@@ -41,7 +42,8 @@ public class ProdutoAB(Connection connection)
     {
         const string sql = """
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
-                   ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct, UnitType
+                   ProductCategory, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
+                   TotalPriceOnProduct, UnitType
             FROM Produtos
             WHERE Id = @Id AND CompanyId = @CompanyId;
             """;
@@ -70,7 +72,8 @@ public class ProdutoAB(Connection connection)
         var paramNames = normalizedCodes.Select((_, index) => $"@Code{index}").ToList();
         var sql = $"""
             SELECT Id, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
-                   ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct, UnitType
+                   ProductCategory, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
+                   TotalPriceOnProduct, UnitType
             FROM Produtos
             WHERE CompanyId = @CompanyId
               AND ProductCode IN ({string.Join(", ", paramNames)});
@@ -106,6 +109,7 @@ public class ProdutoAB(Connection connection)
                        ProductName = @ProductName,
                        ProductCode = @ProductCode,
                        ProductSupplier = @ProductSupplier,
+                       ProductCategory = @ProductCategory,
                        SupplierId = @SupplierId,
                        ProductDescription = @ProductDescription,
                        ProductQnt = @ProductQnt,
@@ -118,11 +122,13 @@ public class ProdutoAB(Connection connection)
             ELSE
             BEGIN
                 INSERT INTO Produtos
-                    (Id, CompanyId, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier, SupplierId,
-                     ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice, TotalPriceOnProduct, UnitType)
+                    (Id, CompanyId, ProductImageUrl, ProductImageName, ProductName, ProductCode, ProductSupplier,
+                     ProductCategory, SupplierId, ProductDescription, ProductQnt, ProductUnitPrice, ProductSalePrice,
+                     TotalPriceOnProduct, UnitType)
                 VALUES
-                    (@Id, @CompanyId, @ProductImageUrl, @ProductImageName, @ProductName, @ProductCode, @ProductSupplier, @SupplierId,
-                     @ProductDescription, @ProductQnt, @ProductUnitPrice, @ProductSalePrice, @TotalPriceOnProduct, @UnitType);
+                    (@Id, @CompanyId, @ProductImageUrl, @ProductImageName, @ProductName, @ProductCode, @ProductSupplier,
+                     @ProductCategory, @SupplierId, @ProductDescription, @ProductQnt, @ProductUnitPrice, @ProductSalePrice,
+                     @TotalPriceOnProduct, @UnitType);
             END;
             """;
 
@@ -222,6 +228,11 @@ public class ProdutoAB(Connection connection)
 
     private async Task<string?> ResolveSupplierIdAsync(string companyId, string supplierName)
     {
+        if (string.IsNullOrWhiteSpace(supplierName))
+        {
+            return null;
+        }
+
         const string sql = """
             SELECT TOP 1 Id
             FROM Fornecedores
@@ -231,7 +242,7 @@ public class ProdutoAB(Connection connection)
         await using var db = await connection.OpenConnectionAsync();
         await using var command = new SqlCommand(sql, db);
         command.Parameters.AddWithValue("@CompanyId", companyId);
-        command.Parameters.AddWithValue("@Name", supplierName);
+        command.Parameters.AddWithValue("@Name", supplierName.Trim());
         var result = await command.ExecuteScalarAsync();
         return result as string;
     }
@@ -249,6 +260,7 @@ public class ProdutoAB(Connection connection)
         command.Parameters.AddWithValue("@ProductName", product.ProductName);
         command.Parameters.AddWithValue("@ProductCode", product.ProductCode);
         command.Parameters.AddWithValue("@ProductSupplier", product.ProductSupplier);
+        command.Parameters.AddWithValue("@ProductCategory", product.ProductCategory);
         command.Parameters.AddWithValue("@SupplierId", supplierId is null ? DBNull.Value : supplierId);
         command.Parameters.AddWithValue("@ProductDescription", product.ProductDescription);
         var qntParam = command.Parameters.Add("@ProductQnt", SqlDbType.Decimal);
@@ -269,6 +281,7 @@ public class ProdutoAB(Connection connection)
         ProductName = ReadString(source, "ProductName"),
         ProductCode = ReadString(source, "ProductCode"),
         ProductSupplier = ReadString(source, "ProductSupplier"),
+        ProductCategory = ReadString(source, "ProductCategory"),
         ProductDescription = ReadString(source, "ProductDescription"),
         ProductQnt = FormatQuantity(ReadDecimal(source, "ProductQnt")),
         ProductUnitPrice = ReadString(source, "ProductUnitPrice"),
