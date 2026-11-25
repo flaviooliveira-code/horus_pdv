@@ -84,6 +84,35 @@ public class ProdutoController(
         }
     }
 
+    [HttpPost("{id}/aplicar-preco-custo")]
+    [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AplicarPrecoDeCusto(string id)
+    {
+        var currentUser = GetCurrentUser();
+        if (currentUser is null) return Unauthorized(new ApiResponse<ProdutoModel> { Success = false, Message = "Sessão não encontrada." });
+        try
+        {
+            var updated = await produtoService.AplicarPrecoDeCustoAsync(currentUser.CompanyId, id);
+            if (updated is null)
+            {
+                return NotFound(new ApiResponse<ProdutoModel> { Success = false, Message = "Produto não encontrado." });
+            }
+
+            return Ok(new ApiResponse<ProdutoModel>
+            {
+                Success = true,
+                Message = "Preço de venda atualizado para o preço de custo.",
+                Data = updated
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<ProdutoModel> { Success = false, Message = ex.Message });
+        }
+    }
+
     [HttpDelete("{id}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

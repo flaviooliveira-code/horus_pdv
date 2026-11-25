@@ -8,6 +8,7 @@ using System.Globalization;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Services.Caixa;
+using HORUSPDV_API.Services.Produtos;
 using Microsoft.Data.SqlClient;
 
 namespace HORUSPDV_API.Repositories.DatabaseAccess;
@@ -348,7 +349,8 @@ public class HistoricoVendasAB(Connection connection)
 
             await using var select = new SqlCommand(
                 """
-                SELECT Id, ProductName, ProductQnt, ProductUnitPrice, ProductSalePrice
+                SELECT Id, ProductName, ProductQnt, ProductUnitPrice, ProductSalePrice,
+                       CONVERT(NVARCHAR(10), ExpirationDate, 23) AS ExpirationDate
                 FROM Produtos WITH (UPDLOCK, ROWLOCK)
                 WHERE CompanyId = @CompanyId AND ProductCode = @ProductCode;
                 """,
@@ -369,9 +371,11 @@ public class HistoricoVendasAB(Connection connection)
             var salePrice = ReadString(reader, "ProductSalePrice");
             var effectiveUnitPriceText = string.IsNullOrWhiteSpace(salePrice) ? unitPrice : salePrice;
             var unitCostPriceText = string.IsNullOrWhiteSpace(unitPrice) ? "0,00" : unitPrice;
+            var expirationDate = ReadString(reader, "ExpirationDate");
             await reader.CloseAsync();
 
             var serverUnitPrice = ParseMoney(effectiveUnitPriceText);
+            var liquidationCostPrice = ResolveLiquidationCostPrice(unitCostPriceText, expirationDate);
             var resolvedLines = group
                 .Select(rawItem =>
                 {
@@ -381,7 +385,8 @@ public class HistoricoVendasAB(Connection connection)
                         rawItem.UnitPriceOverride,
                         rawItem.ItemTotalOverride,
                         productName,
-                        canOverrideFixedPrice);
+                        canOverrideFixedPrice,
+                        liquidationCostPrice);
                     return new
                     {
                         rawItem.Quantity,
@@ -442,6 +447,19 @@ public class HistoricoVendasAB(Connection connection)
         "gerente"
     };
 
+    /// <summary>Preço de custo liberado para venda por qualquer perfil quando o produto está vencido ou vence em até 7 dias.</summary>
+    internal static decimal? ResolveLiquidationCostPrice(string? unitCostText, string? expirationDate, DateOnly? today = null)
+    {
+        var status = ProdutoExpirationHelper.Evaluate(expirationDate, today).Status;
+        if (status != ProdutoExpirationHelper.StatusExpired && status != ProdutoExpirationHelper.StatusExpiringSoon)
+        {
+            return null;
+        }
+
+        var unitCost = Math.Round(ParseMoney(unitCostText), 2, MidpointRounding.AwayFromZero);
+        return unitCost > 0m ? unitCost : null;
+    }
+
     internal static bool CanOverrideFixedPrice(string? role)
         => !string.IsNullOrWhiteSpace(role) && PriceOverrideRoles.Contains(role.Trim());
 
@@ -451,7 +469,8 @@ public class HistoricoVendasAB(Connection connection)
         decimal? unitPriceOverride,
         decimal? itemTotalOverride,
         string productName = "",
-        bool canOverrideFixedPrice = false)
+        bool canOverrideFixedPrice = false,
+        decimal? liquidationCostPrice = null)
     {
         decimal effectiveUnitPrice;
         if (unitPriceOverride is { } customPrice)
@@ -463,7 +482,9 @@ public class HistoricoVendasAB(Connection connection)
 
             // Preço avulso é livre para produtos sem preço fixo (fatiados, preço variável).
             // Alterar o preço de um produto com preço cadastrado exige administrador ou gerente.
-            if (serverUnitPrice > 0m && customPrice != serverUnitPrice && !canOverrideFixedPrice)
+            // Exceção: produto vencido ou prestes a vencer pode sair pelo preço de custo cadastrado.
+            var isLiquidationAtCost = liquidationCostPrice is { } costPrice && customPrice == costPrice;
+            if (serverUnitPrice > 0m && customPrice != serverUnitPrice && !canOverrideFixedPrice && !isLiquidationAtCost)
             {
                 var label = string.IsNullOrWhiteSpace(productName) ? "este produto" : productName;
                 throw new InvalidOperationException(

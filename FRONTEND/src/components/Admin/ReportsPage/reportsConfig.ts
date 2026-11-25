@@ -176,6 +176,15 @@ export const reportCatalog: ReportDefinition[] = [
     ],
   },
   {
+    id: "validade-produtos",
+    title: "Validade e Produtos Prestes a Vencer",
+    description: "Lista produtos com vencimento próximo ou vencidos, com recomendação de venda a preço de custo.",
+    icon: PackageSearch,
+    filters: [
+      { id: "onlyExpiringSoon", label: "Somente prestes a vencer / vencidos (até 7 dias)", type: "checkbox" },
+    ],
+  },
+  {
     id: "compras-fornecedor",
     title: "Compras por Fornecedor",
     description: "Resumo de compras e custo por fornecedor para análise de margem.",

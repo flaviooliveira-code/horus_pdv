@@ -92,7 +92,11 @@ const MOCK_CASH_STATUS = {
   history: [],
 };
 
-async function installApiMocks(page: Page, user: typeof MOCK_USER = MOCK_USER) {
+async function installApiMocks(
+  page: Page,
+  user: typeof MOCK_USER = MOCK_USER,
+  products: Array<Record<string, unknown>> = MOCK_PRODUCTS,
+) {
   await page.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const request = route.request();
     const origin = request.headers()["origin"] ?? "http://127.0.0.1:4173";
@@ -115,7 +119,7 @@ async function installApiMocks(page: Page, user: typeof MOCK_USER = MOCK_USER) {
     if (pathname.endsWith("/Auth/me")) {
       data = user;
     } else if (pathname.endsWith("/Produto")) {
-      data = MOCK_PRODUCTS;
+      data = products;
     } else if (pathname.endsWith("/Empresa")) {
       data = MOCK_COMPANY;
     } else if (pathname.endsWith("/Caixa/status")) {
@@ -286,6 +290,40 @@ test.describe("Acessibilidade e Redesenho da Frente de Caixa", () => {
     await managerPage.getByRole("button", { name: /adicionar item/i }).click();
     await expect(managerPage.locator(".pdv-total-amount")).toHaveText("R$ 15,00");
     await managerPage.close();
+  });
+
+  test("atendente vende pelo preço de custo apenas produto vencido ou prestes a vencer", async ({
+    page,
+  }) => {
+    const inTwoDays = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const expiringProduct = {
+      id: "prod-3",
+      productImageUrl: "",
+      productImageName: "",
+      productName: "Iogurte Natural 170g",
+      productCode: "7894445556667",
+      productSupplier: "Fornecedor C",
+      productDescription: "Iogurte",
+      productQnt: "12",
+      productUnitPrice: "3,20",
+      productSalePrice: "6,90",
+      totalPriceOnProduct: "38,40",
+      expirationMode: "FIXED_DATE",
+      expirationDate: inTwoDays.toISOString().slice(0, 10),
+    };
+    await installApiMocks(page, { ...MOCK_USER, role: "atendente" }, [
+      ...MOCK_PRODUCTS,
+      expiringProduct,
+    ]);
+    await seedAuthenticatedSession(page, { activePage: "vendas", role: "atendente" });
+    await page.goto("/");
+
+    await page.getByLabel(/^Produto:/i).fill("7894445556667");
+    await page.getByText("Iogurte Natural 170g", { exact: true }).click();
+    await page.getByRole("button", { name: /usar preço de custo/i }).click();
+    await expect(page.getByLabel(/preço unitário/i)).toHaveValue("3,20");
+    await page.getByRole("button", { name: /adicionar item/i }).click();
+    await expect(page.locator(".pdv-total-amount")).toHaveText("R$ 3,20");
   });
 
   test("alterna Alta Visibilidade (F7), persiste no localStorage, amplia +50% e atinge WCAG AAA (>=7:1) em temas claro e escuro", async ({

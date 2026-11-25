@@ -3,6 +3,7 @@
  * Objetivo: consolidar indicadores reais da home a partir das tabelas operacionais.
  * Entradas esperadas: recebe conexão configurada e retorna dados agregados para o dashboard.
  */
+using HORUSPDV_API.Services.Produtos;
 using Microsoft.Data.SqlClient;
 using System.Globalization;
 
@@ -25,6 +26,7 @@ public class HomeAB(Connection connection)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
         var criticalStock = products.Count(item => item.Quantity <= 5);
+        var expiringProducts = BuildExpiringProductsAlert(products);
 
         return new
         {
@@ -66,8 +68,57 @@ public class HomeAB(Connection connection)
                     color = "#7c3aed",
                     trend = Enumerable.Repeat(criticalStock, 7).ToArray()
                 }
-            }
+            },
+            expiringProducts
         };
+    }
+
+    internal static List<object> BuildExpiringProductsAlert(IEnumerable<HomeProductRow> products, DateOnly? referenceToday = null)
+    {
+        var list = new List<(int Days, decimal Quantity, object Payload)>();
+        foreach (var item in products)
+        {
+            if (item.Quantity <= 0m || string.IsNullOrWhiteSpace(item.ExpirationDate))
+            {
+                continue;
+            }
+
+            var eval = ProdutoExpirationHelper.Evaluate(item.ExpirationDate, referenceToday);
+            if (eval.Status is not (ProdutoExpirationHelper.StatusExpired or ProdutoExpirationHelper.StatusExpiringSoon) ||
+                eval.DaysUntilExpiration is null)
+            {
+                continue;
+            }
+
+            var days = eval.DaysUntilExpiration.Value;
+            list.Add((
+                days,
+                item.Quantity,
+                new
+                {
+                    id = item.Id,
+                    productCode = item.Code,
+                    productName = item.Name,
+                    quantity = item.Quantity,
+                    unitType = item.UnitType,
+                    unitCostPrice = item.UnitPrice,
+                    salePrice = item.SalePrice,
+                    unitCostFormatted = FormatMoney(item.UnitPrice),
+                    salePriceFormatted = FormatMoney(item.SalePrice),
+                    expirationDate = item.ExpirationDate,
+                    expirationMode = item.ExpirationMode,
+                    expirationStatus = eval.Status,
+                    daysUntilExpiration = days,
+                    canApplyCostPrice = item.UnitPrice > 0m && item.SalePrice > item.UnitPrice,
+                    alreadyAtCostPrice = item.UnitPrice > 0m && item.SalePrice <= item.UnitPrice
+                }));
+        }
+
+        return list
+            .OrderBy(entry => entry.Days)
+            .ThenByDescending(entry => entry.Quantity)
+            .Select(entry => entry.Payload)
+            .ToList();
     }
 
     private async Task<List<HomeSaleRow>> ListarVendasAsync(string companyId)
@@ -97,7 +148,8 @@ public class HomeAB(Connection connection)
     private async Task<List<HomeProductRow>> ListarProdutosAsync(string companyId)
     {
         const string sql = """
-            SELECT ProductQnt
+            SELECT Id, ProductCode, ProductName, ProductQnt, UnitType,
+                   ProductUnitPrice, ProductSalePrice, ExpirationMode, ExpirationDate
             FROM Produtos
             WHERE CompanyId = @CompanyId;
             """;
@@ -109,7 +161,21 @@ public class HomeAB(Connection connection)
         var rows = new List<HomeProductRow>();
         while (await reader.ReadAsync())
         {
-            rows.Add(new HomeProductRow(ReadDecimal(reader, "ProductQnt")));
+            var expOrdinal = reader.GetOrdinal("ExpirationDate");
+            var expirationDate = reader.IsDBNull(expOrdinal)
+                ? string.Empty
+                : reader.GetDateTime(expOrdinal).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            rows.Add(new HomeProductRow(
+                ReadString(reader, "Id"),
+                ReadString(reader, "ProductCode"),
+                ReadString(reader, "ProductName"),
+                ReadDecimal(reader, "ProductQnt"),
+                ReadString(reader, "UnitType") is { Length: > 0 } unit ? unit : "UN",
+                ParseMoney(ReadString(reader, "ProductUnitPrice")),
+                ParseMoney(ReadString(reader, "ProductSalePrice")),
+                ReadString(reader, "ExpirationMode"),
+                expirationDate));
         }
 
         return rows;
@@ -164,5 +230,15 @@ public class HomeAB(Connection connection)
         => value.ToString("C", PtBr);
 
     private sealed record HomeSaleRow(DateTimeOffset SaleDate, string CustomerCpf, decimal TotalAmount);
-    private sealed record HomeProductRow(decimal Quantity);
+
+    public sealed record HomeProductRow(
+        string Id,
+        string Code,
+        string Name,
+        decimal Quantity,
+        string UnitType,
+        decimal UnitPrice,
+        decimal SalePrice,
+        string ExpirationMode,
+        string ExpirationDate);
 }

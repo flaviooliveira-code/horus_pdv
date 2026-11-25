@@ -5,6 +5,7 @@ import {
   filterProductsByQuery,
   formatQuantity,
   formatTotalVolumes,
+  getLiquidationCostPrice,
   resolveProductSubmission,
   type PdvProduct,
 } from "../../src/components/Admin/SalesStartPage/pdvTypes.ts";
@@ -326,5 +327,32 @@ describe("customerDisplayChannel", () => {
 
     assert.equal(CUSTOMER_DISPLAY_CHANNEL_NAME, "horus-pdv-customer-display");
     unsubscribe();
+  });
+});
+
+describe("filterProductsByQuery", () => {
+  const catalog: PdvProduct[] = [
+    { id: "1", code: "7891000100103", name: "Leite Integral 1L", stock: 10, salePrice: 5.5, category: "Laticínios" },
+    { id: "2", code: "7891000200205", name: "Pão Francês", stock: 30, salePrice: 0.9, category: "Padaria" },
+    { id: "3", code: "10042", name: "Refrigerante Cola 2L", stock: 12, salePrice: 9.0, category: "Bebidas" },
+  ];
+
+  it("matches by code, name, or category (accent-insensitive and multi-term)", () => {
+    assert.equal(filterProductsByQuery("7891000200205", catalog)[0]?.id, "2");
+    assert.equal(filterProductsByQuery("pao", catalog)[0]?.id, "2");
+    assert.equal(filterProductsByQuery("laticinios", catalog)[0]?.id, "1");
+    assert.equal(filterProductsByQuery("bebidas cola", catalog)[0]?.id, "3");
+    assert.equal(filterProductsByQuery("", catalog).length, 3);
+  });
+});
+
+
+describe("preço de custo para produto vencendo", () => {
+  it("libera o custo apenas para produto vencido ou prestes a vencer com custo cadastrado", () => {
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2, expirationStatus: "EXPIRING_SOON" }), 3.2);
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2, expirationStatus: "EXPIRED" }), 3.2);
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2, expirationStatus: "OK" }), undefined);
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2 }), undefined);
+    assert.equal(getLiquidationCostPrice({ unitCost: 0, expirationStatus: "EXPIRED" }), undefined);
   });
 });

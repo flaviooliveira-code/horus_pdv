@@ -3,7 +3,7 @@
  * Objetivo: exibe a listagem de itens da frente de caixa com tipografia legível em balcão (18px–20px) e cards mobile.
  * Entradas esperadas: carrinho, formatador de moeda, callback de remoção e flag alta visibilidade.
  */
-import { Trash2 } from "lucide-react";
+import { Tag, Trash2 } from "lucide-react";
 import { formatQuantity, getCartLineKey, getCartLineTotal, type PdvCartItem } from "./pdvTypes";
 
 type CartItemsTableProps = {
@@ -11,6 +11,7 @@ type CartItemsTableProps = {
   lastScannedItemId?: string | null;
   formatMoney: (value: number) => string;
   onRemoveItem: (id: string) => void;
+  onApplyCostPrice?: (lineKey: string, unitCost: number) => void;
   highVisibility: boolean;
 };
 
@@ -19,6 +20,7 @@ export default function CartItemsTable({
   lastScannedItemId,
   formatMoney,
   onRemoveItem,
+  onApplyCostPrice,
   highVisibility,
 }: CartItemsTableProps) {
   if (cart.length === 0) {
@@ -36,6 +38,16 @@ export default function CartItemsTable({
           const lineKey = getCartLineKey(item);
           const total = getCartLineTotal(item);
           const isLast = lineKey === lastScannedItemId;
+          const isExpiringAlert =
+            item.expirationStatus === "EXPIRING_SOON" || item.expirationStatus === "EXPIRED";
+          const canApplyCost =
+            Boolean(onApplyCostPrice) &&
+            isExpiringAlert &&
+            typeof item.unitCost === "number" &&
+            item.unitCost > 0 &&
+            item.itemTotalOverride === undefined &&
+            Math.abs(item.unitPrice - item.unitCost) >= 0.005;
+
           return (
             <article
               key={lineKey}
@@ -49,6 +61,29 @@ export default function CartItemsTable({
                     Item #{index + 1} • {item.code}
                   </p>
                   <p className="truncate text-base font-bold text-text-primary">{item.name}</p>
+                  {isExpiringAlert ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          item.expirationStatus === "EXPIRED"
+                            ? "bg-rose-500/15 text-rose-500"
+                            : "bg-amber-500/15 text-amber-500"
+                        }`}
+                      >
+                        {item.expirationStatus === "EXPIRED" ? "Vencido" : "Prestes a vencer"}
+                      </span>
+                      {canApplyCost && onApplyCostPrice && item.unitCost ? (
+                        <button
+                          type="button"
+                          onClick={() => onApplyCostPrice(lineKey, item.unitCost!)}
+                          className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-slate-950 transition hover:bg-amber-400"
+                        >
+                          <Tag size={11} />
+                          Preço de custo ({formatMoney(item.unitCost)})
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -95,6 +130,16 @@ export default function CartItemsTable({
             const lineKey = getCartLineKey(item);
             const total = getCartLineTotal(item);
             const isLast = lineKey === lastScannedItemId;
+            const isExpiringAlert =
+              item.expirationStatus === "EXPIRING_SOON" || item.expirationStatus === "EXPIRED";
+            const canApplyCost =
+              Boolean(onApplyCostPrice) &&
+              isExpiringAlert &&
+              typeof item.unitCost === "number" &&
+              item.unitCost > 0 &&
+              item.itemTotalOverride === undefined &&
+              Math.abs(item.unitPrice - item.unitCost) >= 0.005;
+
             return (
               <tr
                 key={lineKey}
@@ -112,7 +157,33 @@ export default function CartItemsTable({
                 <td className="w-36 px-3 py-3.5 font-mono text-base font-semibold text-text-secondary pdv-tabular">
                   {item.code}
                 </td>
-                <td className="px-3 py-3.5 font-bold text-text-primary">{item.name}</td>
+                <td className="px-3 py-3.5 font-bold text-text-primary">
+                  <div>{item.name}</div>
+                  {isExpiringAlert ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] ${
+                          item.expirationStatus === "EXPIRED"
+                            ? "bg-rose-500/15 text-rose-500"
+                            : "bg-amber-500/15 text-amber-500"
+                        }`}
+                      >
+                        {item.expirationStatus === "EXPIRED" ? "Vencido" : "Prestes a vencer"}
+                      </span>
+                      {canApplyCost && onApplyCostPrice && item.unitCost ? (
+                        <button
+                          type="button"
+                          onClick={() => onApplyCostPrice(lineKey, item.unitCost!)}
+                          className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-slate-950 transition hover:bg-amber-400"
+                          title="Aplicar preço de custo neste item"
+                        >
+                          <Tag size={11} />
+                          Custo ({formatMoney(item.unitCost)})
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </td>
                 <td className="w-24 px-3 py-3.5 text-center font-extrabold text-accent pdv-tabular">
                   {formatQuantity(item.quantity)}
                 </td>

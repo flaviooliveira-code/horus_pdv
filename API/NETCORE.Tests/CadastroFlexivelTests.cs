@@ -140,6 +140,27 @@ public class CadastroFlexivelTests
         Assert.Equal(8.50m, supervisor.EffectiveUnitPrice);
     }
 
+    [Fact]
+    public void HistoricoVendas_ExpiringProductCanBeSoldAtCostByAnyRole()
+    {
+        var today = new DateOnly(2026, 11, 24);
+
+        // Vence em 3 dias: custo liberado para qualquer perfil
+        var cost = HistoricoVendasAB.ResolveLiquidationCostPrice("6,40", "2026-11-27", today);
+        Assert.Equal(6.40m, cost);
+        var line = HistoricoVendasAB.ResolveSaleLinePricing(10m, 2m, 6.40m, null, "Iogurte", false, cost);
+        Assert.Equal(12.80m, line.FinalItemTotal);
+
+        // Mesmo vencendo, um preço diferente do custo continua exigindo administrador ou gerente
+        Assert.Throws<InvalidOperationException>(() =>
+            HistoricoVendasAB.ResolveSaleLinePricing(10m, 1m, 5.00m, null, "Iogurte", false, cost));
+
+        // Validade distante, sem validade ou sem custo: sem exceção
+        Assert.Null(HistoricoVendasAB.ResolveLiquidationCostPrice("6,40", "2027-01-30", today));
+        Assert.Null(HistoricoVendasAB.ResolveLiquidationCostPrice("6,40", "", today));
+        Assert.Null(HistoricoVendasAB.ResolveLiquidationCostPrice("0,00", "2026-11-20", today));
+    }
+
     [Theory]
     [InlineData("administrador", true)]
     [InlineData("Gerente", true)]

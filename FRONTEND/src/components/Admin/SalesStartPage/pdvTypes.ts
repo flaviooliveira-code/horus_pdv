@@ -12,9 +12,14 @@ export type PdvProduct = {
   code: string;
   stock: number;
   salePrice: number;
+  unitCost?: number;
   imageUrl?: string;
   unitType?: string;
   category?: string;
+  expirationMode?: string;
+  expirationDate?: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
 };
 
 export type PdvCartItem = {
@@ -25,6 +30,10 @@ export type PdvCartItem = {
   name: string;
   quantity: number;
   unitPrice: number;
+  unitCost?: number;
+  expirationDate?: string;
+  expirationStatus?: "NONE" | "OK" | "EXPIRING_SOON" | "EXPIRED";
+  daysUntilExpiration?: number | null;
   /** Preço unitário avulso informado no caixa (ex.: produtos fatiados ou sem preço fixo). */
   unitPriceOverride?: number;
   /** Total impresso na etiqueta da balança; o servidor valida contra o preço cadastrado. */
@@ -33,6 +42,19 @@ export type PdvCartItem = {
 
 export function getCartLineKey(item: Pick<PdvCartItem, "id" | "lineId">): string {
   return item.lineId ?? item.id;
+}
+
+/**
+ * Preço de custo que qualquer perfil pode usar no caixa: só para produto vencido ou que vence em até 7 dias
+ * (espelha HistoricoVendasAB.ResolveLiquidationCostPrice). Fora disso, retorna undefined.
+ */
+export function getLiquidationCostPrice(
+  product: Pick<PdvProduct, "unitCost" | "expirationStatus">,
+): number | undefined {
+  const isExpiring =
+    product.expirationStatus === "EXPIRED" || product.expirationStatus === "EXPIRING_SOON";
+  if (!isExpiring || !product.unitCost || product.unitCost <= 0) return undefined;
+  return Math.round(product.unitCost * 100) / 100;
 }
 
 export function getCartLineTotal(
@@ -80,15 +102,24 @@ export function findExactProductByCode(rawQuery: string, products: PdvProduct[])
   return products.find((item) => item.code.trim().toLowerCase() === normalized) ?? null;
 }
 
+function normalizeSearchText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export function filterProductsByQuery(rawQuery: string, products: PdvProduct[]): PdvProduct[] {
-  const normalized = rawQuery.trim().toLowerCase();
+  const normalized = normalizeSearchText(rawQuery);
   if (!normalized) return products;
-  return products.filter(
-    (item) =>
-      item.name.toLowerCase().includes(normalized) ||
-      item.code.toLowerCase().includes(normalized) ||
-      (item.category ?? "").toLowerCase().includes(normalized),
-  );
+  const terms = normalized.split(/\s+/).filter(Boolean);
+  return products.filter((item) => {
+    const haystack = normalizeSearchText(
+      `${item.code} ${item.name} ${item.category ?? ""}`,
+    );
+    return terms.every((term) => haystack.includes(term));
+  });
 }
 
 export function resolveProductSubmission(params: {

@@ -13,6 +13,7 @@ public interface IProdutoService
     Task<List<ProdutoModel>> ListarAsync(string companyId);
     Task<ProdutoModel> CriarAsync(string companyId, ProdutoRequest request);
     Task<ProdutoModel?> AtualizarAsync(string companyId, string id, ProdutoRequest request);
+    Task<ProdutoModel?> AplicarPrecoDeCustoAsync(string companyId, string id);
     Task<bool> ExcluirAsync(string companyId, string id);
     Task<ScaleBarcodeDecodeResponse?> DecodificarBalancaAsync(string companyId, string barcode, string? mode = null);
 }

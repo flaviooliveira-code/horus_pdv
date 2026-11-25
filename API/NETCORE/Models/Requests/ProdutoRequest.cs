@@ -19,4 +19,8 @@ public class ProdutoRequest
     public string ProductSalePrice { get; set; } = string.Empty;
     public string TotalPriceOnProduct { get; set; } = string.Empty;
     public string UnitType { get; set; } = "UN";
+    public string ExpirationMode { get; set; } = string.Empty;
+    public string ManufactureDate { get; set; } = string.Empty;
+    public int? ShelfLifeDays { get; set; }
+    public string ExpirationDate { get; set; } = string.Empty;
 }
