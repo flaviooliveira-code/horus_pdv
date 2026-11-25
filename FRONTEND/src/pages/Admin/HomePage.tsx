@@ -21,7 +21,7 @@ import {
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PageKey } from "@/components/AppSidebar/AppSidebar";
 import PageHeader from "@/components/Admin/PageHeader";
 import KpiTrendCard from "@/components/Admin/KpiTrendCard";
@@ -30,6 +30,7 @@ import PageLayout from "@/layout/PageLayout";
 import { homeService, type HomeExpiringProductDto, type HomeKpiDto } from "@/services/api/homeService";
 import { productService } from "@/services/api/productService";
 import { evaluateProductExpiration, formatIsoDateBr } from "@/utils/productExpiration";
+import { canOverrideFixedPrice, getStoredUserRole } from "@/utils/roles";
 
 // Atalhos principais para reduzir cliques no fluxo operacional do dia a dia.
 const shortcuts = [
@@ -119,6 +120,8 @@ export default function HomePage({ onNavigate, onOpenSalesInNewTab }: HomePagePr
   const [cards, setCards] = useState<HomeKpiDto[]>([]);
   const [expiringProducts, setExpiringProducts] = useState<HomeExpiringProductDto[]>([]);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  // "Vender a preço de custo" grava o custo como preço de venda: só administrador ou gerente.
+  const canManagePrices = useMemo(() => canOverrideFixedPrice(getStoredUserRole()), []);
 
   useEffect(() => {
     homeService
@@ -245,6 +248,10 @@ export default function HomePage({ onNavigate, onOpenSalesInNewTab }: HomePagePr
                       <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-semibold text-emerald-400">
                         <Tag className="h-3.5 w-3.5" />
                         Já a preço de custo
+                      </span>
+                    ) : item.canApplyCostPrice && !canManagePrices ? (
+                      <span className="rounded-lg bg-bg-primary px-2.5 py-1.5 text-xs text-text-secondary">
+                        Peça ao gerente para ajustar o preço
                       </span>
                     ) : item.canApplyCostPrice ? (
                       <button

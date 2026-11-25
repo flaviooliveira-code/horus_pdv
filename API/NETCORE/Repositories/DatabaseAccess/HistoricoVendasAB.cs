@@ -9,6 +9,7 @@ using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Services.Caixa;
 using HORUSPDV_API.Services.Produtos;
+using HORUSPDV_API.Services.Security;
 using Microsoft.Data.SqlClient;
 
 namespace HORUSPDV_API.Repositories.DatabaseAccess;
@@ -441,12 +442,6 @@ public class HistoricoVendasAB(Connection connection)
         return records;
     }
 
-    private static readonly HashSet<string> PriceOverrideRoles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "administrador",
-        "gerente"
-    };
-
     /// <summary>Preço de custo liberado para venda por qualquer perfil quando o produto está vencido ou vence em até 7 dias.</summary>
     internal static decimal? ResolveLiquidationCostPrice(string? unitCostText, string? expirationDate, DateOnly? today = null)
     {
@@ -461,7 +456,7 @@ public class HistoricoVendasAB(Connection connection)
     }
 
     internal static bool CanOverrideFixedPrice(string? role)
-        => !string.IsNullOrWhiteSpace(role) && PriceOverrideRoles.Contains(role.Trim());
+        => HorusRoles.CanManagePrices(role);
 
     internal static (decimal EffectiveUnitPrice, decimal FinalItemTotal) ResolveSaleLinePricing(
         decimal serverUnitPrice,

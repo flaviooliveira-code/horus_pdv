@@ -14,6 +14,16 @@ public static class HorusRoles
         "financeiro"
     };
 
+    private static readonly HashSet<string> PriceManagerRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "administrador",
+        "gerente"
+    };
+
+    /// <summary>Perfis que podem alterar preço de venda/custo de produto já cadastrado (cadastro, importação e caixa).</summary>
+    public static bool CanManagePrices(string? role)
+        => !string.IsNullOrWhiteSpace(role) && PriceManagerRoles.Contains(role.Trim());
+
     /// <summary>Perfis que podem ver o saldo esperado de caixa aberto e os relatórios contábeis.</summary>
     public static IReadOnlyCollection<string> Supervisory => SupervisoryRoles;
 

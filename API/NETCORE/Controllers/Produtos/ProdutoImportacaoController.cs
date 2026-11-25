@@ -15,6 +15,8 @@ namespace HORUSPDV_API.Controllers.Produtos;
 
 [ApiController]
 [Route("api/[controller]")]
+// A importação cria e reescreve preços em lote: restrita a quem pode alterar preços.
+[HorusAuthorizeRoles("administrador", "gerente")]
 public class ProdutoImportacaoController(ProdutoAB produtoAB) : ControllerBase
 {
     [HttpPost("validar")]
