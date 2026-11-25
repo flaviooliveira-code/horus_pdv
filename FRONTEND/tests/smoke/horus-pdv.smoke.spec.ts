@@ -780,7 +780,7 @@ function resolveSqlContainer() {
 
 function runSql(sql: string) {
   if (!sqlContainer) throw new Error("Container SQL nao resolvido.");
-  const args = ["exec", sqlContainer, sqlcmdPath(), "-S", "localhost", "-U", "sa", "-P", SQL_PASSWORD, "-C", "-d", SQL_DATABASE, "-b", "-Q", sql];
+  const args = ["exec", sqlContainer, sqlcmdPath(), "-S", "localhost", "-U", "sa", "-P", SQL_PASSWORD, "-C", "-I", "-d", SQL_DATABASE, "-b", "-Q", sql];
   execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
@@ -797,6 +797,7 @@ function querySqlScalar(sql: string) {
     "-P",
     SQL_PASSWORD,
     "-C",
+    "-I",
     "-d",
     SQL_DATABASE,
     "-h",
