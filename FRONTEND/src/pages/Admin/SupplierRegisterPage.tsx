@@ -4,8 +4,8 @@
  * Entradas esperadas: não recebe props; processa lista local, formulário em drawer e validações de cadastro.
  */
 
-import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/Admin/PageHeader";
 import RowActionsMenu from "@/components/Admin/RowActionsMenu";
 import LoadingButton from "@/components/Loading/LoadingButton";
@@ -56,6 +56,14 @@ const EMPTY_FORM: SupplierFormData = {
   email: "",
 };
 
+function getSupplierMissingFields(supplier: SupplierFormData): string[] {
+  const missing: string[] = [];
+  if (!supplier.cnpj.trim()) missing.push("CNPJ");
+  if (!supplier.cellphone.trim() && !supplier.telephone.trim()) missing.push("Contato");
+  if (!supplier.address.trim() && !supplier.city.trim()) missing.push("Endereço");
+  return missing;
+}
+
 function SupplierFormDrawer({
   open,
   isEditMode,
@@ -78,6 +86,31 @@ function SupplierFormDrawer({
   onFillAddressFromCep: () => void;
 }) {
   const { maskCnpj } = useInputMasks();
+  const fantasyNameInputRef = useRef<HTMLInputElement | null>(null);
+  const missingFields = useMemo(() => getSupplierMissingFields(value), [value]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.setTimeout(() => fantasyNameInputRef.current?.focus(), 0);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "Enter" || event.key.toLowerCase() === "s")) {
+        event.preventDefault();
+        onSave();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose, onSave]);
+
   if (!open) return null;
 
   const setField = <K extends keyof SupplierFormData>(
@@ -96,7 +129,7 @@ function SupplierFormDrawer({
               {isEditMode ? "Editar fornecedor" : "Novo fornecedor"}
             </h3>
             <p className="mt-1 text-sm text-text-secondary">
-              Cadastre dados fiscais, endereço e contatos do fornecedor.
+              Apenas o nome é obrigatório. CNPJ, endereço e contato são opcionais para fornecedores informais.
             </p>
           </div>
           <button
@@ -110,29 +143,39 @@ function SupplierFormDrawer({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {missingFields.length > 0 ? (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-800 dark:text-amber-200">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <p>
+                <strong>Cadastro incompleto ({missingFields.join(", ")}):</strong> você pode salvar assim mesmo e completar depois.
+              </p>
+            </div>
+          ) : null}
+
           <section className="card rounded-2xl p-4">
             <h4 className="text-sm font-semibold text-text-secondary">Dados do fornecedor</h4>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">Razão Social *</span>
+                <span className="mb-1.5 block text-sm text-text-secondary">Nome / Nome Fantasia *</span>
+                <input
+                  ref={fantasyNameInputRef}
+                  value={value.fantasyName}
+                  onChange={(event) => setField("fantasyName", event.target.value)}
+                  className="input-field w-full"
+                  placeholder="Ex.: Zé das Frutas ou Distribuidora Central"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm text-text-secondary">Razão Social (opcional)</span>
                 <input
                   value={value.companyName}
                   onChange={(event) => setField("companyName", event.target.value)}
                   className="input-field w-full"
-                  placeholder="Razão Social"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-text-secondary">Nome Fantasia *</span>
-                <input
-                  value={value.fantasyName}
-                  onChange={(event) => setField("fantasyName", event.target.value)}
-                  className="input-field w-full"
-                  placeholder="Nome Fantasia"
+                  placeholder="Razão Social (se houver)"
                 />
               </label>
               <label className="block md:col-span-2">
-                <span className="mb-1.5 block text-sm text-text-secondary">CNPJ *</span>
+                <span className="mb-1.5 block text-sm text-text-secondary">CNPJ (opcional)</span>
                 <input
                   value={value.cnpj}
                   onChange={(event) => setField("cnpj", maskCnpj(event.target.value))}
@@ -158,25 +201,31 @@ function SupplierFormDrawer({
               email: value.email,
             }}
             loadingCep={loadingCep}
+            optionalFields
             onFillAddressFromCep={onFillAddressFromCep}
             onChange={(field, fieldValue) => setField(field, fieldValue)}
           />
         </div>
 
         <div className="border-t border-border-primary p-4">
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
-            <button type="button" onClick={onClose} className="btn-cancel">
-              Cancelar
-            </button>
-            <LoadingButton
-              type="button"
-              onClick={onSave}
-              isLoading={isSaving}
-              loadingLabel="Salvando..."
-              className="btn-primary"
-            >
-              {isEditMode ? "Salvar fornecedor" : "Criar fornecedor"}
-            </LoadingButton>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-text-tertiary">
+              Ctrl+Enter ou Ctrl+S para salvar · Esc para fechar
+            </span>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+              <button type="button" onClick={onClose} className="btn-cancel">
+                Cancelar
+              </button>
+              <LoadingButton
+                type="button"
+                onClick={onSave}
+                isLoading={isSaving}
+                loadingLabel="Salvando..."
+                className="btn-primary"
+              >
+                {isEditMode ? "Salvar fornecedor" : "Criar fornecedor"}
+              </LoadingButton>
+            </div>
           </div>
         </div>
       </aside>
@@ -363,38 +412,36 @@ export default function SupplierRegisterPage() {
     }));
   };
 
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (drawerOpen) return;
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable;
+
+      if (event.key === "F2" || (event.altKey && event.key.toLowerCase() === "n" && !isTyping)) {
+        event.preventDefault();
+        openCreateDrawer();
+      }
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [drawerOpen]);
+
   const validateForm = () => {
-    const requiredFields: Array<keyof SupplierFormData> = [
-      "companyName",
-      "fantasyName",
-      "cnpj",
-      "cep",
-      "city",
-      "state",
-      "address",
-      "neighborhood",
-      "number",
-      "cellphone",
-    ];
+    const fantasyName = form.fantasyName.trim();
+    const companyName = form.companyName.trim();
 
-    const missing = requiredFields.some((field) => !String(form[field]).trim());
-    if (missing) {
-      Toast.error("Preencha os campos obrigatórios.");
+    if (fantasyName.length < 2 && companyName.length < 2) {
+      Toast.error("Informe pelo menos o nome fantasia ou a razão social (mínimo 2 caracteres).");
       return false;
     }
 
-    if (form.companyName.trim().length < 3) {
-      Toast.error("A razão social deve ter no mínimo 3 caracteres.");
-      return false;
-    }
-
-    if (form.fantasyName.trim().length < 3) {
-      Toast.error("O nome fantasia deve ter no mínimo 3 caracteres.");
-      return false;
-    }
-
-    if (!isValidCnpj(form.cnpj)) {
-      Toast.error("CNPJ inválido.");
+    if (onlyDigits(form.cnpj).length > 0 && !isValidCnpj(form.cnpj)) {
+      Toast.error("CNPJ inválido. Deixe em branco se o fornecedor for informal.");
       return false;
     }
 
@@ -409,6 +456,7 @@ export default function SupplierRegisterPage() {
   const handleSave = async () => {
     if (!validateForm()) return;
 
+    const missingFields = getSupplierMissingFields(form);
     setSaving(true);
     try {
       if (editingId) {
@@ -417,12 +465,20 @@ export default function SupplierRegisterPage() {
         setSuppliers((current) =>
           current.map((supplier) => (supplier.id === editingId ? updated : supplier)),
         );
-        Toast.success("Fornecedor atualizado com sucesso.");
+        Toast.success(
+          missingFields.length > 0
+            ? `Fornecedor atualizado (faltam: ${missingFields.join(", ")}).`
+            : "Fornecedor atualizado com sucesso.",
+        );
       } else {
         const created = await supplierService.create(form);
         if (!created) return;
         setSuppliers((current) => [created, ...current]);
-        Toast.success("Fornecedor cadastrado com sucesso.");
+        Toast.success(
+          missingFields.length > 0
+            ? `Fornecedor cadastrado (faltam: ${missingFields.join(", ")}).`
+            : "Fornecedor cadastrado com sucesso.",
+        );
       }
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "Erro ao salvar fornecedor.");
@@ -440,11 +496,16 @@ export default function SupplierRegisterPage() {
     <PageLayout className="space-y-4 py-4 md:space-y-6 md:py-6 lg:py-8">
       <PageHeader
         title="Cadastro de Fornecedor"
-        description="Cadastro e manutenção de fornecedores com os campos do sistema legado."
+        description="Cadastre fornecedores formais ou informais — apenas o nome é obrigatório."
         action={
-          <button type="button" onClick={openCreateDrawer} className="btn-primary inline-flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openCreateDrawer}
+            className="btn-primary inline-flex items-center gap-2"
+            title="Atalho: F2 ou Alt+N"
+          >
             <Plus size={16} />
-            Novo fornecedor
+            Novo fornecedor (F2)
           </button>
         }
       />
@@ -499,8 +560,8 @@ export default function SupplierRegisterPage() {
                     className="h-4 w-4 rounded border-border-secondary accent-accent"
                   />
                 </th>
-                <th className="px-4 py-3">Razão Social</th>
                 <th className="px-4 py-3">Nome Fantasia</th>
+                <th className="px-4 py-3">Razão Social</th>
                 <th className="px-4 py-3">CNPJ</th>
                 <th className="px-4 py-3">Cidade</th>
                 <th className="px-4 py-3">Contato</th>
@@ -508,45 +569,65 @@ export default function SupplierRegisterPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedSuppliers.map((supplier) => (
-                <tr key={supplier.id} className="border-t border-border-primary">
-                  <td className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedSupplierIds.has(supplier.id)}
-                      onChange={() => toggleSupplierSelection(supplier.id)}
-                      aria-label={`Selecionar ${supplier.fantasyName}`}
-                      className="h-4 w-4 rounded border-border-secondary accent-accent"
-                    />
-                  </td>
-                  <td className="px-4 py-3">{supplier.companyName}</td>
-                  <td className="px-4 py-3">{supplier.fantasyName}</td>
-                  <td className="px-4 py-3">{supplier.cnpj}</td>
-                  <td className="px-4 py-3">{supplier.city}</td>
-                  <td className="px-4 py-3">{supplier.cellphone || supplier.telephone}</td>
-                  <td className="px-4 py-3">
-                    <RowActionsMenu
-                      items={[
-                        {
-                          key: "edit",
-                          label: "Editar",
-                          icon: <Pencil size={13} />,
-                          onClick: () => openEditDrawer(supplier),
-                        },
-                        {
-                          key: "delete",
-                          label: "Excluir",
-                          icon: <Trash2 size={13} />,
-                          onClick: () => handleDelete(supplier),
-                          loading: deletingSupplierIds.has(supplier.id),
-                          loadingLabel: "Excluindo...",
-                          danger: true,
-                        },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {paginatedSuppliers.map((supplier) => {
+                const missing = getSupplierMissingFields(supplier);
+                return (
+                  <tr key={supplier.id} className="border-t border-border-primary">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedSupplierIds.has(supplier.id)}
+                        onChange={() => toggleSupplierSelection(supplier.id)}
+                        aria-label={`Selecionar ${supplier.fantasyName || supplier.companyName}`}
+                        className="h-4 w-4 rounded border-border-secondary accent-accent"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-text-primary">
+                          {supplier.fantasyName || supplier.companyName}
+                        </span>
+                        {missing.length > 0 ? (
+                          <span
+                            title={`Faltam informações opcionais: ${missing.join(", ")}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+                          >
+                            <AlertTriangle size={11} />
+                            Incompleto
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">{supplier.companyName || "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{supplier.cnpj || "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">{supplier.city || "—"}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {supplier.cellphone || supplier.telephone || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RowActionsMenu
+                        items={[
+                          {
+                            key: "edit",
+                            label: "Editar",
+                            icon: <Pencil size={13} />,
+                            onClick: () => openEditDrawer(supplier),
+                          },
+                          {
+                            key: "delete",
+                            label: "Excluir",
+                            icon: <Trash2 size={13} />,
+                            onClick: () => handleDelete(supplier),
+                            loading: deletingSupplierIds.has(supplier.id),
+                            loadingLabel: "Excluindo...",
+                            danger: true,
+                          },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
