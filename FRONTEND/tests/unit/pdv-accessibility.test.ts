@@ -5,6 +5,7 @@ import {
   filterProductsByQuery,
   formatQuantity,
   formatTotalVolumes,
+  getLiquidationCostPrice,
   resolveProductSubmission,
   type PdvProduct,
 } from "../../src/components/Admin/SalesStartPage/pdvTypes.ts";
@@ -345,3 +346,13 @@ describe("filterProductsByQuery", () => {
   });
 });
 
+
+describe("preço de custo para produto vencendo", () => {
+  it("libera o custo apenas para produto vencido ou prestes a vencer com custo cadastrado", () => {
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2, expirationStatus: "EXPIRING_SOON" }), 3.2);
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2, expirationStatus: "EXPIRED" }), 3.2);
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2, expirationStatus: "OK" }), undefined);
+    assert.equal(getLiquidationCostPrice({ unitCost: 3.2 }), undefined);
+    assert.equal(getLiquidationCostPrice({ unitCost: 0, expirationStatus: "EXPIRED" }), undefined);
+  });
+});

@@ -44,6 +44,19 @@ export function getCartLineKey(item: Pick<PdvCartItem, "id" | "lineId">): string
   return item.lineId ?? item.id;
 }
 
+/**
+ * Preço de custo que qualquer perfil pode usar no caixa: só para produto vencido ou que vence em até 7 dias
+ * (espelha HistoricoVendasAB.ResolveLiquidationCostPrice). Fora disso, retorna undefined.
+ */
+export function getLiquidationCostPrice(
+  product: Pick<PdvProduct, "unitCost" | "expirationStatus">,
+): number | undefined {
+  const isExpiring =
+    product.expirationStatus === "EXPIRED" || product.expirationStatus === "EXPIRING_SOON";
+  if (!isExpiring || !product.unitCost || product.unitCost <= 0) return undefined;
+  return Math.round(product.unitCost * 100) / 100;
+}
+
 export function getCartLineTotal(
   item: Pick<PdvCartItem, "quantity" | "unitPrice" | "itemTotalOverride">,
 ): number {

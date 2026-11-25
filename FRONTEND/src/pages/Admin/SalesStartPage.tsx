@@ -30,6 +30,7 @@ import {
   formatTotalVolumes,
   getCartLineKey,
   getCartLineTotal,
+  getLiquidationCostPrice,
   resolveProductSubmission,
   type PdvCartItem,
   type PdvProduct,
@@ -276,14 +277,20 @@ export default function SalesStartPage({
   }, [quantityInput]);
 
   // Operador só informa preço avulso em produto sem preço fixo; alterar preço cadastrado exige administrador ou gerente.
+  // Exceção: produto vencido ou prestes a vencer pode sair pelo preço de custo (botão "Usar preço de custo").
   const canOverridePrice = useMemo(() => canOverrideFixedPrice(getStoredUserRole()), []);
-  const priceLocked = !canOverridePrice && Boolean(selectedProduct && selectedProduct.salePrice > 0);
 
   const parsedCustomUnitPrice = useMemo(() => {
     if (!unitPriceInput.trim()) return 0;
     const parsed = parseMoneyBr(unitPriceInput);
     return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : 0;
   }, [parseMoneyBr, unitPriceInput]);
+
+  const priceLocked = !canOverridePrice && Boolean(selectedProduct && selectedProduct.salePrice > 0);
+  const selectedLiquidationPrice = selectedProduct ? getLiquidationCostPrice(selectedProduct) : undefined;
+  const showsLiquidationPrice =
+    selectedLiquidationPrice !== undefined &&
+    Math.abs(parsedCustomUnitPrice - selectedLiquidationPrice) < 0.005;
 
   const activeUnitPrice = useMemo(() => {
     if (parsedCustomUnitPrice > 0) return parsedCustomUnitPrice;
@@ -707,7 +714,11 @@ export default function SalesStartPage({
       const isCustomPrice =
         product.salePrice <= 0 || Math.abs(requestedPrice - product.salePrice) >= 0.005;
 
-      if (isCustomPrice && product.salePrice > 0 && !canOverridePrice) {
+      const liquidationPrice = getLiquidationCostPrice(product);
+      const isLiquidationAtCost =
+        liquidationPrice !== undefined && Math.abs(requestedPrice - liquidationPrice) < 0.005;
+
+      if (isCustomPrice && product.salePrice > 0 && !canOverridePrice && !isLiquidationAtCost) {
         setUnitPriceInput("");
         Toast.error(
           `"${product.name}" tem preço cadastrado. Somente administrador ou gerente pode alterar o preço no caixa.`,
@@ -1581,7 +1592,7 @@ export default function SalesStartPage({
                 </span>
                 <input
                   ref={unitPriceInputRef}
-                  value={priceLocked ? "" : unitPriceInput}
+                  value={priceLocked && !showsLiquidationPrice ? "" : unitPriceInput}
                   readOnly={priceLocked}
                   aria-describedby={priceLocked ? "pdv-price-locked-hint" : undefined}
                   title={

@@ -13,6 +13,7 @@ export {
   formatTotalVolumes,
   getCartLineKey,
   getCartLineTotal,
+  getLiquidationCostPrice,
   normalizeQuantity,
   resolveProductSubmission,
   type PdvCartItem,
