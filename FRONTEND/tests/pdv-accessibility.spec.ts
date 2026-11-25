@@ -92,7 +92,7 @@ const MOCK_CASH_STATUS = {
   history: [],
 };
 
-async function installApiMocks(page: Page) {
+async function installApiMocks(page: Page, user: typeof MOCK_USER = MOCK_USER) {
   await page.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const request = route.request();
     const origin = request.headers()["origin"] ?? "http://127.0.0.1:4173";
@@ -113,7 +113,7 @@ async function installApiMocks(page: Page) {
     let data: unknown = {};
 
     if (pathname.endsWith("/Auth/me")) {
-      data = MOCK_USER;
+      data = user;
     } else if (pathname.endsWith("/Produto")) {
       data = MOCK_PRODUCTS;
     } else if (pathname.endsWith("/Empresa")) {
@@ -139,7 +139,7 @@ async function installApiMocks(page: Page) {
 
 async function seedAuthenticatedSession(
   page: Page,
-  options?: { activePage?: string; theme?: "light" | "dark"; highVisibility?: boolean },
+  options?: { activePage?: string; theme?: "light" | "dark"; highVisibility?: boolean; role?: string },
 ) {
   await page.addInitScript(
     ({ user, activePage, theme, highVisibility }) => {
@@ -159,7 +159,7 @@ async function seedAuthenticatedSession(
       }
     },
     {
-      user: MOCK_USER,
+      user: { ...MOCK_USER, role: options?.role ?? MOCK_USER.role },
       activePage: options?.activePage ?? "vendas",
       theme: options?.theme ?? "light",
       highVisibility: options?.highVisibility,
@@ -254,6 +254,38 @@ test.describe("Acessibilidade e Redesenho da Frente de Caixa", () => {
     await expect(page.getByText(/cupom nao fiscal/i)).toBeVisible();
     await page.getByRole("button", { name: "Fechar", exact: true }).click();
     await expect(page.getByText(/cupom nao fiscal/i)).toBeHidden();
+  });
+
+  test("preço avulso em produto com preço cadastrado fica restrito a administrador e gerente", async ({
+    browser,
+  }) => {
+    const operatorPage = await browser.newPage();
+    await installApiMocks(operatorPage, { ...MOCK_USER, role: "atendente" });
+    await seedAuthenticatedSession(operatorPage, { activePage: "vendas", role: "atendente" });
+    await operatorPage.goto("/");
+    await operatorPage.getByLabel(/^Produto:/i).fill("7891234567890");
+    await operatorPage.getByText("Café Torrado Especial 500g", { exact: true }).click();
+    const operatorPrice = operatorPage.getByLabel(/preço unitário/i);
+    await expect(operatorPrice).toHaveAttribute("readonly", "");
+    await expect(operatorPage.getByText("Preço cadastrado", { exact: true })).toBeVisible();
+    await operatorPrice.pressSequentially("100");
+    await expect(operatorPrice).toHaveValue("");
+    await operatorPage.close();
+
+    const managerPage = await browser.newPage();
+    await installApiMocks(managerPage, { ...MOCK_USER, role: "gerente" });
+    await seedAuthenticatedSession(managerPage, { activePage: "vendas", role: "gerente" });
+    await managerPage.goto("/");
+    await managerPage.getByLabel(/^Produto:/i).fill("7891234567890");
+    await managerPage.getByText("Café Torrado Especial 500g", { exact: true }).click();
+    const managerPrice = managerPage.getByLabel(/preço unitário/i);
+    await expect(managerPrice).not.toHaveAttribute("readonly", "");
+    await managerPrice.fill("");
+    await managerPrice.pressSequentially("1500");
+    await expect(managerPrice).toHaveValue("15,00");
+    await managerPage.getByRole("button", { name: /adicionar item/i }).click();
+    await expect(managerPage.locator(".pdv-total-amount")).toHaveText("R$ 15,00");
+    await managerPage.close();
   });
 
   test("alterna Alta Visibilidade (F7), persiste no localStorage, amplia +50% e atinge WCAG AAA (>=7:1) em temas claro e escuro", async ({

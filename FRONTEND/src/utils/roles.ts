@@ -11,6 +11,9 @@ export const SUPERVISORY_ROLES = new Set(["administrador", "gerente", "financeir
 /** Perfis que podem lançar despesas operacionais (DespesasController). */
 export const EXPENSE_MANAGER_ROLES = new Set(["administrador", "gerente"]);
 
+/** Perfis que podem alterar no caixa o preço de produto com preço cadastrado (espelha HistoricoVendasAB). */
+export const PRICE_OVERRIDE_ROLES = new Set(["administrador", "gerente"]);
+
 export function normalizeRole(role?: string | null) {
   return (role ?? "").trim().toLowerCase();
 }
@@ -21,6 +24,10 @@ export function isSupervisorRole(role?: string | null) {
 
 export function canManageExpenses(role?: string | null) {
   return EXPENSE_MANAGER_ROLES.has(normalizeRole(role));
+}
+
+export function canOverrideFixedPrice(role?: string | null) {
+  return PRICE_OVERRIDE_ROLES.has(normalizeRole(role));
 }
 
 export function getStoredUserRole() {

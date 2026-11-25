@@ -47,7 +47,8 @@ public class HistoricoVendasAB(Connection connection)
         string companyId,
         VendaRequest request,
         string usuarioId = "",
-        string usuarioName = "")
+        string usuarioName = "",
+        string usuarioRole = "")
     {
         await using var db = await connection.OpenConnectionAsync();
         await using var transaction = (SqlTransaction)await db.BeginTransactionAsync();
@@ -64,7 +65,7 @@ public class HistoricoVendasAB(Connection connection)
             var operatorName = string.IsNullOrWhiteSpace(request.OperatorName) ? "Operador" : request.OperatorName.Trim();
 
             // A venda e a baixa de estoque compartilham a mesma transação para evitar histórico sem estoque atualizado.
-            var saleItems = await BaixarEstoqueAsync(db, transaction, companyId, request.Items);
+            var saleItems = await BaixarEstoqueAsync(db, transaction, companyId, request.Items, CanOverrideFixedPrice(usuarioRole));
             var serverSaleTotal = Math.Round(saleItems.Sum(item => item.FinalItemTotal), 2, MidpointRounding.AwayFromZero);
 
             if (!string.IsNullOrWhiteSpace(request.TotalAmount))
@@ -301,7 +302,8 @@ public class HistoricoVendasAB(Connection connection)
         SqlConnection db,
         SqlTransaction transaction,
         string companyId,
-        IEnumerable<VendaItemRequest> items)
+        IEnumerable<VendaItemRequest> items,
+        bool canOverrideFixedPrice)
     {
         var rawItems = items?.ToList() ?? [];
         if (rawItems.Count == 0)
@@ -378,7 +380,8 @@ public class HistoricoVendasAB(Connection connection)
                         rawItem.Quantity,
                         rawItem.UnitPriceOverride,
                         rawItem.ItemTotalOverride,
-                        productName);
+                        productName,
+                        canOverrideFixedPrice);
                     return new
                     {
                         rawItem.Quantity,
@@ -433,12 +436,22 @@ public class HistoricoVendasAB(Connection connection)
         return records;
     }
 
+    private static readonly HashSet<string> PriceOverrideRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "administrador",
+        "gerente"
+    };
+
+    internal static bool CanOverrideFixedPrice(string? role)
+        => !string.IsNullOrWhiteSpace(role) && PriceOverrideRoles.Contains(role.Trim());
+
     internal static (decimal EffectiveUnitPrice, decimal FinalItemTotal) ResolveSaleLinePricing(
         decimal serverUnitPrice,
         decimal quantity,
         decimal? unitPriceOverride,
         decimal? itemTotalOverride,
-        string productName = "")
+        string productName = "",
+        bool canOverrideFixedPrice = false)
     {
         decimal effectiveUnitPrice;
         if (unitPriceOverride is { } customPrice)
@@ -446,6 +459,15 @@ public class HistoricoVendasAB(Connection connection)
             if (customPrice <= 0m || decimal.Round(customPrice, 2) != customPrice)
             {
                 throw new InvalidOperationException("Preço avulso do item inválido.");
+            }
+
+            // Preço avulso é livre para produtos sem preço fixo (fatiados, preço variável).
+            // Alterar o preço de um produto com preço cadastrado exige administrador ou gerente.
+            if (serverUnitPrice > 0m && customPrice != serverUnitPrice && !canOverrideFixedPrice)
+            {
+                var label = string.IsNullOrWhiteSpace(productName) ? "este produto" : productName;
+                throw new InvalidOperationException(
+                    $"Somente administrador ou gerente pode alterar o preço de {label}, que tem preço cadastrado.");
             }
 
             effectiveUnitPrice = customPrice;
