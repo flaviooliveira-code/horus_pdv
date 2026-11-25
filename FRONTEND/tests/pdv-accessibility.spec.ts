@@ -292,6 +292,33 @@ test.describe("Acessibilidade e Redesenho da Frente de Caixa", () => {
     await managerPage.close();
   });
 
+  test("cadastro de produtos bloqueia preço, importação e preço de custo para atendente", async ({
+    browser,
+  }) => {
+    const attendantPage = await browser.newPage();
+    await installApiMocks(attendantPage, { ...MOCK_USER, role: "atendente" });
+    await seedAuthenticatedSession(attendantPage, { activePage: "cadastro-produto", role: "atendente" });
+    await attendantPage.goto("/");
+    await expect(attendantPage.getByText("Café Torrado Especial 500g").first()).toBeVisible();
+    await expect(attendantPage.getByRole("button", { name: /importar planilha/i })).toHaveCount(0);
+    await attendantPage.getByTitle("Ações").first().click();
+    await attendantPage.getByRole("button", { name: "Editar", exact: true }).click();
+    await expect(attendantPage.getByLabel(/preço de venda/i)).toHaveAttribute("readonly", "");
+    await expect(attendantPage.getByLabel(/preço de custo/i)).toHaveAttribute("readonly", "");
+    await expect(attendantPage.getByText(/preços bloqueados/i)).toBeVisible();
+    await attendantPage.close();
+
+    const managerPage = await browser.newPage();
+    await installApiMocks(managerPage, { ...MOCK_USER, role: "gerente" });
+    await seedAuthenticatedSession(managerPage, { activePage: "cadastro-produto", role: "gerente" });
+    await managerPage.goto("/");
+    await expect(managerPage.getByRole("button", { name: /importar planilha/i })).toBeVisible();
+    await managerPage.getByTitle("Ações").first().click();
+    await managerPage.getByRole("button", { name: "Editar", exact: true }).click();
+    await expect(managerPage.getByLabel(/preço de venda/i)).not.toHaveAttribute("readonly", "");
+    await managerPage.close();
+  });
+
   test("atendente vende pelo preço de custo apenas produto vencido ou prestes a vencer", async ({
     page,
   }) => {

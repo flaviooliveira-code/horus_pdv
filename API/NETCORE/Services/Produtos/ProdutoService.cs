@@ -8,6 +8,7 @@ using HORUSPDV_API.Models.Produtos;
 using HORUSPDV_API.Models.Requests;
 using HORUSPDV_API.Repositories.DataAccess;
 using HORUSPDV_API.Repositories.DatabaseAccess;
+using HORUSPDV_API.Services.Security;
 
 namespace HORUSPDV_API.Services.Produtos;
 
@@ -29,7 +30,11 @@ public class ProdutoService(
         return ToModel(await produtosAB.SalvarAsync(companyId, product));
     }
 
-    public async Task<ProdutoModel?> AtualizarAsync(string companyId, string id, ProdutoRequest request)
+    public async Task<ProdutoModel?> AtualizarAsync(
+        string companyId,
+        string id,
+        ProdutoRequest request,
+        string? userRole = null)
     {
         Validate(request);
         var current = await produtosAB.ObterAsync(companyId, id);
@@ -39,8 +44,20 @@ public class ProdutoService(
         }
 
         var resolvedCode = await ValidateBusinessRulesAndResolveCodeAsync(companyId, request, id, current.ProductCode);
-        return ToModel(await produtosAB.SalvarAsync(companyId, MapRequest(id, request, resolvedCode)));
+        var next = MapRequest(id, request, resolvedCode);
+        if (ChangesPrice(current, next) && !HorusRoles.CanManagePrices(userRole))
+        {
+            throw new UnauthorizedAccessException(
+                "Somente administrador ou gerente pode alterar o preço de venda ou de custo de um produto cadastrado.");
+        }
+
+        return ToModel(await produtosAB.SalvarAsync(companyId, next));
     }
+
+    /// <summary>Indica se a edição muda o preço de venda ou de custo já gravado.</summary>
+    internal static bool ChangesPrice(ProdutoAD current, ProdutoAD next)
+        => ParseDecimal(current.ProductSalePrice) != ParseDecimal(next.ProductSalePrice) ||
+           ParseDecimal(current.ProductUnitPrice) != ParseDecimal(next.ProductUnitPrice);
 
     public async Task<ProdutoModel?> AplicarPrecoDeCustoAsync(string companyId, string id)
     {

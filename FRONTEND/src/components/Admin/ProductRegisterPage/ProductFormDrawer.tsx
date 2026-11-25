@@ -47,6 +47,7 @@ import {
   formatIsoDateBr,
   getTodayIsoDate,
 } from "@/utils/productExpiration";
+import { canOverrideFixedPrice, getStoredUserRole } from "@/utils/roles";
 import { isValidCnpj, isValidEmail } from "@/utils/validators";
 
 export type ProductFormItem = {
@@ -622,6 +623,11 @@ export default function ProductFormDrawer({
   };
 
   const costValue = parseMoneyBr(value.productUnitPrice);
+  // Alterar preço de produto já cadastrado exige administrador ou gerente (a API recusa os demais perfis).
+  const pricesLocked = isEditMode && !canOverrideFixedPrice(getStoredUserRole());
+  const lockedPriceTitle = pricesLocked
+    ? "Somente administrador ou gerente pode alterar o preço de um produto cadastrado."
+    : undefined;
 
   return (
     <div className="dept-drawer-overlay" onClick={onClose}>
@@ -903,6 +909,8 @@ export default function ProductFormDrawer({
                 <input
                   ref={salePriceInputRef}
                   value={value.productSalePrice}
+                  readOnly={pricesLocked}
+                  title={lockedPriceTitle}
                   inputMode="numeric"
                   pattern="[0-9,.]*"
                   onBeforeInput={preventNonDigitBeforeInput}
@@ -938,6 +946,8 @@ export default function ProductFormDrawer({
                 <input
                   ref={unitPriceInputRef}
                   value={value.productUnitPrice}
+                  readOnly={pricesLocked}
+                  title={lockedPriceTitle}
                   inputMode="numeric"
                   pattern="[0-9,.]*"
                   onBeforeInput={preventNonDigitBeforeInput}
@@ -952,7 +962,11 @@ export default function ProductFormDrawer({
               </label>
             </div>
 
-            {costValue > 0 ? (
+            {pricesLocked ? (
+              <p className="mt-2 text-xs text-text-tertiary">
+                Preços bloqueados: somente administrador ou gerente pode alterar o preço de um produto cadastrado.
+              </p>
+            ) : costValue > 0 ? (
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-text-secondary">
                 <span>Aplicar margem ao preço de venda:</span>
                 {[30, 50, 80, 100].map((pct) => (
@@ -1111,7 +1125,7 @@ export default function ProductFormDrawer({
                     </p>
                   </div>
                 </div>
-                {costValue > 0 ? (
+                {costValue > 0 && !pricesLocked ? (
                   Math.abs(parseMoneyBr(value.productSalePrice) - costValue) >= 0.005 ? (
                     <button
                       type="button"

@@ -65,7 +65,7 @@ public class ProdutoController(
         if (currentUser is null) return Unauthorized(new ApiResponse<ProdutoModel> { Success = false, Message = "Sessão não encontrada." });
         try
         {
-            var updated = await produtoService.AtualizarAsync(currentUser.CompanyId, id, request);
+            var updated = await produtoService.AtualizarAsync(currentUser.CompanyId, id, request, currentUser.Role);
             if (updated is null)
             {
                 return NotFound(new ApiResponse<ProdutoModel> { Success = false, Message = "Produto não encontrado." });
@@ -78,6 +78,10 @@ public class ProdutoController(
                 Data = updated
             });
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ApiResponse<ProdutoModel> { Success = false, Message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new ApiResponse<ProdutoModel> { Success = false, Message = ex.Message });
@@ -85,6 +89,7 @@ public class ProdutoController(
     }
 
     [HttpPost("{id}/aplicar-preco-custo")]
+    [HorusAuthorizeRoles("administrador", "gerente")]
     [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<ProdutoModel>), StatusCodes.Status404NotFound)]

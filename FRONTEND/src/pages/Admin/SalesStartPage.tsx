@@ -1982,7 +1982,9 @@ export default function SalesStartPage({
                   const isExpired =
                     item.expirationStatus === "EXPIRED" || evaluation.status === "EXPIRED";
                   const cost = item.unitCost ?? 0;
-                  const canUpdateToCost = cost > 0 && Math.abs(item.salePrice - cost) >= 0.005;
+                  // Gravar o custo como preço de venda é alteração de cadastro: só administrador ou gerente.
+                  const canUpdateToCost =
+                    canOverridePrice && cost > 0 && Math.abs(item.salePrice - cost) >= 0.005;
 
                   return (
                     <div

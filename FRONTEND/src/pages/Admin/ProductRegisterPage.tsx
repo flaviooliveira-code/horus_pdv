@@ -35,6 +35,7 @@ import {
   evaluateProductExpiration,
   formatIsoDateBr,
 } from "@/utils/productExpiration";
+import { canOverrideFixedPrice, getStoredUserRole } from "@/utils/roles";
 import { formatQuantityPtBr } from "@/utils/scaleBarcode";
 
 const EMPTY_FORM: ProductFormData = {
@@ -117,6 +118,8 @@ export default function ProductRegisterPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
+  // Importação e "vender a preço de custo" alteram preços: restritos a administrador e gerente (como na API).
+  const canManagePrices = useMemo(() => canOverrideFixedPrice(getStoredUserRole()), []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -620,14 +623,16 @@ export default function ProductRegisterPage() {
         description="Cadastre produtos formais ou informais com busca automática por código de barras e agrupamento por categorias."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setImportDrawerOpen(true)}
-              className="btn-outline-secondary inline-flex items-center gap-2"
-            >
-              <FileSpreadsheet size={16} />
-              Importar Planilha
-            </button>
+            {canManagePrices ? (
+              <button
+                type="button"
+                onClick={() => setImportDrawerOpen(true)}
+                className="btn-outline-secondary inline-flex items-center gap-2"
+              >
+                <FileSpreadsheet size={16} />
+                Importar Planilha
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={openCreateDrawer}
@@ -667,7 +672,7 @@ export default function ProductRegisterPage() {
               >
                 Filtrar prestes a vencer ({expiringAlertProducts.length})
               </button>
-              {eligibleCostLiquidationProducts.length > 0 ? (
+              {canManagePrices && eligibleCostLiquidationProducts.length > 0 ? (
                 <LoadingButton
                   type="button"
                   onClick={handleApplyCostPriceAllExpiring}
@@ -822,7 +827,7 @@ export default function ProductRegisterPage() {
                 const costValue = parseMoneyBr(product.productUnitPrice);
                 const saleValue = parseMoneyBr(product.productSalePrice);
                 const canApplyCost =
-                  costValue > 0 && Math.abs(saleValue - costValue) >= 0.005;
+                  canManagePrices && costValue > 0 && Math.abs(saleValue - costValue) >= 0.005;
 
                 return (
                   <tr key={product.id} className="border-t border-border-primary">
