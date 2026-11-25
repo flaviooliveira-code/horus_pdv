@@ -1376,9 +1376,12 @@ export default function SalesStartPage({
             <aside className="shrink-0 border-b border-border-primary bg-bg-gray-theme p-3.5 text-text-primary lg:overflow-y-auto lg:border-b-0 lg:border-r">
               <div className="mb-2.5 space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="pdv-field-label text-xs font-semibold uppercase">
+                  <label
+                    htmlFor="pdv-product-search"
+                    className="pdv-field-label text-xs font-semibold uppercase"
+                  >
                     Produto:
-                  </span>
+                  </label>
                   {availableCategories.length > 0 ? (
                     <select
                       aria-label="Filtrar produtos por categoria"
@@ -1409,6 +1412,7 @@ export default function SalesStartPage({
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
                   />
                   <input
+                    id="pdv-product-search"
                     ref={productInputRef}
                     value={productSearch}
                     onChange={(event) => {
