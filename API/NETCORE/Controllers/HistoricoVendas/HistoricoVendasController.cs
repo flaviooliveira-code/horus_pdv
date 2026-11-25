@@ -48,7 +48,8 @@ public class HistoricoVendasController(HistoricoVendasAB historicoVendasAB, Horu
                 currentUser.CompanyId,
                 request,
                 currentUser.Id,
-                currentUser.Name);
+                currentUser.Name,
+                currentUser.Role);
             return StatusCode(StatusCodes.Status201Created, new ApiResponse<object>
             {
                 Success = true,

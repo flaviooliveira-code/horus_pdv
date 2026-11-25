@@ -124,6 +124,33 @@ public class CadastroFlexivelTests
     }
 
     [Fact]
+    public void HistoricoVendas_ResolveSaleLinePricing_OnlySupervisorsOverrideFixedPrice()
+    {
+        // Operador não pode vender produto com preço cadastrado por outro valor
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            HistoricoVendasAB.ResolveSaleLinePricing(10m, 1m, 1.00m, null, "Bolo", canOverrideFixedPrice: false));
+        Assert.Contains("administrador ou gerente", ex.Message);
+
+        // Mesmo preço do cadastro é aceito para qualquer perfil
+        var same = HistoricoVendasAB.ResolveSaleLinePricing(10m, 2m, 10m, null, "Bolo", canOverrideFixedPrice: false);
+        Assert.Equal(20m, same.FinalItemTotal);
+
+        // Administrador/gerente pode alterar
+        var supervisor = HistoricoVendasAB.ResolveSaleLinePricing(10m, 1m, 8.50m, null, "Bolo", canOverrideFixedPrice: true);
+        Assert.Equal(8.50m, supervisor.EffectiveUnitPrice);
+    }
+
+    [Theory]
+    [InlineData("administrador", true)]
+    [InlineData("Gerente", true)]
+    [InlineData("operador", false)]
+    [InlineData("financeiro", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void HistoricoVendas_CanOverrideFixedPrice_RequiresAdminOrManager(string? role, bool expected)
+        => Assert.Equal(expected, HistoricoVendasAB.CanOverrideFixedPrice(role));
+
+    [Fact]
     public void ProdutoService_GenerateInternalCode_IncrementsBeyondExistingCodes()
     {
         var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

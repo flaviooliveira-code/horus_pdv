@@ -66,6 +66,7 @@ import {
   setHighVisibilityEnabled,
   setScannerAutoFocusEnabled,
 } from "@/utils/pdvPreferences";
+import { canOverrideFixedPrice, getStoredUserRole } from "@/utils/roles";
 import { computeLineTotal, parseScaleBarcode, roundQuantity } from "@/utils/scaleBarcode";
 
 type SalesStartPageProps = {
@@ -273,6 +274,10 @@ export default function SalesStartPage({
     if (!Number.isFinite(parsed) || parsed <= 0) return 1;
     return roundQuantity(parsed) || 1;
   }, [quantityInput]);
+
+  // Operador só informa preço avulso em produto sem preço fixo; alterar preço cadastrado exige administrador ou gerente.
+  const canOverridePrice = useMemo(() => canOverrideFixedPrice(getStoredUserRole()), []);
+  const priceLocked = !canOverridePrice && Boolean(selectedProduct && selectedProduct.salePrice > 0);
 
   const parsedCustomUnitPrice = useMemo(() => {
     if (!unitPriceInput.trim()) return 0;
@@ -702,6 +707,14 @@ export default function SalesStartPage({
       const isCustomPrice =
         product.salePrice <= 0 || Math.abs(requestedPrice - product.salePrice) >= 0.005;
 
+      if (isCustomPrice && product.salePrice > 0 && !canOverridePrice) {
+        setUnitPriceInput("");
+        Toast.error(
+          `"${product.name}" tem preço cadastrado. Somente administrador ou gerente pode alterar o preço no caixa.`,
+        );
+        return false;
+      }
+
       // Linhas de etiqueta de balança têm total próprio; linhas com preço avulso agrupam apenas se o preço unitário for idêntico.
       const existing = cart.find(
         (item) =>
@@ -776,7 +789,7 @@ export default function SalesStartPage({
       }
       return true;
     },
-    [cart, finishProductEntry, formatMoneyBr],
+    [canOverridePrice, cart, finishProductEntry, formatMoneyBr],
   );
 
   /** Etiqueta EAN-13 de balança (prefixo 2): adiciona uma linha com peso e total da etiqueta. */
@@ -1551,6 +1564,13 @@ export default function SalesStartPage({
                     <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold normal-case text-amber-700 dark:text-amber-300">
                       Informe o preço avulso
                     </span>
+                  ) : priceLocked ? (
+                    <span
+                      id="pdv-price-locked-hint"
+                      className="rounded-full bg-bg-light px-2 py-0.5 text-[10px] font-bold normal-case text-text-secondary"
+                    >
+                      Preço cadastrado
+                    </span>
                   ) : selectedProduct &&
                     parsedCustomUnitPrice > 0 &&
                     Math.abs(parsedCustomUnitPrice - selectedProduct.salePrice) >= 0.005 ? (
@@ -1561,7 +1581,14 @@ export default function SalesStartPage({
                 </span>
                 <input
                   ref={unitPriceInputRef}
-                  value={unitPriceInput}
+                  value={priceLocked ? "" : unitPriceInput}
+                  readOnly={priceLocked}
+                  aria-describedby={priceLocked ? "pdv-price-locked-hint" : undefined}
+                  title={
+                    priceLocked
+                      ? "Somente administrador ou gerente pode alterar o preço de produto com preço cadastrado."
+                      : undefined
+                  }
                   inputMode="numeric"
                   pattern="[0-9,.]*"
                   onFocus={(event) => event.target.select()}
